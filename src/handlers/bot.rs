@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateBotRequest, BotResponse};
-use crate::utils::{generate_token, generate_bot_id, verify_token};
+use crate::models::{BotResponse, CreateBotRequest};
+use crate::utils::{generate_bot_id, generate_token, verify_token};
 
 /// Create a new bot for the authenticated user
 #[tracing::instrument(skip(pool))]
@@ -90,10 +90,7 @@ pub async fn create_bot(
 
 /// List all bots for the authenticated user
 #[tracing::instrument(skip(pool))]
-pub async fn list_bots(
-    pool: web::Data<DbPool>,
-    http_req: HttpRequest,
-) -> AppResult<HttpResponse> {
+pub async fn list_bots(pool: web::Data<DbPool>, http_req: HttpRequest) -> AppResult<HttpResponse> {
     // Extract bot token from Authorization header
     let token = http_req
         .headers()
@@ -216,11 +213,14 @@ pub async fn delete_bot(
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    tracing::info!("Bot deleted: {} by user {}", bot_id_to_delete, requester_bot.owner_id);
+    tracing::info!(
+        "Bot deleted: {} by user {}",
+        bot_id_to_delete,
+        requester_bot.owner_id
+    );
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Bot deleted successfully",
         "bot_id": bot_id_to_delete,
     })))
 }
-

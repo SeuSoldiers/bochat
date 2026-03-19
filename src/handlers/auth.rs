@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::RegisterRequest;
-use crate::utils::{generate_token, generate_user_id, generate_bot_id};
+use crate::utils::{generate_bot_id, generate_token, generate_user_id};
 
 // 验证身份证号码格式：只检查位数
 fn validate_id_number(id_number: &str) -> bool {
@@ -78,7 +78,11 @@ pub async fn register(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    tracing::info!("User registered: {} with ID number {}", user_id, req.id_number);
+    tracing::info!(
+        "User registered: {} with ID number {}",
+        user_id,
+        req.id_number
+    );
 
     Ok(HttpResponse::Created().json(json!({
         "user_id": user_id,

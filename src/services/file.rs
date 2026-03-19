@@ -1,6 +1,6 @@
-use sqlx::SqlitePool;
 use crate::error::AppResult;
 use crate::models::File;
+use sqlx::SqlitePool;
 
 pub struct FileService;
 

@@ -23,7 +23,11 @@ pub async fn upload_file(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let token_payload = verify_token(token, &config.security.jwt_secret, config.security.token_expiry_secs)?;
+    let token_payload = verify_token(
+        token,
+        &config.security.jwt_secret,
+        config.security.token_expiry_secs,
+    )?;
 
     // Get user from bot_id
     let _user_id: String = sqlx::query_scalar("SELECT owner_id FROM bots WHERE bot_id = ?")
@@ -60,14 +64,19 @@ pub async fn download_file(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let _token_payload = verify_token(token, &config.security.jwt_secret, config.security.token_expiry_secs)?;
+    let _token_payload = verify_token(
+        token,
+        &config.security.jwt_secret,
+        config.security.token_expiry_secs,
+    )?;
 
     // Verify file exists
-    let file_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = ?)")
-        .bind(file_id.as_str())
-        .fetch_one(pool.get_ref())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let file_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = ?)")
+            .bind(file_id.as_str())
+            .fetch_one(pool.get_ref())
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     if !file_exists {
         return Err(AppError::FileNotFound);

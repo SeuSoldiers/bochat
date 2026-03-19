@@ -59,7 +59,8 @@ impl Config {
         };
 
         let security = SecurityConfig {
-            jwt_secret: std::env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string()),
+            jwt_secret: std::env::var("JWT_SECRET")
+                .unwrap_or_else(|_| "your-secret-key".to_string()),
             token_expiry_secs: std::env::var("TOKEN_EXPIRY_SECS")
                 .ok()
                 .and_then(|t| t.parse().ok())

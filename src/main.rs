@@ -55,14 +55,38 @@ async fn main() -> std::io::Result<()> {
             // Auth endpoints
             .route("/api/v1/auth/register", web::post().to(handlers::register))
             // User endpoints
-            .route("/api/v1/users/delete", web::delete().to(handlers::delete_user))
-            // Bot endpoints
-            .route("/api/v1/bots", web::post().to(handlers::create_bot))
-            .route("/api/v1/bots", web::get().to(handlers::list_bots))
-            .route("/api/v1/bots/{bot_id}", web::get().to(handlers::get_bot))
-            .route("/api/v1/bots/{bot_id}", web::delete().to(handlers::delete_bot))
+            .route(
+                "/api/v1/users/delete",
+                web::delete().to(handlers::delete_user),
+            )
+            // Group endpoints
+            .route("/api/v1/groups", web::post().to(handlers::create_group))
+            .route("/api/v1/groups", web::get().to(handlers::list_user_groups))
+            .route(
+                "/api/v1/groups/{group_id}",
+                web::get().to(handlers::get_group),
+            )
+            .route(
+                "/api/v1/groups/{group_id}",
+                web::delete().to(handlers::delete_group),
+            )
+            .route(
+                "/api/v1/groups/{group_id}/join",
+                web::post().to(handlers::join_group),
+            )
+            .route(
+                "/api/v1/groups/{group_id}/leave",
+                web::delete().to(handlers::leave_group),
+            )
+            .route(
+                "/api/v1/groups/{group_id}/members",
+                web::get().to(handlers::list_group_members),
+            )
             // Message endpoints
-            .route("/api/v1/message/send", web::post().to(handlers::send_message))
+            .route(
+                "/api/v1/message/send",
+                web::post().to(handlers::send_message),
+            )
             // File endpoints
             .route("/api/v1/file/upload", web::post().to(handlers::upload_file))
             .route(
@@ -77,4 +101,3 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
-

@@ -1,6 +1,6 @@
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use crate::config::DatabaseConfig;
 use crate::error::AppResult;
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
 pub type DbPool = SqlitePool;
 

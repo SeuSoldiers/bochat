@@ -20,7 +20,7 @@ pub async fn send_message(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    // Parse token to get bot_id without verification yet
+    // Parse token to get bot_id
     let parts: Vec<&str> = token.split(':').collect();
     if parts.len() != 3 {
         return Err(AppError::InvalidToken);
@@ -44,15 +44,30 @@ pub async fn send_message(
         return Err(AppError::BadRequest("Sender bot is not active".to_string()));
     }
 
-    // Validate recipient bot exists
-    let recipient_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bots WHERE bot_id = ?)")
-        .bind(&msg_req.to_id)
-        .fetch_one(pool.get_ref())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    // Verify group exists
+    let group_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE group_id = ?)")
+            .bind(&msg_req.group_id)
+            .fetch_one(pool.get_ref())
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    if !recipient_exists {
-        return Err(AppError::BadRequest("Recipient bot not found".to_string()));
+    if !group_exists {
+        return Err(AppError::BadRequest("Group not found".to_string()));
+    }
+
+    // Verify bot is a member of the group
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)",
+    )
+    .bind(&msg_req.group_id)
+    .bind(bot_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    if !is_member {
+        return Err(AppError::BotPermissionDenied);
     }
 
     let msg_type = msg_req.msg_type.as_deref().unwrap_or("text");
@@ -62,13 +77,13 @@ pub async fn send_message(
     // Insert message into database
     let msg_id: i64 = sqlx::query_scalar::<_, i64>(
         r#"
-        INSERT INTO messages (sender_id, to_id, content, msg_type, created_at)
+        INSERT INTO messages (group_id, sender_id, content, msg_type, created_at)
         VALUES (?, ?, ?, ?, ?)
         RETURNING msg_id
         "#,
     )
+    .bind(&msg_req.group_id)
     .bind(bot_id)
-    .bind(&msg_req.to_id)
     .bind(&content)
     .bind(msg_type)
     .bind(&now)
@@ -76,15 +91,19 @@ pub async fn send_message(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    tracing::info!("Message sent: {} from {} to {}", msg_id, bot_id, msg_req.to_id);
+    tracing::info!(
+        "Message sent: {} in group {} from {}",
+        msg_id,
+        msg_req.group_id,
+        bot_id
+    );
 
     Ok(HttpResponse::Created().json(json!({
         "msg_id": msg_id,
+        "group_id": msg_req.group_id,
         "sender_id": bot_id,
-        "to_id": msg_req.to_id,
         "content": msg_req.content,
         "msg_type": msg_type,
         "created_at": now,
     })))
 }
-

@@ -31,7 +31,7 @@ pub struct Bot {
     pub name: String,
     pub description: Option<String>,
     pub status: String, // active / inactive
-    pub token: String, // Bot令牌，用于API认证
+    pub token: String,  // Bot令牌，用于API认证
     #[serde(skip)]
     pub secret: String, // Bot密钥，用于令牌签名
     pub created_at: String,

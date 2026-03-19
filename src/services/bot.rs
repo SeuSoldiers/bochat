@@ -1,13 +1,13 @@
-use sqlx::SqlitePool;
 use crate::error::AppResult;
 use crate::models::Bot;
+use sqlx::SqlitePool;
 
 pub struct BotService;
 
 impl BotService {
     pub async fn get_bot_by_id(pool: &SqlitePool, bot_id: &str) -> AppResult<Bot> {
         sqlx::query_as::<_, Bot>(
-            "SELECT bot_id, bot_type, owner_id, name, token, created_at FROM bots WHERE bot_id = ?"
+            "SELECT bot_id, bot_type, owner_id, name, token, created_at FROM bots WHERE bot_id = ?",
         )
         .bind(bot_id)
         .fetch_optional(pool)

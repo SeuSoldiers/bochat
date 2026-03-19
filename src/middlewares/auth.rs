@@ -47,8 +47,6 @@ where
         // In production, you would extract and validate the token here
         let service = self.service.clone();
 
-        Box::pin(async move {
-            service.call(req).await
-        })
+        Box::pin(async move { service.call(req).await })
     }
 }

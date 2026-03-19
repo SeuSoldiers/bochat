@@ -1,8 +1,8 @@
+use crate::error::{AppError, AppResult};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
 use serde::{Deserialize, Serialize};
-use crate::error::{AppError, AppResult};
+use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
 

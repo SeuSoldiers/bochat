@@ -28,8 +28,8 @@ impl MessageType {
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Message {
     pub msg_id: i64,
-    pub sender_id: String,
-    pub to_id: String,
+    pub group_id: String,  // 群聊ID
+    pub sender_id: String, // 发送者Bot ID
     pub content: String,
     pub msg_type: String,
     pub created_at: String,
@@ -43,7 +43,7 @@ impl Message {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateMessageRequest {
-    pub to_id: String,
+    pub group_id: String, // 群聊ID
     pub content: Value,
     pub msg_type: Option<String>,
 }
@@ -51,8 +51,8 @@ pub struct CreateMessageRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MessageResponse {
     pub msg_id: i64,
+    pub group_id: String,
     pub sender_id: String,
-    pub to_id: String,
     pub content: Value,
     pub msg_type: String,
     pub created_at: String,
@@ -66,8 +66,8 @@ impl From<Message> for MessageResponse {
 
         MessageResponse {
             msg_id: msg.msg_id,
+            group_id: msg.group_id,
             sender_id: msg.sender_id,
-            to_id: msg.to_id,
             content,
             msg_type: msg.msg_type,
             created_at: msg.created_at,

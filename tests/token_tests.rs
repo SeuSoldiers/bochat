@@ -43,4 +43,3 @@ fn test_token_format() {
     // Last part should be hex string (signature)
     assert!(parts[2].chars().all(|c| c.is_ascii_hexdigit()));
 }
-

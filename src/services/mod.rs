@@ -1,7 +1,7 @@
 pub mod bot;
-pub mod message;
 pub mod file;
+pub mod message;
 
 pub use bot::BotService;
-pub use message::MessageService;
 pub use file::FileService;
+pub use message::MessageService;
