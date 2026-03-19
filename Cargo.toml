@@ -1,0 +1,57 @@
+[package]
+name = "chat_platform"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web Framework
+actix-web = "4"
+actix-rt = "2"
+actix-web-actors = "4"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
+rusqlite = { version = "0.30", features = ["bundled"] }
+
+# WebSocket
+tokio-tungstenite = "0.21"
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Cryptography
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+
+# Environment
+dotenv = "0.15"
+config = "0.13"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Redis for caching
+redis = { version = "0.24", features = ["aio", "tokio-comp"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Middleware
+actix-http = "3"
+
+[dev-dependencies]
+tokio-test = "0.4"
