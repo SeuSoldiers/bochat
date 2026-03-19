@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Chat Platform Test Script - New Architecture with User + Bot Management
+聊天平台测试脚本 - 新架构与用户+Bot管理
 
-This script demonstrates the new authentication system:
-- Users register with ID number (real-name authentication)
-- Users can create and manage multiple bots
-- Only bots can send messages via API
+本脚本演示新的身份认证系统：
+- 用户使用身份证号注册（实名认证）
+- 用户可以创建和管理多个Bot
+- 只有Bot才能通过API发送消息
 """
 
 import requests
@@ -23,7 +23,7 @@ class ChatPlatformTester:
     def _make_request(
         self, method: str, endpoint: str, data: Optional[Dict] = None, token: Optional[str] = None
     ) -> requests.Response:
-        """Make HTTP request with proper error handling."""
+        """发送HTTP请求并处理错误。"""
         url = f"{self.base_url}{endpoint}"
         headers = {"Content-Type": "application/json"}
 
@@ -36,18 +36,18 @@ class ChatPlatformTester:
             elif method == "POST":
                 response = self.session.post(url, json=data, headers=headers)
             else:
-                raise ValueError(f"Unsupported method: {method}")
+                raise ValueError(f"不支持的方法: {method}")
 
             return response
         except requests.exceptions.ConnectionError:
-            print("❌ Error: Cannot connect to server. Is it running on port 8080?")
+            print("❌ 错误：无法连接到服务器。服务器是否在8080端口上运行？")
             sys.exit(1)
         except Exception as e:
-            print(f"❌ Request error: {e}")
+            print(f"❌ 请求错误: {e}")
             sys.exit(1)
 
     def health_check(self) -> bool:
-        """Check if server is running."""
+        """检查服务器是否运行。"""
         try:
             response = self._make_request("GET", "/health")
             return response.status_code == 200
@@ -55,9 +55,9 @@ class ChatPlatformTester:
             return False
 
     def register_user(self, name: str, id_number: str, phone: str) -> bool:
-        """Register a new user with ID number authentication."""
-        print(f"\n📝 Registering user: {name}")
-        print(f"   ID Number: {id_number}")
+        """使用身份证号注册新用户。"""
+        print(f"\n📝 正在注册用户: {name}")
+        print(f"   身份证号: {id_number}")
 
         data = {
             "name": name,
@@ -73,7 +73,7 @@ class ChatPlatformTester:
             bot_id = result["bot_id"]
             bot_token = result["bot_token"]
 
-            # Store user and bot info
+            # 存储用户和Bot信息
             self.users[name] = {
                 "user_id": user_id,
                 "id_number": id_number,
@@ -84,41 +84,41 @@ class ChatPlatformTester:
                 "bot_id": bot_id,
                 "owner": name,
                 "token": bot_token,
-                "name": f"{name}'s default bot",
+                "name": f"{name}的默认Bot",
                 "status": "active"
             }
 
-            print(f"✅ User registered successfully!")
-            print(f"   User ID: {user_id}")
-            print(f"   Default Bot ID: {bot_id}")
+            print(f"✅ 用户注册成功！")
+            print(f"   用户ID: {user_id}")
+            print(f"   默认Bot ID: {bot_id}")
             return True
         else:
-            error_msg = response.json().get("error", "Unknown error")
-            print(f"❌ Registration failed: {error_msg}")
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 注册失败: {error_msg}")
             if response.status_code == 409:
-                print("   ℹ️  This ID number is already registered")
+                print("   ℹ️  此身份证号已被注册")
             return False
 
     def create_bot(self, user_name: str, bot_name: str, description: Optional[str] = None) -> Optional[str]:
-        """Create a new bot for a user."""
-        print(f"\n🤖 Creating bot for {user_name}")
-        print(f"   Bot name: {bot_name}")
+        """为用户创建新Bot。"""
+        print(f"\n🤖 为 {user_name} 创建Bot")
+        print(f"   Bot名称: {bot_name}")
 
         if user_name not in self.users:
-            print(f"❌ User {user_name} not found")
+            print(f"❌ 用户 {user_name} 未找到")
             return None
 
-        # Get the user's default bot token
+        # 获取用户的默认Bot令牌
         user_bots = [b for b in self.bots.values() if b["owner"] == user_name]
         if not user_bots:
-            print(f"❌ No bot found for user {user_name}")
+            print(f"❌ 没有找到用户 {user_name} 的Bot")
             return None
 
         user_bot_token = user_bots[0]["token"]
 
         data = {
             "name": bot_name,
-            "description": description or f"Created by {user_name}"
+            "description": description or f"由 {user_name} 创建"
         }
 
         response = self._make_request("POST", "/api/v1/bots", data, user_bot_token)
@@ -136,26 +136,26 @@ class ChatPlatformTester:
                 "status": result["status"]
             }
 
-            print(f"✅ Bot created successfully!")
+            print(f"✅ Bot创建成功！")
             print(f"   Bot ID: {bot_id}")
             return bot_id
         else:
-            error_msg = response.json().get("error", "Unknown error")
-            print(f"❌ Bot creation failed: {error_msg}")
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ Bot创建失败: {error_msg}")
             return None
 
     def list_user_bots(self, user_name: str) -> bool:
-        """List all bots for a user."""
-        print(f"\n📋 Listing bots for {user_name}")
+        """列出用户的所有Bot。"""
+        print(f"\n📋 列出 {user_name} 的Bot")
 
         if user_name not in self.users:
-            print(f"❌ User {user_name} not found")
+            print(f"❌ 用户 {user_name} 未找到")
             return False
 
-        # Get the user's default bot token
+        # 获取用户的默认Bot令牌
         user_bots = [b for b in self.bots.values() if b["owner"] == user_name]
         if not user_bots:
-            print(f"❌ No bot found for user {user_name}")
+            print(f"❌ 没有找到用户 {user_name} 的Bot")
             return False
 
         user_bot_token = user_bots[0]["token"]
@@ -166,36 +166,36 @@ class ChatPlatformTester:
             result = response.json()
             bots = result.get("bots", [])
 
-            print(f"✅ Found {len(bots)} bot(s):")
+            print(f"✅ 找到 {len(bots)} 个Bot：")
             for bot in bots:
                 print(f"   - {bot['name']} ({bot['bot_id']})")
-                print(f"     Status: {bot['status']}")
+                print(f"     状态: {bot['status']}")
                 if bot.get('description'):
-                    print(f"     Description: {bot['description']}")
+                    print(f"     描述: {bot['description']}")
             return True
         else:
-            error_msg = response.json().get("error", "Unknown error")
-            print(f"❌ Failed to list bots: {error_msg}")
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 获取Bot列表失败: {error_msg}")
             return False
 
     def send_message(self, from_user: str, to_user: str, content: str, from_bot_idx: int = 0, to_bot_idx: int = 0) -> bool:
-        """Send a message from one user's bot to another user's bot."""
-        print(f"\n💬 Sending message from {from_user} to {to_user}")
-        print(f"   Content: {content}")
+        """从一个用户的Bot向另一个用户的Bot发送消息。"""
+        print(f"\n💬 从 {from_user} 向 {to_user} 发送消息")
+        print(f"   内容: {content}")
 
-        # Get sender's bot
+        # 获取发送者的Bot
         from_user_bots = [b for b in self.bots.values() if b["owner"] == from_user]
         if not from_user_bots or len(from_user_bots) <= from_bot_idx:
-            print(f"❌ Bot not found for user {from_user}")
+            print(f"❌ 未找到用户 {from_user} 的Bot")
             return False
 
         sender_bot = from_user_bots[from_bot_idx]
         sender_token = sender_bot["token"]
 
-        # Get recipient's bot
+        # 获取接收者的Bot
         to_user_bots = [b for b in self.bots.values() if b["owner"] == to_user]
         if not to_user_bots or len(to_user_bots) <= to_bot_idx:
-            print(f"❌ Bot not found for user {to_user}")
+            print(f"❌ 未找到用户 {to_user} 的Bot")
             return False
 
         recipient_bot = to_user_bots[to_bot_idx]
@@ -212,35 +212,35 @@ class ChatPlatformTester:
         if response.status_code == 201:
             result = response.json()
             msg_id = result["msg_id"]
-            print(f"✅ Message sent successfully! (ID: {msg_id})")
-            print(f"   From: {sender_bot['name']} ({sender_bot['bot_id']})")
-            print(f"   To: {recipient_bot['name']} ({recipient_bot_id})")
+            print(f"✅ 消息发送成功！(ID: {msg_id})")
+            print(f"   从: {sender_bot['name']} ({sender_bot['bot_id']})")
+            print(f"   至: {recipient_bot['name']} ({recipient_bot_id})")
             return True
         else:
-            error_msg = response.json().get("error", "Unknown error")
-            print(f"❌ Failed to send message: {error_msg}")
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 消息发送失败: {error_msg}")
             return False
 
 
 def main():
-    """Run the test scenarios."""
+    """运行测试场景。"""
     print("=" * 60)
-    print("🚀 Chat Platform Test - New Architecture")
+    print("🚀 聊天平台测试 - 新架构")
     print("=" * 60)
 
-    # Initialize tester
+    # 初始化测试器
     tester = ChatPlatformTester()
 
-    # Check server health
-    print("\n🔍 Checking server health...")
+    # 检查服务器健康状态
+    print("\n🔍 检查服务器状态...")
     if not tester.health_check():
-        print("❌ Server is not responding. Please start it with 'cargo run --release'")
+        print("❌ 服务器没有响应。请使用 'cargo run --release' 启动它")
         sys.exit(1)
-    print("✅ Server is running!")
+    print("✅ 服务器运行中！")
 
-    # Test scenario 1: Register two users
+    # 测试场景1: 注册两个用户
     print("\n" + "=" * 60)
-    print("Scenario 1: User Registration with ID Number Authentication")
+    print("场景1: 使用身份证号进行用户注册认证")
     print("=" * 60)
 
     user_a_success = tester.register_user(
@@ -256,68 +256,68 @@ def main():
     )
 
     if not (user_a_success and user_b_success):
-        print("❌ User registration failed")
+        print("❌ 用户注册失败")
         sys.exit(1)
 
-    # Test scenario 2: List bots for each user
+    # 测试场景2: 列出每个用户的Bot
     print("\n" + "=" * 60)
-    print("Scenario 2: List Bots for Users")
+    print("场景2: 列出用户的Bot")
     print("=" * 60)
 
     tester.list_user_bots("Alice")
     tester.list_user_bots("Bob")
 
-    # Test scenario 3: Create additional bots
+    # 测试场景3: 创建额外的Bot
     print("\n" + "=" * 60)
-    print("Scenario 3: Create Additional Bots")
+    print("场景3: 创建额外的Bot")
     print("=" * 60)
 
     alice_customer_service = tester.create_bot(
         "Alice",
-        "Alice Customer Service Bot",
-        "Handles customer inquiries for Alice"
+        "Alice客服Bot",
+        "处理Alice的客户咨询"
     )
 
     bob_support_bot = tester.create_bot(
         "Bob",
-        "Bob Support Bot",
-        "Technical support bot for Bob"
+        "Bob支持Bot",
+        "Bob的技术支持机器人"
     )
 
-    # Test scenario 4: Message exchange between users
+    # 测试场景4: 用户之间的消息交换
     print("\n" + "=" * 60)
-    print("Scenario 4: Message Exchange Between Users")
+    print("场景4: 用户之间的消息交换")
     print("=" * 60)
 
-    print("\nPhase 1: Using default bots")
-    tester.send_message("Alice", "Bob", "Hi Bob! This is Alice's default bot.")
-    tester.send_message("Bob", "Alice", "Hello Alice! This is Bob's default bot.")
+    print("\n第1阶段: 使用默认Bot")
+    tester.send_message("Alice", "Bob", "你好Bob！这是来自Alice的默认Bot的消息。")
+    tester.send_message("Bob", "Alice", "你好Alice！这是来自Bob的默认Bot的消息。")
 
     if alice_customer_service and bob_support_bot:
-        print("\nPhase 2: Using custom bots")
-        tester.send_message("Alice", "Bob", "This is from Alice's customer service bot", 1, 0)
-        tester.send_message("Bob", "Alice", "This is from Bob's support bot", 1, 0)
+        print("\n第2阶段: 使用自定义Bot")
+        tester.send_message("Alice", "Bob", "这是来自Alice的客服Bot的消息", 1, 0)
+        tester.send_message("Bob", "Alice", "这是来自Bob的支持Bot的消息", 1, 0)
 
-    # Print summary
+    # 打印总结
     print("\n" + "=" * 60)
-    print("📊 Test Summary")
+    print("📊 测试总结")
     print("=" * 60)
 
-    print("\n✅ Registered Users:")
+    print("\n✅ 已注册的用户:")
     for name, user_info in tester.users.items():
         print(f"  • {name}")
-        print(f"    - User ID: {user_info['user_id']}")
-        print(f"    - ID Number: {user_info['id_number']}")
+        print(f"    - 用户ID: {user_info['user_id']}")
+        print(f"    - 身份证号: {user_info['id_number']}")
 
-    print("\n✅ Bots:")
+    print("\n✅ Bot列表:")
     for bot_id, bot_info in tester.bots.items():
         print(f"  • {bot_info['name']}")
         print(f"    - Bot ID: {bot_id}")
-        print(f"    - Owner: {bot_info['owner']}")
-        print(f"    - Status: {bot_info['status']}")
+        print(f"    - 所有者: {bot_info['owner']}")
+        print(f"    - 状态: {bot_info['status']}")
 
     print("\n" + "=" * 60)
-    print("✨ All tests completed successfully!")
+    print("✨ 所有测试完成成功！")
     print("=" * 60)
 
 
