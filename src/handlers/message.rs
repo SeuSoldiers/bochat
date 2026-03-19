@@ -13,7 +13,7 @@ pub async fn send_message(
     msg_req: web::Json<CreateMessageRequest>,
 ) -> AppResult<HttpResponse> {
     tracing::info!("=== 开始处理消息发送请求 ===");
-    tracing::debug!("目标群聊: {}, 消息内容长度: {}", msg_req.group_id, msg_req.content.len());
+    tracing::debug!("目标群聊: {}, 消息内容: {}", msg_req.group_id, msg_req.content);
 
     // 从 Authorization 头提取 Bearer token
     let token = http_req
@@ -146,7 +146,7 @@ pub async fn send_message(
     Ok(HttpResponse::Created().json(json!({
         "msg_id": msg_id,
         "group_id": msg_req.group_id,
-        "sender_id": bot_id,
+        "sender_id": sender_bot_id,
         "content": msg_req.content,
         "msg_type": msg_type,
         "created_at": now,

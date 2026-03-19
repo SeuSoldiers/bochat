@@ -7,15 +7,6 @@ use crate::error::{AppError, AppResult};
 use crate::models::{BotResponse, CreateBotRequest};
 use crate::utils::{generate_bot_id, generate_token, verify_token};
 
-use actix_web::{web, HttpRequest, HttpResponse};
-use serde_json::json;
-use uuid::Uuid;
-
-use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
-use crate::models::{BotResponse, CreateBotRequest};
-use crate::utils::{generate_bot_id, generate_token, verify_token};
-
 /// 为已认证的用户创建新 Bot
 ///
 /// 流程:
