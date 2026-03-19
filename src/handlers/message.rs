@@ -6,14 +6,13 @@ use crate::error::{AppError, AppResult};
 use crate::models::CreateMessageRequest;
 use crate::utils::verify_token;
 
-#[tracing::instrument(skip(pool, config, msg_req))]
+#[tracing::instrument(skip(pool, msg_req))]
 pub async fn send_message(
     pool: web::Data<DbPool>,
-    config: web::Data<crate::config::Config>,
     http_req: HttpRequest,
     msg_req: web::Json<CreateMessageRequest>,
 ) -> AppResult<HttpResponse> {
-    // Extract and verify token from Authorization header
+    // Extract token from Authorization header
     let token = http_req
         .headers()
         .get("Authorization")
@@ -21,17 +20,25 @@ pub async fn send_message(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let token_payload = verify_token(token, &config.security.jwt_secret, config.security.token_expiry_secs)?;
+    // Parse token to get bot_id without verification yet
+    let parts: Vec<&str> = token.split(':').collect();
+    if parts.len() != 3 {
+        return Err(AppError::InvalidToken);
+    }
+    let bot_id = parts[0];
 
-    // Verify sender bot exists and is active
+    // Get sender bot and verify token using its secret
     let sender_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
-    .bind(&token_payload.bot_id)
+    .bind(bot_id)
     .fetch_optional(pool.get_ref())
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
+
+    // Verify token using the bot's secret
+    let _token_payload = verify_token(token, &sender_bot.secret, 86400)?;
 
     if sender_bot.status != "active" {
         return Err(AppError::BadRequest("Sender bot is not active".to_string()));
@@ -60,7 +67,7 @@ pub async fn send_message(
         RETURNING msg_id
         "#,
     )
-    .bind(&token_payload.bot_id)
+    .bind(bot_id)
     .bind(&msg_req.to_id)
     .bind(&content)
     .bind(msg_type)
@@ -69,11 +76,11 @@ pub async fn send_message(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    tracing::info!("Message sent: {} from {} to {}", msg_id, token_payload.bot_id, msg_req.to_id);
+    tracing::info!("Message sent: {} from {} to {}", msg_id, bot_id, msg_req.to_id);
 
     Ok(HttpResponse::Created().json(json!({
         "msg_id": msg_id,
-        "sender_id": token_payload.bot_id,
+        "sender_id": bot_id,
         "to_id": msg_req.to_id,
         "content": msg_req.content,
         "msg_type": msg_type,

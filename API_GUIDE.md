@@ -259,3 +259,82 @@ curl -X POST http://localhost:8080/api/v1/message/send \
 - **404 Not Found**: 请求的资源不存在
 - **409 Conflict**: 资源冲突（如ID号重复）
 - **500 Internal Server Error**: 服务器内部错误
+
+## Bot管理接口扩展
+
+### 3. 获取Bot详情
+
+**请求：**
+```bash
+curl http://localhost:8080/api/v1/bots/{bot_id}
+```
+
+**响应（200 OK）：**
+```json
+{
+  "bot_id": "b_550e8400-e29b-41d4-a716-446655440002",
+  "owner_id": "u_550e8400-e29b-41d4-a716-446655440000",
+  "name": "我的客服Bot",
+  "description": "用于处理客户服务的机器人",
+  "status": "active",
+  "token": "b_550e8400-e29b-41d4-a716-446655440002:1637000000:signature...",
+  "created_at": "2024-01-01T13:00:00Z",
+  "updated_at": "2024-01-01T13:00:00Z"
+}
+```
+
+### 4. 删除Bot
+
+只有Bot的所有者可以删除Bot。
+
+**请求：**
+```bash
+curl -X DELETE http://localhost:8080/api/v1/bots/{bot_id} \
+  -H "Authorization: Bearer {bot_token}"
+```
+
+**响应（200 OK）：**
+```json
+{
+  "message": "Bot deleted successfully",
+  "bot_id": "b_550e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+## 用户管理接口
+
+### 删除用户账户
+
+删除用户账户将同时删除该用户的所有Bot。**此操作不可逆**。
+
+**请求：**
+```bash
+curl -X DELETE http://localhost:8080/api/v1/users/delete \
+  -H "Authorization: Bearer {bot_token}"
+```
+
+**响应（200 OK）：**
+```json
+{
+  "message": "用户账户已删除",
+  "user_id": "u_550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**注意：**
+- 此操作删除用户及其所有Bot
+- 与该用户Bot相关的所有消息历史将保留
+- 无法恢复已删除的账户
+
+## API端点速查
+
+| 功能 | HTTP方法 | 端点 | 认证 |
+|-----|---------|------|------|
+| 注册用户 | POST | `/api/v1/auth/register` | ❌ |
+| 创建Bot | POST | `/api/v1/bots` | ✅ |
+| 列出用户Bot | GET | `/api/v1/bots` | ✅ |
+| 获取Bot详情 | GET | `/api/v1/bots/{bot_id}` | ❌ |
+| 删除Bot | DELETE | `/api/v1/bots/{bot_id}` | ✅ |
+| 发送消息 | POST | `/api/v1/message/send` | ✅ |
+| 删除用户账户 | DELETE | `/api/v1/users/delete` | ✅ |
+

@@ -71,9 +71,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             to_id TEXT NOT NULL,
             content TEXT NOT NULL,
             msg_type TEXT DEFAULT 'text',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (sender_id) REFERENCES bots(bot_id),
-            FOREIGN KEY (to_id) REFERENCES bots(bot_id)
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         "#,
     )

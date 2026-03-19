@@ -35,6 +35,8 @@ class ChatPlatformTester:
                 response = self.session.get(url, headers=headers)
             elif method == "POST":
                 response = self.session.post(url, json=data, headers=headers)
+            elif method == "DELETE":
+                response = self.session.delete(url, headers=headers)
             else:
                 raise ValueError(f"不支持的方法: {method}")
 
@@ -221,6 +223,73 @@ class ChatPlatformTester:
             print(f"❌ 消息发送失败: {error_msg}")
             return False
 
+    def delete_bot(self, user_name: str, bot_idx: int = 0) -> bool:
+        """删除用户的Bot。"""
+        if user_name not in self.users:
+            print(f"❌ 用户 {user_name} 未找到")
+            return False
+
+        user_bots = [b for b in self.bots.values() if b["owner"] == user_name]
+        if not user_bots or len(user_bots) <= bot_idx:
+            print(f"❌ 未找到用户 {user_name} 的Bot")
+            return False
+
+        bot_to_delete = user_bots[bot_idx]
+        bot_token = user_bots[0]["token"]  # Use first bot's token to authenticate
+
+        print(f"\n🗑️  删除Bot: {bot_to_delete['name']}")
+
+        response = self._make_request(
+            "DELETE",
+            f"/api/v1/bots/{bot_to_delete['bot_id']}",
+            token=bot_token
+        )
+
+        if response.status_code == 200:
+            print(f"✅ Bot删除成功！")
+            # Remove from local storage
+            del self.bots[bot_to_delete['bot_id']]
+            return True
+        else:
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ Bot删除失败: {error_msg}")
+            return False
+
+    def delete_user(self, user_name: str) -> bool:
+        """删除用户账户。"""
+        if user_name not in self.users:
+            print(f"❌ 用户 {user_name} 未找到")
+            return False
+
+        user_bots = [b for b in self.bots.values() if b["owner"] == user_name]
+        if not user_bots:
+            print(f"❌ 没有找到用户 {user_name} 的Bot")
+            return False
+
+        user_bot_token = user_bots[0]["token"]
+
+        print(f"\n⚠️  删除用户账户: {user_name}")
+        print(f"   警告：此操作不可逆，将删除该用户和所有Bot")
+
+        response = self._make_request(
+            "DELETE",
+            "/api/v1/users/delete",
+            token=user_bot_token
+        )
+
+        if response.status_code == 200:
+            print(f"✅ 用户账户删除成功！")
+            # Remove from local storage
+            del self.users[user_name]
+            for bot_id in list(self.bots.keys()):
+                if self.bots[bot_id]["owner"] == user_name:
+                    del self.bots[bot_id]
+            return True
+        else:
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 用户账户删除失败: {error_msg}")
+            return False
+
 
 def main():
     """运行测试场景。"""
@@ -297,6 +366,14 @@ def main():
         print("\n第2阶段: 使用自定义Bot")
         tester.send_message("Alice", "Bob", "这是来自Alice的客服Bot的消息", 1, 0)
         tester.send_message("Bob", "Alice", "这是来自Bob的支持Bot的消息", 1, 0)
+
+    # 测试场景5: 删除Bot
+    print("\n" + "=" * 60)
+    print("场景5: 删除Bot")
+    print("=" * 60)
+
+    if alice_customer_service:
+        tester.delete_bot("Alice", 1)
 
     # 打印总结
     print("\n" + "=" * 60)
