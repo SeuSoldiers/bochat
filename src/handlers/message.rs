@@ -23,7 +23,21 @@ pub async fn send_message(
 
     let token_payload = verify_token(token, &config.security.jwt_secret, config.security.token_expiry_secs)?;
 
-    // Validate recipient exists
+    // Verify sender bot exists and is active
+    let sender_bot: crate::models::Bot = sqlx::query_as(
+        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+    )
+    .bind(&token_payload.bot_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    .ok_or(AppError::BotNotFound)?;
+
+    if sender_bot.status != "active" {
+        return Err(AppError::BadRequest("Sender bot is not active".to_string()));
+    }
+
+    // Validate recipient bot exists
     let recipient_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bots WHERE bot_id = ?)")
         .bind(&msg_req.to_id)
         .fetch_one(pool.get_ref())
@@ -66,3 +80,4 @@ pub async fn send_message(
         "created_at": now,
     })))
 }
+

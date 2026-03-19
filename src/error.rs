@@ -13,8 +13,8 @@ pub enum AppError {
     #[error("Bot not found")]
     BotNotFound,
 
-    #[error("Invalid credentials")]
-    InvalidCredentials,
+    #[error("Invalid ID number")]
+    InvalidIdNumber,
 
     #[error("Unauthorized")]
     Unauthorized,
@@ -22,11 +22,8 @@ pub enum AppError {
     #[error("Token invalid or expired")]
     InvalidToken,
 
-    #[error("Username already exists")]
-    UsernameConflict,
-
-    #[error("Email already exists")]
-    EmailConflict,
+    #[error("ID number already exists")]
+    IdNumberConflict,
 
     #[error("Message not found")]
     MessageNotFound,
@@ -51,6 +48,9 @@ pub enum AppError {
 
     #[error("Redis error: {0}")]
     RedisError(String),
+
+    #[error("Bot permission denied")]
+    BotPermissionDenied,
 }
 
 impl ResponseError for AppError {
@@ -60,9 +60,9 @@ impl ResponseError for AppError {
             | AppError::BotNotFound
             | AppError::MessageNotFound
             | AppError::FileNotFound => StatusCode::NOT_FOUND,
-            AppError::InvalidCredentials | AppError::InvalidToken => StatusCode::UNAUTHORIZED,
-            AppError::Unauthorized => StatusCode::FORBIDDEN,
-            AppError::UsernameConflict | AppError::EmailConflict => StatusCode::CONFLICT,
+            AppError::InvalidIdNumber | AppError::InvalidToken => StatusCode::BAD_REQUEST,
+            AppError::Unauthorized | AppError::BotPermissionDenied => StatusCode::FORBIDDEN,
+            AppError::IdNumberConflict => StatusCode::CONFLICT,
             AppError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             AppError::BadRequest(_) | AppError::InvalidFileFormat => StatusCode::BAD_REQUEST,
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,

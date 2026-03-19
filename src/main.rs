@@ -54,7 +54,10 @@ async fn main() -> std::io::Result<()> {
             .route("/health", web::get().to(|| async { "OK" }))
             // Auth endpoints
             .route("/api/v1/auth/register", web::post().to(handlers::register))
-            .route("/api/v1/auth/login", web::post().to(handlers::login))
+            // Bot endpoints
+            .route("/api/v1/bots", web::post().to(handlers::create_bot))
+            .route("/api/v1/bots", web::get().to(handlers::list_bots))
+            .route("/api/v1/bots/{bot_id}", web::get().to(handlers::get_bot))
             // Message endpoints
             .route("/api/v1/message/send", web::post().to(handlers::send_message))
             // File endpoints
@@ -71,3 +74,4 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
+

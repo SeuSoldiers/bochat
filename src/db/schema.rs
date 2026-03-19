@@ -7,12 +7,23 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         r#"
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
-            username TEXT NOT NULL UNIQUE,
-            email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
+            name TEXT NOT NULL,
+            id_number TEXT NOT NULL UNIQUE,
+            phone TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    // Create index on id_number for faster lookups
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_users_id_number
+        ON users(id_number)
         "#,
     )
     .execute(pool)
@@ -24,13 +35,27 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         r#"
         CREATE TABLE IF NOT EXISTS bots (
             bot_id TEXT PRIMARY KEY,
-            bot_type TEXT NOT NULL,
             owner_id TEXT NOT NULL,
             name TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
             token TEXT NOT NULL UNIQUE,
+            secret TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (owner_id) REFERENCES users(user_id)
         )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    // Create index on owner_id for faster bot lookups by user
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_bots_owner_id
+        ON bots(owner_id)
         "#,
     )
     .execute(pool)
@@ -78,7 +103,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             mime_type TEXT NOT NULL,
             storage_path TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (owner_id) REFERENCES users(user_id)
+            FOREIGN KEY (owner_id) REFERENCES bots(bot_id)
         )
         "#,
     )

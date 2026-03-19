@@ -1,146 +1,107 @@
 use actix_web::{web, HttpResponse};
 use serde_json::json;
+use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateUserRequest, LoginRequest};
-use crate::utils::{generate_token, generate_user_id};
+use crate::models::RegisterRequest;
+use crate::utils::{generate_token, generate_user_id, generate_bot_id};
 
-// Simple password hashing function (in production, use bcrypt or argon2)
-fn hash_password(password: &str) -> String {
-    use sha2::{Sha256, Digest};
-    let mut hasher = Sha256::new();
-    hasher.update(password.as_bytes());
-    hex::encode(hasher.finalize())
+// 验证身份证号码格式：只检查位数
+fn validate_id_number(id_number: &str) -> bool {
+    // 标准身份证号是18位数字
+    id_number.len() == 18 && id_number.chars().all(|c| c.is_ascii_digit())
 }
 
-fn verify_password(password: &str, hash: &str) -> bool {
-    hash_password(password) == hash
-}
-
-#[tracing::instrument(skip(pool, config))]
+#[tracing::instrument(skip(pool))]
 pub async fn register(
     pool: web::Data<DbPool>,
-    config: web::Data<crate::config::Config>,
-    req: web::Json<CreateUserRequest>,
+    req: web::Json<RegisterRequest>,
 ) -> AppResult<HttpResponse> {
     // Validate input
-    if req.username.is_empty() || req.email.is_empty() || req.password.is_empty() {
+    if req.name.is_empty() || req.id_number.is_empty() || req.phone.is_empty() {
         return Err(AppError::BadRequest("Missing required fields".to_string()));
     }
 
+    // Validate ID number format (18 digits)
+    if !validate_id_number(&req.id_number) {
+        return Err(AppError::InvalidIdNumber);
+    }
+
     let user_id = generate_user_id();
-    let password_hash = hash_password(&req.password);
     let now = chrono::Utc::now().to_rfc3339();
 
-    // Create user
+    // Create user with real-name authentication
     sqlx::query(
         r#"
-        INSERT INTO users (user_id, username, email, password_hash, created_at, updated_at)
+        INSERT INTO users (user_id, name, id_number, phone, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&user_id)
-    .bind(&req.username)
-    .bind(&req.email)
-    .bind(&password_hash)
+    .bind(&req.name)
+    .bind(&req.id_number)
+    .bind(&req.phone)
     .bind(&now)
     .bind(&now)
     .execute(pool.get_ref())
     .await
     .map_err(|e| {
         if e.to_string().contains("UNIQUE") {
-            if e.to_string().contains("username") {
-                AppError::UsernameConflict
-            } else {
-                AppError::EmailConflict
-            }
+            AppError::IdNumberConflict
         } else {
             AppError::DatabaseError(e.to_string())
         }
     })?;
 
-    // Create personal bot for the user
-    let bot_id = crate::utils::generate_bot_id();
-    let bot_token = generate_token(&bot_id, &config.security.jwt_secret)?;
+    // Create a default bot for the user
+    let bot_id = generate_bot_id();
+    let bot_secret = Uuid::new_v4().to_string();
+    let bot_token = generate_token(&bot_id, &bot_secret)?;
 
     sqlx::query(
         r#"
-        INSERT INTO bots (bot_id, bot_type, owner_id, name, token, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO bots (bot_id, owner_id, name, description, status, token, secret, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&bot_id)
-    .bind("personal")
     .bind(&user_id)
-    .bind(format!("{}'s personal bot", req.username))
+    .bind(format!("{}'s default bot", req.name))
+    .bind(Some("Default bot created upon user registration"))
+    .bind("active")
     .bind(&bot_token)
+    .bind(&bot_secret)
+    .bind(&now)
     .bind(&now)
     .execute(pool.get_ref())
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    tracing::info!("User registered: {}", user_id);
+    tracing::info!("User registered: {} with ID number {}", user_id, req.id_number);
 
     Ok(HttpResponse::Created().json(json!({
         "user_id": user_id,
-        "username": req.username,
-        "email": req.email,
+        "name": req.name,
+        "id_number": req.id_number,
+        "phone": req.phone,
         "bot_id": bot_id,
-        "token": bot_token,
+        "bot_token": bot_token,
         "created_at": now,
     })))
 }
 
-#[tracing::instrument(skip(pool, config))]
-pub async fn login(
+#[tracing::instrument(skip(pool))]
+pub async fn get_user_by_id(
     pool: web::Data<DbPool>,
-    config: web::Data<crate::config::Config>,
-    req: web::Json<LoginRequest>,
-) -> AppResult<HttpResponse> {
-    // Find user by username
-    let user: crate::models::User = sqlx::query_as(
-        "SELECT user_id, username, email, password_hash, created_at, updated_at FROM users WHERE username = ?"
+    user_id: &str,
+) -> AppResult<crate::models::User> {
+    sqlx::query_as(
+        "SELECT user_id, name, id_number, phone, created_at, updated_at FROM users WHERE user_id = ?"
     )
-    .bind(&req.username)
+    .bind(user_id)
     .fetch_optional(pool.get_ref())
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::InvalidCredentials)?;
-
-    // Verify password
-    if !verify_password(&req.password, &user.password_hash) {
-        return Err(AppError::InvalidCredentials);
-    }
-
-    // Get user's personal bot
-    let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, bot_type, owner_id, name, token, created_at FROM bots WHERE owner_id = ? AND bot_type = 'personal' LIMIT 1"
-    )
-    .bind(&user.user_id)
-    .fetch_optional(pool.get_ref())
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
-
-    // Generate new token
-    let new_token = generate_token(&bot.bot_id, &config.security.jwt_secret)?;
-
-    // Update bot token in database
-    sqlx::query("UPDATE bots SET token = ? WHERE bot_id = ?")
-        .bind(&new_token)
-        .bind(&bot.bot_id)
-        .execute(pool.get_ref())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    tracing::info!("User logged in: {}", user.user_id);
-
-    Ok(HttpResponse::Ok().json(json!({
-        "user_id": user.user_id,
-        "username": user.username,
-        "email": user.email,
-        "bot_id": bot.bot_id,
-        "token": new_token,
-    })))
+    .ok_or(AppError::UserNotFound)
 }
