@@ -200,33 +200,24 @@ async function handleRegister(e) {
 
         const data = await response.json();
 
-        // 保存用户信息和 token
-        appState.token = data.token;
-        appState.currentUser = {
-            user_id: data.user_id,
-            name: data.name,
-            id_number: idNumber,
-            phone: phone,
-        };
-        appState.currentBot = {
-            bot_id: data.bot_id,
-            owner_id: data.user_id,
-            name: '默认Bot',
-            status: 'active',
-        };
-
-        // 本地存储
-        localStorage.setItem('token', appState.token);
-        localStorage.setItem('user', JSON.stringify(appState.currentUser));
-        localStorage.setItem('bot', JSON.stringify(appState.currentBot));
-
         // 清空表单
         document.getElementById('registerForm').reset();
         clearError(errorEl);
 
-        // 显示聊天页面
-        showChatPage();
-        loadGroups();
+        // 显示成功提示并切换到登录页面
+        alert('✅ 注册成功！现在请登录');
+
+        // 切换到登录标签页
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+
+        // 激活登录标签页
+        document.querySelector('[data-tab="login"]').classList.add('active');
+        document.getElementById('loginTab').classList.add('active');
 
     } catch (error) {
         showError(errorEl, '网络错误: ' + error.message);

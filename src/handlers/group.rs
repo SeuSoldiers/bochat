@@ -107,7 +107,27 @@ pub async fn create_group(
         AppError::DatabaseError(e.to_string())
     })?;
 
-    tracing::info!("✅ 群聊创建成功 - 群聊ID: {}, 创建者: {}", group_id, user_id);
+    tracing::info!("群聊创建成功，正在添加创建者 Bot 到群聊成员...");
+
+    // 将创建者的 Bot 自动添加到群聊成员中
+    sqlx::query(
+        r#"
+        INSERT OR IGNORE INTO group_members (group_id, member_id, member_type, joined_at)
+        VALUES (?, ?, ?, ?)
+        "#,
+    )
+    .bind(&group_id)
+    .bind(requester_bot_id)
+    .bind("bot")
+    .bind(&now)
+    .execute(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("添加 Bot 到群聊成员时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    tracing::info!("✅ 群聊创建成功 - 群聊ID: {}, 创建者: {}, 创建者Bot已自动加入", group_id, user_id);
 
     Ok(HttpResponse::Created().json(json!({
         "group_id": group_id,
