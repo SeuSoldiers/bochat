@@ -1,416 +1,300 @@
-# Chat Platform Backend
+# 聊天平台 - Chat Platform
 
-A high-performance, asynchronous chat platform backend built with Rust, featuring:
+一个使用Rust + SQLite构建的高性能聊天平台后端。
 
-- **Rust + Actix-web**: High-performance, async web framework
-- **SQLite**: Lightweight, serverless database for persistence
-- **WebSocket**: Real-time message delivery
-- **Identity Decoupling**: Actor-based architecture with unified Bot identity
-- **Token Authentication**: HMAC-SHA256 based token system
-- **Rate Limiting**: Token bucket algorithm using Redis
-- **File Management**: Secure file upload/download with ownership tracking
+## 🚀 特性
 
-## Project Status
+- **实名认证**：使用身份证号进行用户身份认证（18位数字）
+- **多Bot管理**：用户可以创建和管理多个Bot
+- **Bot-based消息系统**：只有Bot才能通过API发送消息
+- **高性能**：使用Rust和async/await实现高并发
+- **类型安全**：使用SQLx进行编译时查询验证
+- **RESTful API**：完整的API接口支持
 
-**Phase 1**: ✅ Project Initialization & Basic Framework
-**Phase 2**: ✅ P0 - Identity Transformation Logic (Core)
-**Phase 3**: 🔄 P1 - Unified Message Gateway (In Progress)
-**Phase 4**: ⏳ P2 - File Association & Completion
+## 📋 系统架构
 
-## Architecture Overview
+### 核心概念
 
-### Core Components
+#### 用户（User）
+- 使用身份证号进行实名认证
+- 身份证号全局唯一
+- 作为Bot的所有者和管理者
 
-1. **Models** (`src/models/`)
-   - `User`: User account with unique username/email
-   - `Bot`: Identity container (personal or custom)
-   - `Message`: Text/file messages with sender/recipient tracking
-   - `File`: File metadata with ownership and access control
+#### Bot（机器人）
+- 实际的API消息发送者
+- 每个Bot有独立的Token和Secret
+- 支持active/inactive状态
 
-2. **Database** (`src/db/`)
-   - SQLite schema with automatic migrations
-   - Connection pooling with configurable limits
-   - Indexed queries for optimal performance
+#### 消息（Message）
+- Bot之间的通信
+- sender_id和to_id都是Bot ID
+- 支持text/file类型
 
-3. **Services** (`src/services/`)
-   - Business logic layer
-   - Database queries and transformations
-   - Service-specific operations
+## 🔧 快速开始
 
-4. **Handlers** (`src/handlers/`)
-   - HTTP request handlers
-   - Token verification and authorization
-   - Request/response serialization
+### 前置要求
 
-5. **WebSocket** (`src/ws/`)
-   - Connection manager for real-time delivery
-   - Message broadcasting to online users
-   - Connection lifecycle management
+- Rust 1.70+
+- cargo
+- Python 3.7+ (用于测试脚本)
 
-6. **Authentication** (`src/utils/token.rs`)
-   - Token generation: `{bot_id}:{timestamp}:{signature}`
-   - HMAC-SHA256 signature verification
-   - Configurable token expiration
+### 安装
 
-## API Endpoints
-
-### Authentication
-```
-POST /api/v1/auth/register
-  Request: { "username": "...", "email": "...", "password": "..." }
-  Response: { "user_id": "...", "bot_id": "...", "token": "..." }
-
-POST /api/v1/auth/login
-  Request: { "username": "...", "password": "..." }
-  Response: { "user_id": "...", "bot_id": "...", "token": "..." }
-```
-
-### Messages
-```
-POST /api/v1/message/send
-  Header: Authorization: Bearer {token}
-  Request: { "to_id": "...", "content": {...}, "msg_type": "text|file" }
-  Response: { "msg_id": ..., "sender_id": "...", "created_at": "..." }
-```
-
-### Files
-```
-POST /api/v1/file/upload
-  Header: Authorization: Bearer {token}
-  Request: FormData (file)
-  Response: { "file_id": "...", "url": "..." }
-
-GET /api/v1/file/download/{file_id}
-  Header: Authorization: Bearer {token}
-  Response: File content
-```
-
-### WebSocket
-```
-WS /ws?token={token}
-  Message: { "type": "message", "msg_id": ..., "sender_id": "...", "content": {...} }
-```
-
-## Development Setup
-
-### Prerequisites
-- Rust 1.70+ (Install from https://rustup.rs/)
-- SQLite3 (usually bundled)
-- Redis 6.0+ (optional, for advanced rate limiting)
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone <repository-url>
+# 克隆项目
+git clone <repository>
 cd rust-bochat
-```
 
-2. Create environment file:
-```bash
+# 复制环境配置
 cp .env.example .env
-```
 
-3. Update `.env` with your configuration:
-```env
-SERVER_HOST=127.0.0.1
-SERVER_PORT=8080
-DATABASE_URL=sqlite:chat_platform.db
-JWT_SECRET=your-super-secret-key
-```
-
-4. Build and run:
-```bash
+# 构建项目
 cargo build --release
+```
+
+### 启动服务器
+
+```bash
 cargo run --release
 ```
 
-### Running Tests
+服务器将在 `http://127.0.0.1:8080` 启动
+
+## 📡 API 使用示例
+
+### 1. 用户注册
 
 ```bash
-# Run all tests
-cargo test
-
-# Run specific test file
-cargo test --test token_tests
-
-# Run with output
-cargo test -- --nocapture
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "张三",
+    "id_number": "110101199003071234",
+    "phone": "13800138000"
+  }'
 ```
 
-## Project Structure
-
-```
-chat-platform-rs/
-├── Cargo.toml              # Dependencies and metadata
-├── src/
-│   ├── main.rs             # Application entry point
-│   ├── lib.rs              # Library root
-│   ├── config.rs           # Configuration management
-│   ├── error.rs            # Error types and handling
-│   ├── db/                 # Database layer
-│   │   ├── mod.rs
-│   │   ├── schema.rs       # Table definitions
-│   │   └── pool.rs         # Connection pooling
-│   ├── models/             # Data models
-│   │   ├── user.rs
-│   │   ├── bot.rs
-│   │   ├── message.rs
-│   │   └── file.rs
-│   ├── handlers/           # HTTP handlers
-│   │   ├── auth.rs
-│   │   ├── message.rs
-│   │   ├── file.rs
-│   │   └── ws.rs
-│   ├── services/           # Business logic
-│   │   ├── bot.rs
-│   │   ├── message.rs
-│   │   └── file.rs
-│   ├── utils/              # Utilities
-│   │   ├── token.rs        # Token generation/verification
-│   │   └── id.rs           # ID generation
-│   ├── ws/                 # WebSocket
-│   │   └── manager.rs
-│   └── middlewares/        # HTTP middlewares
-│       └── auth.rs
-├── tests/                  # Integration tests
-└── .env.example            # Example configuration
-```
-
-## Key Features
-
-### P0: Identity Decoupling (✅ Implemented)
-
-1. **User Registration**
-   - Create user account
-   - Automatically create personal Bot with type=`personal`
-   - Issue initial access token
-
-2. **User Login**
-   - Verify credentials
-   - Retrieve personal Bot
-   - Generate new access token
-
-3. **Bot Identity**
-   - Each user has a personal Bot (ID: `u_*`)
-   - Users can create custom Bots (ID: `b_*`)
-   - All messages sent through Bot identity
-
-### P1: Unified Message Gateway (🔄 In Progress)
-
-1. **Message Sending**
-   - Unified REST API for all message types
-   - Bot-based authentication
-   - Message type support: `text`, `file`
-   - Persistent storage in SQLite
-
-2. **Message Routing**
-   - Recipient bot existence validation
-   - Message format standardization
-   - Indexed queries by recipient
-
-### P2: File Management (⏳ Planned)
-
-1. **File Upload**
-   - Secure upload with auth
-   - File size validation
-   - Ownership tracking
-   - MIME type detection
-
-2. **File Access**
-   - Download with authorization
-   - Reference validation in messages
-   - Cascade deletion on user deletion
-
-## Configuration
-
-### Environment Variables
-
-```env
-# Server
-SERVER_HOST=127.0.0.1          # Bind address
-SERVER_PORT=8080               # Bind port
-SERVER_WORKERS=4               # Number of worker threads
-
-# Database
-DATABASE_URL=sqlite:chat_platform.db
-DB_MAX_CONNECTIONS=10
-DB_MIN_CONNECTIONS=2
-
-# Redis (optional)
-REDIS_URL=redis://127.0.0.1:6379
-REDIS_POOL_SIZE=10
-
-# Security
-JWT_SECRET=your-secret-key     # Token signing key
-TOKEN_EXPIRY_SECS=86400        # Token TTL (24h)
-
-# Files
-MAX_FILE_SIZE_MB=100
-
-# Rate Limiting
-RATE_LIMIT_PER_SECOND=10
-
-# Logging
-RUST_LOG=info,chat_platform=debug
-```
-
-## Database Schema
-
-### users
-```sql
-CREATE TABLE users (
-  user_id TEXT PRIMARY KEY,
-  username TEXT UNIQUE NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### bots
-```sql
-CREATE TABLE bots (
-  bot_id TEXT PRIMARY KEY,
-  bot_type TEXT NOT NULL,  -- 'personal' | 'custom'
-  owner_id TEXT FOREIGN KEY,
-  name TEXT NOT NULL,
-  token TEXT UNIQUE NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### messages
-```sql
-CREATE TABLE messages (
-  msg_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  sender_id TEXT FOREIGN KEY,
-  to_id TEXT FOREIGN KEY,
-  content TEXT NOT NULL,
-  msg_type TEXT DEFAULT 'text',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_messages_to_id_created_at ON messages(to_id, created_at DESC);
-```
-
-### files
-```sql
-CREATE TABLE files (
-  file_id TEXT PRIMARY KEY,
-  owner_id TEXT FOREIGN KEY,
-  filename TEXT NOT NULL,
-  size INTEGER NOT NULL,
-  mime_type TEXT NOT NULL,
-  storage_path TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-## Error Handling
-
-All errors return structured JSON responses with status codes:
-
+**响应示例**：
 ```json
 {
-  "error": "Error description",
-  "status": 400
+  "user_id": "u_550e8400-e29b-41d4-a716-446655440000",
+  "name": "张三",
+  "id_number": "110101199003071234",
+  "phone": "13800138000",
+  "bot_id": "b_550e8400-e29b-41d4-a716-446655440001",
+  "bot_token": "b_550e8400-e29b-41d4-a716-446655440001:1637000000:signature...",
+  "created_at": "2024-01-01T12:00:00Z"
 }
 ```
 
-### HTTP Status Codes
+### 2. 创建新Bot
 
-- **200 OK**: Successful request
-- **201 Created**: Resource created
-- **400 Bad Request**: Invalid input
-- **401 Unauthorized**: Invalid/missing credentials
-- **403 Forbidden**: Access denied
-- **404 Not Found**: Resource not found
-- **409 Conflict**: Duplicate resource
-- **429 Too Many Requests**: Rate limited
-- **500 Internal Server Error**: Server error
-
-## Performance Considerations
-
-1. **Database**
-   - SQLite with connection pooling
-   - Indexed queries on frequently-accessed columns
-   - Prepared statements for SQL injection prevention
-
-2. **WebSocket**
-   - Efficient message broadcasting to online connections
-   - Automatic cleanup of closed connections
-   - Per-bot connection management
-
-3. **Rate Limiting**
-   - Token bucket algorithm in Redis
-   - Per-bot rate limits
-   - Configurable limits
-
-## Testing
-
-### Unit Tests
 ```bash
-cargo test
+curl -X POST http://localhost:8080/api/v1/bots \
+  -H "Authorization: Bearer {bot_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "我的客服Bot",
+    "description": "用于处理客户服务的机器人"
+  }'
 ```
 
-### Integration Tests
+### 3. 查询用户的所有Bot
+
 ```bash
-cargo test --test token_tests
+curl http://localhost:8080/api/v1/bots \
+  -H "Authorization: Bearer {bot_token}"
 ```
 
-### Token Tests
-- Token generation and verification
-- Signature validation
-- Token format and structure
+### 4. 发送消息
 
-## Security
-
-1. **Password Hashing**: SHA256 (upgrade to bcrypt/argon2 in production)
-2. **Token Signing**: HMAC-SHA256 with configurable secret
-3. **Authorization**: Token-based bearer authentication
-4. **Input Validation**: All inputs validated before processing
-5. **SQL Injection Prevention**: Parameterized queries
-
-## Logging
-
-Structured logging with `tracing`:
-```rust
-tracing::info!("User registered: {}", user_id);
-tracing::warn!("Invalid login attempt: {}", username);
-tracing::error!("Database error: {}", error);
-```
-
-Configure with `RUST_LOG` environment variable:
 ```bash
-RUST_LOG=info,chat_platform=debug cargo run
+curl -X POST http://localhost:8080/api/v1/message/send \
+  -H "Authorization: Bearer {bot_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to_id": "b_550e8400-e29b-41d4-a716-446655440003",
+    "content": {"text": "你好，这是一条测试消息"},
+    "msg_type": "text"
+  }'
 ```
 
-## Future Enhancements
+## 🧪 测试
 
-- [ ] WebSocket implementation with actix-web-actors
-- [ ] Redis-based rate limiting
-- [ ] File upload/download with streaming
-- [ ] Message history pagination
-- [ ] User presence/online status
-- [ ] Message read receipts
-- [ ] Group chat support
-- [ ] Message encryption
-- [ ] Audit logging
-- [ ] API documentation with OpenAPI/Swagger
+使用提供的Python测试脚本：
 
-## Contributing
+```bash
+# 安装依赖
+pip install requests
 
-Please ensure all code:
-- Compiles without warnings: `cargo check`
-- Passes all tests: `cargo test`
-- Is properly formatted: `cargo fmt`
-- Passes linting: `cargo clippy`
+# 运行测试
+python3 scripts/test_new_architecture.py
+```
 
-## License
+测试脚本会自动：
+- 注册两个用户（Alice和Bob）
+- 创建多个Bot
+- 交换消息
+- 显示测试结果
 
-MIT License
+## 📁 项目结构
 
-## Support
+```
+src/
+├── main.rs              # 应用入口
+├── lib.rs               # 库根模块
+├── config.rs            # 配置管理
+├── error.rs             # 错误处理
+├── db/                  # 数据库模块
+│   ├── mod.rs
+│   ├── pool.rs         # 连接池
+│   └── schema.rs       # 数据库Schema
+├── models/              # 数据模型
+│   ├── user.rs
+│   ├── bot.rs
+│   ├── message.rs
+│   └── file.rs
+├── handlers/            # HTTP处理器
+│   ├── auth.rs         # 身份认证
+│   ├── bot.rs          # Bot管理
+│   ├── message.rs      # 消息发送
+│   ├── file.rs         # 文件操作
+│   └── ws.rs           # WebSocket
+├── services/            # 业务逻辑
+├── utils/               # 工具函数
+│   ├── id.rs           # ID生成
+│   └── token.rs        # Token管理
+├── middlewares/         # 中间件
+└── ws/                  # WebSocket管理
+```
 
-For issues and questions, please open an issue on the repository.
+## 🔐 安全特性
+
+### 实名认证
+- 身份证号作为唯一标识
+- 增强用户信息真实性
+- 防止虚假账户
+
+### Token管理
+- 每个Bot有独立Token和Secret
+- Token格式：`{bot_id}:{timestamp}:{signature}`
+- HMAC-SHA256签名验证
+
+### Bot权限
+- Bot状态管理（active/inactive）
+- 细粒度访问控制
+- 快速禁用和恢复
+
+## 📊 数据库设计
+
+### users表
+```sql
+CREATE TABLE users (
+    user_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    id_number TEXT NOT NULL UNIQUE,
+    phone TEXT NOT NULL,
+    created_at DATETIME,
+    updated_at DATETIME
+);
+```
+
+### bots表
+```sql
+CREATE TABLE bots (
+    bot_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    token TEXT NOT NULL UNIQUE,
+    secret TEXT NOT NULL,
+    created_at DATETIME,
+    updated_at DATETIME,
+    FOREIGN KEY (owner_id) REFERENCES users(user_id)
+);
+```
+
+### messages表
+```sql
+CREATE TABLE messages (
+    msg_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id TEXT NOT NULL,
+    to_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    msg_type TEXT DEFAULT 'text',
+    created_at DATETIME,
+    FOREIGN KEY (sender_id) REFERENCES bots(bot_id),
+    FOREIGN KEY (to_id) REFERENCES bots(bot_id)
+);
+```
+
+## 🛠️ 环境配置
+
+在`.env`文件中配置以下参数：
+
+```env
+# 服务器配置
+SERVER_HOST=127.0.0.1
+SERVER_PORT=8080
+SERVER_WORKERS=4
+
+# 数据库配置
+DATABASE_URL=sqlite:chat.db
+DB_MAX_CONNECTIONS=10
+DB_MIN_CONNECTIONS=2
+
+# 安全配置
+JWT_SECRET=your-super-secret-key-change-in-production
+TOKEN_EXPIRY_SECS=86400
+
+# 文件上传配置
+MAX_FILE_SIZE_MB=100
+
+# 速率限制
+RATE_LIMIT_PER_SECOND=10
+
+# 日志
+RUST_LOG=info,chat_platform=debug
+```
+
+## 📚 文档
+
+- [API_GUIDE_CN.md](API_GUIDE_CN.md) - 完整API文档
+- [ARCHITECTURE_REFORM.md](ARCHITECTURE_REFORM.md) - 架构改革说明
+
+## 🐛 常见问题
+
+### Q: 身份证号存储安全吗？
+A: 建议在生产环境中：
+- 使用HTTPS加密传输
+- 在数据库中加密存储
+- 限制访问权限
+- 定期审计日志
+
+### Q: 一个用户最多可以创建多少个Bot？
+A: 目前没有限制，可根据实际需求合理管理。
+
+### Q: Bot Token泄露了怎么办？
+A: 可以删除该Bot并创建新的Bot，立即切换到新Token使用。
+
+### Q: 支持WebSocket实时通知吗？
+A: 当前版本有WebSocket框架，实时通知功能待实现。
+
+## 🚀 后续改进方向
+
+- [ ] 完整的Bot权限管理系统
+- [ ] WebSocket实时推送
+- [ ] Webhook回调通知
+- [ ] 消息历史查询API
+- [ ] 审计日志系统
+- [ ] 按Bot速率限制
+- [ ] 分布式消息队列集成
+
+## 📝 许可证
+
+MIT
+
+## 👤 作者
+
+Claude Code Assistant

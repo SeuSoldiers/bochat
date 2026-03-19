@@ -1,4 +1,4 @@
-# Chat Platform API Guide
+# 聊天平台 API 指南
 
 ## 系统架构
 

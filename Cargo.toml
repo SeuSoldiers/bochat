@@ -43,9 +43,6 @@ config = "0.13"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-# Redis for caching
-redis = { version = "0.24", features = ["aio", "tokio-comp"] }
-
 # Error handling
 anyhow = "1"
 thiserror = "1"

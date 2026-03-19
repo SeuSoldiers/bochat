@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
-    pub redis: RedisConfig,
     pub security: SecurityConfig,
 }
 
@@ -20,12 +19,6 @@ pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
     pub min_connections: u32,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct RedisConfig {
-    pub url: String,
-    pub pool_size: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -54,7 +47,7 @@ impl Config {
 
         let database = DatabaseConfig {
             url: std::env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "sqlite:chat_platform.db".to_string()),
+                .unwrap_or_else(|_| "sqlite://chat_platform.db".to_string()),
             max_connections: std::env::var("DB_MAX_CONNECTIONS")
                 .ok()
                 .and_then(|c| c.parse().ok())
@@ -63,14 +56,6 @@ impl Config {
                 .ok()
                 .and_then(|c| c.parse().ok())
                 .unwrap_or(2),
-        };
-
-        let redis = RedisConfig {
-            url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
-            pool_size: std::env::var("REDIS_POOL_SIZE")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(10),
         };
 
         let security = SecurityConfig {
@@ -92,7 +77,6 @@ impl Config {
         Config {
             server,
             database,
-            redis,
             security,
         }
     }
@@ -107,13 +91,9 @@ impl Default for Config {
                 workers: 4,
             },
             database: DatabaseConfig {
-                url: "sqlite:chat_platform.db".to_string(),
+                url: "sqlite://chat_platform.db".to_string(),
                 max_connections: 10,
                 min_connections: 2,
-            },
-            redis: RedisConfig {
-                url: "redis://127.0.0.1:6379".to_string(),
-                pool_size: 10,
             },
             security: SecurityConfig {
                 jwt_secret: "your-secret-key".to_string(),
