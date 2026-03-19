@@ -121,14 +121,11 @@ pub async fn register(
     );
 
     Ok(HttpResponse::Created().json(json!({
+        "message": "注册成功",
         "user_id": user_id,
         "name": req.name,
         "id_number": req.id_number,
         "phone": req.phone,
-        "bot_id": bot_id,
-        "token": bot_token,
-        "secret": bot_secret,
-        "created_at": now,
     })))
 }
 
@@ -156,4 +153,88 @@ pub async fn get_user_by_id(
 
     tracing::debug!("用户查询成功: {}", user_id);
     Ok(user)
+}
+
+/// 用户登录
+///
+/// 流程:
+/// 1. 验证身份证号和手机号
+/// 2. 查询用户的默认 Bot
+/// 3. 生成并返回 Token
+#[tracing::instrument(skip(pool))]
+pub async fn login(
+    pool: web::Data<DbPool>,
+    req: web::Json<crate::models::LoginRequest>,
+) -> AppResult<HttpResponse> {
+    tracing::info!("=== 开始处理用户登录请求 ===");
+    tracing::debug!("请求数据: 身份证号={}, 手机号={}", req.id_number, req.phone);
+
+    // 验证必填字段
+    if req.id_number.is_empty() || req.phone.is_empty() {
+        tracing::warn!("登录失败: 缺少必填字段");
+        return Err(AppError::BadRequest("缺少必填字段".to_string()));
+    }
+
+    // 验证身份证号格式
+    if !validate_id_number(&req.id_number) {
+        tracing::warn!("登录失败: 身份证号格式无效: {}", req.id_number);
+        return Err(AppError::InvalidIdNumber);
+    }
+
+    tracing::debug!("输入验证通过");
+
+    // 查询用户
+    tracing::info!("正在查询用户...");
+    let user: crate::models::User = sqlx::query_as(
+        "SELECT user_id, name, id_number, phone, created_at, updated_at FROM users WHERE id_number = ? AND phone = ?"
+    )
+    .bind(&req.id_number)
+    .bind(&req.phone)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("查询用户时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?
+    .ok_or_else(|| {
+        tracing::warn!("用户不存在或身份验证失败: 身份证号={}, 手机号={}", req.id_number, req.phone);
+        AppError::UserNotFound
+    })?;
+
+    tracing::debug!("用户查询成功: {}", user.user_id);
+
+    // 查询用户的默认 Bot（第一个创建的 bot）
+    tracing::debug!("正在查询用户的默认 Bot...");
+    let bot: crate::models::Bot = sqlx::query_as(
+        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1"
+    )
+    .bind(&user.user_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("查询 Bot 时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?
+    .ok_or_else(|| {
+        tracing::warn!("用户的 Bot 不存在: {}", user.user_id);
+        AppError::BotNotFound
+    })?;
+
+    tracing::debug!("Bot 查询成功: {}", bot.bot_id);
+
+    tracing::info!(
+        "✅ 用户登录成功 - 用户ID: {}, Bot ID: {}, 身份证号: {}",
+        user.user_id,
+        bot.bot_id,
+        user.id_number
+    );
+
+    Ok(HttpResponse::Ok().json(json!({
+        "message": "登录成功",
+        "user_id": user.user_id,
+        "name": user.name,
+        "phone": user.phone,
+        "bot_id": bot.bot_id,
+        "token": bot.token,
+    })))
 }

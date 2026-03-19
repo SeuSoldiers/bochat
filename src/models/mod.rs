@@ -8,4 +8,4 @@ pub use bot::{Bot, BotResponse, BotStatus, CreateBotRequest};
 pub use file::{File, FileMetadata, FileResponse};
 pub use group::{CreateGroupRequest, Group, GroupMember, GroupMemberResponse, GroupResponse};
 pub use message::{CreateMessageRequest, Message, MessageResponse, MessageType};
-pub use user::{RegisterRequest, User, UserResponse};
+pub use user::{RegisterRequest, LoginRequest, User, UserResponse};

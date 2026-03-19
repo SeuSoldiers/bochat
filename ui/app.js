@@ -112,15 +112,55 @@ async function handleLogin(e) {
     }
 
     try {
-        // 由于后端没有单独的登录端点，我们使用注册端点，让用户登录
-        // 但实际上后端应该有登录功能，这里假设我们有某种登录方式
-        // 为了演示，我们假设可以通过已注册用户的信息重新获取token
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id_number: idNumber,
+                phone: phone,
+            }),
+        });
 
-        // 显示错误提示 - 后端应该实现登录接口
-        showError(errorEl, '请先注册账户');
+        if (!response.ok) {
+            const error = await response.json();
+            showError(errorEl, error.error || '登录失败');
+            return;
+        }
+
+        const data = await response.json();
+
+        // 保存用户信息和 token
+        appState.token = data.token;
+        appState.currentUser = {
+            user_id: data.user_id,
+            name: data.name,
+            id_number: idNumber,
+            phone: phone,
+        };
+        appState.currentBot = {
+            bot_id: data.bot_id,
+            owner_id: data.user_id,
+            name: '默认Bot',
+            status: 'active',
+        };
+
+        // 本地存储
+        localStorage.setItem('token', appState.token);
+        localStorage.setItem('user', JSON.stringify(appState.currentUser));
+        localStorage.setItem('bot', JSON.stringify(appState.currentBot));
+
+        // 清空表单
+        document.getElementById('loginForm').reset();
+        clearError(errorEl);
+
+        // 显示聊天页面
+        showChatPage();
+        loadGroups();
 
     } catch (error) {
-        showError(errorEl, '登录失败: ' + error.message);
+        showError(errorEl, '网络错误: ' + error.message);
     }
 }
 
@@ -164,7 +204,7 @@ async function handleRegister(e) {
         appState.token = data.token;
         appState.currentUser = {
             user_id: data.user_id,
-            name: name,
+            name: data.name,
             id_number: idNumber,
             phone: phone,
         };
@@ -173,7 +213,6 @@ async function handleRegister(e) {
             owner_id: data.user_id,
             name: '默认Bot',
             status: 'active',
-            secret: data.secret,
         };
 
         // 本地存储

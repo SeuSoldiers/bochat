@@ -6,7 +6,7 @@ pub mod message;
 pub mod user;
 pub mod ws;
 
-pub use auth::register;
+pub use auth::{register, login};
 pub use bot::{create_bot, delete_bot, get_bot, list_bots};
 pub use file::{download_file, upload_file};
 pub use group::{

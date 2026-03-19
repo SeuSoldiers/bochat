@@ -74,15 +74,50 @@ class ChatPlatformTester:
         if response.status_code == 201:
             result = response.json()
             user_id = result["user_id"]
-            bot_id = result["bot_id"]
-            bot_token = result["bot_token"]
 
             self.users[name] = {
                 "user_id": user_id,
                 "id_number": id_number,
                 "phone": phone,
-                "created_at": result["created_at"]
             }
+
+            print(f"✅ 用户注册成功！")
+            print(f"   用户ID: {user_id}")
+            return True
+        else:
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 注册失败: {error_msg}")
+            if response.status_code == 409:
+                print("   ℹ️  此身份证号已被注册")
+            return False
+
+    def login_user(self, id_number: str, phone: str) -> Optional[str]:
+        """用户登录并获取token。"""
+        print(f"\n🔐 用户登录")
+        print(f"   身份证号: {id_number}")
+
+        data = {
+            "id_number": id_number,
+            "phone": phone
+        }
+
+        response = self._make_request("POST", "/api/v1/auth/login", data)
+
+        if response.status_code == 200:
+            result = response.json()
+            user_id = result["user_id"]
+            bot_id = result["bot_id"]
+            bot_token = result["token"]
+            name = result["name"]
+
+            # 存储用户信息
+            self.users[name] = {
+                "user_id": user_id,
+                "id_number": id_number,
+                "phone": phone,
+            }
+
+            # 存储Bot信息
             self.bots[bot_id] = {
                 "bot_id": bot_id,
                 "owner": name,
@@ -91,16 +126,14 @@ class ChatPlatformTester:
                 "status": "active"
             }
 
-            print(f"✅ 用户注册成功！")
+            print(f"✅ 登录成功！")
             print(f"   用户ID: {user_id}")
             print(f"   默认Bot ID: {bot_id}")
-            return True
+            return bot_token
         else:
             error_msg = response.json().get("error", "未知错误")
-            print(f"❌ 注册失败: {error_msg}")
-            if response.status_code == 409:
-                print("   ℹ️  此身份证号已被注册")
-            return False
+            print(f"❌ 登录失败: {error_msg}")
+            return None
 
     def create_group(self, user_name: str, group_name: str, description: Optional[str] = None) -> Optional[str]:
         """为用户创建新群聊。"""
@@ -262,13 +295,31 @@ def main():
         print("❌ 用户注册失败")
         sys.exit(1)
 
+    # 场景1.5: 登录用户获取Token
+    print("\n" + "=" * 60)
+    print("场景1.5: 用户登录获取Token")
+    print("=" * 60)
+
+    # 登录Alice并获取Token
+    alice_token = tester.login_user(
+        id_number="110101199003071234",
+        phone="13800138001"
+    )
+
+    # 登录Bob并获取Token
+    bob_token = tester.login_user(
+        id_number="110101199003071235",
+        phone="13800138002"
+    )
+
+    if not (alice_token and bob_token):
+        print("❌ 用户登录失败")
+        sys.exit(1)
+
     # 场景2: 创建群聊
     print("\n" + "=" * 60)
     print("场景2: 创建群聊")
     print("=" * 60)
-
-    group1 = tester.create_group("Alice", "技术讨论组", "讨论技术问题的群聊")
-    group2 = tester.create_group("Bob", "产品反馈组", "收集产品反馈的群聊")
 
     if not (group1 and group2):
         print("❌ 群聊创建失败")

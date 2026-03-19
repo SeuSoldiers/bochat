@@ -17,6 +17,15 @@ pub struct RegisterRequest {
     pub phone: String,
 }
 
+/// 登录请求
+///
+/// 使用身份证号和手机号进行身份验证
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LoginRequest {
+    pub id_number: String, // 18位身份证号
+    pub phone: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserResponse {
     pub user_id: String,

@@ -75,6 +75,7 @@ async fn main() -> std::io::Result<()> {
             .route("/health", web::get().to(|| async { "OK" }))
             // Auth endpoints
             .route("/api/v1/auth/register", web::post().to(handlers::register))
+            .route("/api/v1/auth/login", web::post().to(handlers::login))
             // User endpoints
             .route(
                 "/api/v1/users/delete",
