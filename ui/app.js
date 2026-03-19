@@ -46,6 +46,9 @@ function setupEventListeners() {
     // 加入群聊按钮
     document.getElementById('joinGroupModalBtn').addEventListener('click', openJoinGroupModal);
 
+    // 加入群聊表单
+    document.getElementById('joinGroupForm').addEventListener('submit', handleJoinGroupForm);
+
     // 发送消息表单
     document.getElementById('sendMessageForm').addEventListener('submit', handleSendMessage);
 
@@ -317,6 +320,7 @@ function renderGroupsList() {
         groupEl.innerHTML = `
             <div class="group-item-name">${escapeHtml(group.name)}</div>
             <div class="group-item-desc">${escapeHtml(group.description || '暂无描述')}</div>
+            ${group.group_code ? `<div class="group-item-code">群号: ${escapeHtml(group.group_code)}</div>` : ''}
         `;
 
         groupEl.addEventListener('click', () => selectGroup(group));
@@ -332,6 +336,7 @@ async function selectGroup(group) {
     // 更新聊天头部
     document.getElementById('currentGroupName').textContent = escapeHtml(group.name);
     document.getElementById('currentGroupDesc').textContent = escapeHtml(group.description || '暂无描述');
+    document.getElementById('currentGroupCode').textContent = group.group_code ? `群号: ${escapeHtml(group.group_code)}` : '';
 
     // 清空消息区域
     const messagesArea = document.getElementById('messagesArea');
@@ -347,22 +352,24 @@ async function selectGroup(group) {
 // 加载群聊消息历史
 async function loadGroupMessages(groupId) {
     try {
-        // 注意：后端可能需要提供一个获取群聊消息的端点
-        // 为了演示，我们假设消息通过 WebSocket 接收
-        const messagesArea = document.getElementById('messagesArea');
-        messagesArea.innerHTML = ''; // 清空加载提示
+        const response = await fetch(`${API_BASE_URL}/groups/${groupId}/messages`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${appState.token}`,
+            },
+        });
 
-        // 如果之前加载过这个群聊的消息，使用缓存
-        if (appState.messages[groupId]) {
-            renderMessages(appState.messages[groupId]);
-        } else {
-            appState.messages[groupId] = [];
-            messagesArea.innerHTML = '<div class="messages-placeholder">消息列表为空</div>';
+        if (!response.ok) {
+            throw new Error('获取历史记录失败');
         }
+
+        const data = await response.json();
+        appState.messages[groupId] = data.messages || [];
+        renderMessages(appState.messages[groupId]);
 
     } catch (error) {
         console.error('加载消息错误:', error);
-        document.getElementById('messagesArea').innerHTML = '<div class="error-message">加载消息失败</div>';
+        document.getElementById('messagesArea').innerHTML = `<div class="error-message">加载消息失败: ${error.message}</div>`;
     }
 }
 
@@ -376,7 +383,10 @@ function renderMessages(messages) {
         return;
     }
 
-    messages.forEach(msg => {
+    // 按时间顺序排序（虽然后端应该已经排好了）
+    const sortedMessages = [...messages].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    sortedMessages.forEach(msg => {
         const messageEl = document.createElement('div');
         const isOwn = msg.sender_id === appState.currentBot.bot_id;
         messageEl.className = 'message' + (isOwn ? ' own' : '');
@@ -385,6 +395,7 @@ function renderMessages(messages) {
             <div>
                 ${!isOwn ? `<div class="message-sender">${escapeHtml(msg.sender_name || msg.sender_id)}</div>` : ''}
                 <div class="message-bubble">${escapeHtml(msg.content)}</div>
+                <div class="message-time">${new Date(msg.created_at).toLocaleString()}</div>
             </div>
         `;
 
@@ -525,6 +536,7 @@ async function handleCreateGroup(e) {
     e.preventDefault();
 
     const groupName = document.getElementById('groupName').value;
+    const groupCode = document.getElementById('groupCode').value.trim();
     const groupDesc = document.getElementById('groupDescription').value;
     const errorEl = document.getElementById('createGroupError');
 
@@ -543,6 +555,7 @@ async function handleCreateGroup(e) {
             body: JSON.stringify({
                 name: groupName,
                 description: groupDesc || null,
+                group_code: groupCode || null,
             }),
         });
 
@@ -557,6 +570,7 @@ async function handleCreateGroup(e) {
         // 添加到群聊列表
         const newGroup = {
             group_id: data.group_id,
+            group_code: data.group_code || null,
             creator_id: appState.currentUser.user_id,
             name: groupName,
             description: groupDesc || null,
@@ -584,94 +598,49 @@ async function handleCreateGroup(e) {
 // 打开加入群聊模态框
 async function openJoinGroupModal() {
     const modal = document.getElementById('joinGroupModal');
-    const container = document.getElementById('availableGroups');
-
-    // 显示加载中
-    container.innerHTML = '<div class="loading"></div>';
+    document.getElementById('joinGroupCode').value = '';
+    document.getElementById('joinGroupError').textContent = '';
     modal.classList.add('show');
-
-    try {
-        // 获取所有群聊
-        const response = await fetch(`${API_BASE_URL}/groups`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${appState.token}`,
-            },
-        });
-
-        if (!response.ok) {
-            container.innerHTML = '<div class="error-message">加载群聊列表失败</div>';
-            return;
-        }
-
-        const data = await response.json();
-        const allGroups = data.groups || [];
-
-        // 获取当前用户已加入的群聊
-        const joinedGroupIds = new Set(appState.groups.map(g => g.group_id));
-
-        // 过滤出未加入的群聊
-        const availableGroups = allGroups.filter(g => !joinedGroupIds.has(g.group_id));
-
-        if (availableGroups.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">没有可加入的群聊</div>';
-            return;
-        }
-
-        // 显示可加入的群聊
-        container.innerHTML = availableGroups.map(group => `
-            <div class="group-card">
-                <div>
-                    <h4>${escapeHtml(group.name)}</h4>
-                    <p>${escapeHtml(group.description || '暂无描述')}</p>
-                </div>
-                <button class="btn-join" data-group-id="${group.group_id}">加入</button>
-            </div>
-        `).join('');
-
-        // 为加入按钮添加事件监听
-        container.querySelectorAll('.btn-join').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const groupId = btn.dataset.groupId;
-                const group = allGroups.find(g => g.group_id === groupId);
-                joinGroup(group);
-            });
-        });
-
-    } catch (error) {
-        container.innerHTML = '<div class="error-message">加载失败: ' + error.message + '</div>';
-    }
 }
 
-// 加入群聊
-async function joinGroup(group) {
+// 处理加入群聊表单提交
+async function handleJoinGroupForm(e) {
+    e.preventDefault();
+
+    const groupCode = document.getElementById('joinGroupCode').value.trim();
+    const errorEl = document.getElementById('joinGroupError');
+
+    if (!groupCode) {
+        errorEl.textContent = '请输入群号';
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_BASE_URL}/groups/${group.group_id}/join`, {
+        const response = await fetch(`${API_BASE_URL}/groups/join`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${appState.token}`,
             },
+            body: JSON.stringify({
+                group_code: groupCode,
+            }),
         });
 
         if (!response.ok) {
             const error = await response.json();
-            alert('加入失败: ' + (error.error || '未知错误'));
+            errorEl.textContent = '加入失败: ' + (error.error || error.message || '未知错误');
             return;
         }
 
-        // 添加到群聊列表
-        appState.groups.push(group);
-        renderGroupsList();
-
-        // 关闭模态框
+        alert('成功加入群聊!');
         document.getElementById('joinGroupModal').classList.remove('show');
 
-        // 自动选择刚加入的群聊
-        selectGroup(group);
+        // 重新加载群聊列表
+        await loadGroups();
 
     } catch (error) {
-        alert('网络错误: ' + error.message);
+        errorEl.textContent = '加入失败: ' + error.message;
     }
 }
 

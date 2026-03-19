@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Group {
     pub group_id: String,
+    pub group_code: Option<String>, // 可选的群号，用户可以输入这个号码加入群聊
     pub creator_id: String, // 创建者的User ID
     pub name: String,
     pub description: Option<String>,
@@ -15,11 +16,13 @@ pub struct Group {
 pub struct CreateGroupRequest {
     pub name: String,
     pub description: Option<String>,
+    pub group_code: Option<String>, // 可选，如果不提供则不设置
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GroupResponse {
     pub group_id: String,
+    pub group_code: Option<String>,
     pub creator_id: String,
     pub name: String,
     pub description: Option<String>,
@@ -32,6 +35,7 @@ impl From<Group> for GroupResponse {
     fn from(group: Group) -> Self {
         GroupResponse {
             group_id: group.group_id,
+            group_code: group.group_code,
             creator_id: group.creator_id,
             name: group.name,
             description: group.description,
@@ -67,4 +71,15 @@ impl From<GroupMember> for GroupMemberResponse {
             joined_at: member.joined_at,
         }
     }
+}
+
+/// 加入群聊请求
+///
+/// 用户可以通过群ID或群号加入群聊
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JoinGroupRequest {
+    /// 群聊ID（group_id）- 优先使用这个
+    pub group_id: Option<String>,
+    /// 群号（group_code）- 如果没有 group_id，可以用这个
+    pub group_code: Option<String>,
 }

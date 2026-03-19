@@ -3,7 +3,7 @@ use serde_json::json;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse};
+use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
 use crate::utils::{generate_group_id, verify_token};
 
 /// 创建新群聊（仅用户可创建）
@@ -89,11 +89,12 @@ pub async fn create_group(
     tracing::info!("正在数据库中插入群聊记录: {}", group_id);
     sqlx::query(
         r#"
-        INSERT INTO groups (group_id, creator_id, name, description, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO groups (group_id, group_code, creator_id, name, description, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&group_id)
+    .bind(&req.group_code)
     .bind(&user_id)
     .bind(&req.name)
     .bind(&req.description)
@@ -131,6 +132,7 @@ pub async fn create_group(
 
     Ok(HttpResponse::Created().json(json!({
         "group_id": group_id,
+        "group_code": req.group_code,
         "creator_id": user_id,
         "name": req.name,
         "description": req.description,
@@ -196,14 +198,12 @@ pub async fn list_user_groups(
     let _token_payload = verify_token(token, &user_bot.secret, 86400)?;
     tracing::debug!("Token 验证成功");
 
-    // 查询该用户创建的所有群聊
-    let user_id = user_bot.owner_id;
-    tracing::info!("正在查询用户创建的群聊: {}", user_id);
+    // 查询所有群聊
+    tracing::info!("正在查询所有群聊");
 
     let groups: Vec<crate::models::Group> = sqlx::query_as(
-        "SELECT group_id, creator_id, name, description, status, created_at, updated_at FROM groups WHERE creator_id = ? ORDER BY created_at DESC"
+        "SELECT group_id, group_code, creator_id, name, description, status, created_at, updated_at FROM groups ORDER BY created_at DESC"
     )
-    .bind(&user_id)
     .fetch_all(pool.get_ref())
     .await
     .map_err(|e| {
@@ -228,7 +228,7 @@ pub async fn get_group(
     group_id: web::Path<String>,
 ) -> AppResult<HttpResponse> {
     let group: crate::models::Group = sqlx::query_as(
-        "SELECT group_id, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?"
+        "SELECT group_id, group_code, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?"
     )
     .bind(group_id.into_inner())
     .fetch_optional(pool.get_ref())
@@ -240,14 +240,21 @@ pub async fn get_group(
     Ok(HttpResponse::Ok().json(response))
 }
 
-/// Join a bot to a group
+/// Join a bot to a group (支持群ID或群号)
 #[tracing::instrument(skip(pool))]
 pub async fn join_group(
     pool: web::Data<DbPool>,
     http_req: HttpRequest,
-    group_id: web::Path<String>,
+    req: web::Json<JoinGroupRequest>,
 ) -> AppResult<HttpResponse> {
-    let group_id_str = group_id.into_inner();
+    tracing::info!("=== 开始加入群聊 ===");
+    tracing::debug!("请求参数: group_id={:?}, group_code={:?}", req.group_id, req.group_code);
+
+    // 至少需要一个标识符
+    if req.group_id.is_none() && req.group_code.is_none() {
+        tracing::warn!("加入群聊失败: 既没有 group_id 也没有 group_code");
+        return Err(AppError::BadRequest("必须提供 group_id 或 group_code".to_string()));
+    }
 
     // Extract token from Authorization header
     let token = http_req
@@ -255,14 +262,19 @@ pub async fn join_group(
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(|| {
+            tracing::warn!("加入群聊失败: 缺少 Authorization header");
+            AppError::Unauthorized
+        })?;
 
     // Parse token to get bot_id
     let parts: Vec<&str> = token.split(':').collect();
     if parts.len() != 3 {
+        tracing::warn!("加入群聊失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     }
     let bot_id = parts[0];
+    tracing::debug!("从 token 解析出 Bot ID: {}", bot_id);
 
     // Get the bot
     let bot: crate::models::Bot = sqlx::query_as(
@@ -271,11 +283,46 @@ pub async fn join_group(
     .bind(bot_id)
     .fetch_optional(pool.get_ref())
     .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
+    .map_err(|e| {
+        tracing::error!("查询 Bot 时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?
+    .ok_or_else(|| {
+        tracing::warn!("Bot 不存在: {}", bot_id);
+        AppError::BotNotFound
+    })?;
 
     // Verify token
+    tracing::debug!("正在验证 token...");
     let _token_payload = verify_token(token, &bot.secret, 86400)?;
+    tracing::debug!("Token 验证成功");
+
+    // 查找群聊
+    let group_id_str = if let Some(ref gid) = req.group_id {
+        tracing::debug!("使用 group_id 查找群聊: {}", gid);
+        gid.clone()
+    } else {
+        let gcode = req.group_code.as_ref().unwrap();
+        tracing::debug!("使用 group_code 查找群聊: {}", gcode);
+
+        let found_group: Option<String> = sqlx::query_scalar(
+            "SELECT group_id FROM groups WHERE group_code = ?"
+        )
+        .bind(gcode)
+        .fetch_optional(pool.get_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("查询群聊时数据库错误: {}", e);
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+        found_group.ok_or_else(|| {
+            tracing::warn!("群号不存在: {}", gcode);
+            AppError::BadRequest("群号不存在".to_string())
+        })?
+    };
+
+    tracing::debug!("群聊 ID: {}", group_id_str);
 
     // Verify group exists
     let group_exists: bool =
@@ -283,10 +330,14 @@ pub async fn join_group(
             .bind(&group_id_str)
             .fetch_one(pool.get_ref())
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("验证群聊存在时数据库错误: {}", e);
+                AppError::DatabaseError(e.to_string())
+            })?;
 
     if !group_exists {
-        return Err(AppError::BadRequest("Group not found".to_string()));
+        tracing::warn!("群聊不存在: {}", group_id_str);
+        return Err(AppError::BadRequest("群聊不存在".to_string()));
     }
 
     let now = chrono::Utc::now().to_rfc3339();
@@ -301,12 +352,15 @@ pub async fn join_group(
     .bind(&now)
     .execute(pool.get_ref())
     .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .map_err(|e| {
+        tracing::error!("添加 Bot 到群聊时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?;
 
-    tracing::info!("Bot {} joined group {}", bot_id, group_id_str);
+    tracing::info!("✅ Bot {} 已加入群聊 {}", bot_id, group_id_str);
 
     Ok(HttpResponse::Ok().json(json!({
-        "message": "Successfully joined group",
+        "message": "成功加入群聊",
         "group_id": group_id_str,
         "bot_id": bot_id,
     })))
@@ -405,7 +459,7 @@ pub async fn delete_group(
 
     // Get group
     let group: crate::models::Group = sqlx::query_as(
-        "SELECT group_id, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?"
+        "SELECT group_id, group_code, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?"
     )
     .bind(&group_id_str)
     .fetch_optional(pool.get_ref())
@@ -437,6 +491,58 @@ pub async fn delete_group(
     Ok(HttpResponse::Ok().json(json!({
         "message": "Group deleted successfully",
         "group_id": group_id_str,
+    })))
+}
+
+/// 获取群聊消息历史
+#[tracing::instrument(skip(pool))]
+pub async fn get_group_messages(
+    pool: web::Data<DbPool>,
+    group_id: web::Path<String>,
+) -> AppResult<HttpResponse> {
+    let group_id_str = group_id.into_inner();
+
+    tracing::info!("=== 获取群聊消息历史 ===");
+    tracing::debug!("群聊 ID: {}", group_id_str);
+
+    // 验证群聊存在
+    let group_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE group_id = ?)")
+            .bind(&group_id_str)
+            .fetch_one(pool.get_ref())
+            .await
+            .map_err(|e| {
+                tracing::error!("验证群聊存在时数据库错误: {}", e);
+                AppError::DatabaseError(e.to_string())
+            })?;
+
+    if !group_exists {
+        tracing::warn!("群聊不存在: {}", group_id_str);
+        return Err(AppError::BadRequest("群聊不存在".to_string()));
+    }
+
+    // 获取群聊的所有消息，按创建时间升序排列
+    let messages: Vec<crate::models::Message> = sqlx::query_as(
+        "SELECT msg_id, group_id, sender_id, content, msg_type, created_at FROM messages WHERE group_id = ? ORDER BY created_at ASC"
+    )
+    .bind(&group_id_str)
+    .fetch_all(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("查询消息历史时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    tracing::info!("✅ 成功获取 {} 条消息", messages.len());
+
+    let responses: Vec<crate::models::MessageResponse> = messages
+        .into_iter()
+        .map(|m| m.into())
+        .collect();
+
+    Ok(HttpResponse::Ok().json(json!({
+        "group_id": group_id_str,
+        "messages": responses,
     })))
 }
 

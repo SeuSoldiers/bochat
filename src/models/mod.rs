@@ -6,6 +6,6 @@ pub mod user;
 
 pub use bot::{Bot, BotResponse, BotStatus, CreateBotRequest};
 pub use file::{File, FileMetadata, FileResponse};
-pub use group::{CreateGroupRequest, Group, GroupMember, GroupMemberResponse, GroupResponse};
+pub use group::{CreateGroupRequest, Group, GroupMember, GroupMemberResponse, GroupResponse, JoinGroupRequest};
 pub use message::{CreateMessageRequest, Message, MessageResponse, MessageType};
 pub use user::{RegisterRequest, LoginRequest, User, UserResponse};

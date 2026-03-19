@@ -67,6 +67,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         r#"
         CREATE TABLE IF NOT EXISTS groups (
             group_id TEXT PRIMARY KEY,
+            group_code TEXT UNIQUE,
             creator_id TEXT NOT NULL,
             name TEXT NOT NULL,
             description TEXT,
@@ -86,6 +87,17 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         r#"
         CREATE INDEX IF NOT EXISTS idx_groups_creator_id
         ON groups(creator_id)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    // Create index on group_code for faster lookups by group code
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_groups_group_code
+        ON groups(group_code)
         "#,
     )
     .execute(pool)

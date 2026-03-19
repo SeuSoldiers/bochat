@@ -81,6 +81,11 @@ async fn main() -> std::io::Result<()> {
                 "/api/v1/users/delete",
                 web::delete().to(handlers::delete_user),
             )
+            // Bot endpoints
+            .route("/api/v1/bots", web::post().to(handlers::create_bot))
+            .route("/api/v1/bots", web::get().to(handlers::list_bots))
+            .route("/api/v1/bots/{bot_id}", web::get().to(handlers::get_bot))
+            .route("/api/v1/bots/{bot_id}", web::delete().to(handlers::delete_bot))
             // Group endpoints
             .route("/api/v1/groups", web::post().to(handlers::create_group))
             .route("/api/v1/groups", web::get().to(handlers::list_user_groups))
@@ -93,7 +98,11 @@ async fn main() -> std::io::Result<()> {
                 web::delete().to(handlers::delete_group),
             )
             .route(
-                "/api/v1/groups/{group_id}/join",
+                "/api/v1/groups/{group_id}/messages",
+                web::get().to(handlers::get_group_messages),
+            )
+            .route(
+                "/api/v1/groups/join",
                 web::post().to(handlers::join_group),
             )
             .route(

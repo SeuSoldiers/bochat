@@ -4,15 +4,17 @@
 
 本脚本演示新的群聊系统：
 - 用户使用身份证号注册（实名认证）
-- 用户可以创建群聊
-- Bot可以加入群聊
+- 用户可以创建群聊（可自定义群号）
+- Bot可以通过群号加入群聊
 - Bot在群聊中发送消息
+- 获取群聊消息历史
 """
 
 import requests
 import json
 import sys
 from typing import Optional, Dict, Any
+
 
 class ChatPlatformTester:
     def __init__(self, base_url: str = "http://localhost:8080"):
@@ -135,10 +137,12 @@ class ChatPlatformTester:
             print(f"❌ 登录失败: {error_msg}")
             return None
 
-    def create_group(self, user_name: str, group_name: str, description: Optional[str] = None) -> Optional[str]:
-        """为用户创建新群聊。"""
+    def create_group(self, user_name: str, group_name: str, description: Optional[str] = None, group_code: Optional[str] = None) -> Optional[str]:
+        """为用户创建新群聊，可自定义群号。"""
         print(f"\n👥 为 {user_name} 创建群聊")
         print(f"   群名: {group_name}")
+        if group_code:
+            print(f"   群号: {group_code}")
 
         if user_name not in self.users:
             print(f"❌ 用户 {user_name} 未找到")
@@ -153,7 +157,8 @@ class ChatPlatformTester:
 
         data = {
             "name": group_name,
-            "description": description or f"由 {user_name} 创建的群聊"
+            "description": description or f"由 {user_name} 创建的群聊",
+            "group_code": group_code,
         }
 
         response = self._make_request("POST", "/api/v1/groups", data, user_bot_token)
@@ -161,9 +166,11 @@ class ChatPlatformTester:
         if response.status_code == 201:
             result = response.json()
             group_id = result["group_id"]
+            returned_code = result.get("group_code")
 
             self.groups[group_id] = {
                 "group_id": group_id,
+                "group_code": returned_code,
                 "creator": user_name,
                 "name": group_name,
                 "members": []
@@ -171,14 +178,16 @@ class ChatPlatformTester:
 
             print(f"✅ 群聊创建成功！")
             print(f"   群ID: {group_id}")
+            if returned_code:
+                print(f"   群号: {returned_code}")
             return group_id
         else:
             error_msg = response.json().get("error", "未知错误")
             print(f"❌ 群聊创建失败: {error_msg}")
             return None
 
-    def join_group(self, user_name: str, group_id: str, bot_idx: int = 0) -> bool:
-        """Bot加入群聊。"""
+    def join_group_by_code(self, user_name: str, group_code: str, bot_idx: int = 0) -> bool:
+        """Bot通过群号加入群聊。"""
         if user_name not in self.users:
             print(f"❌ 用户 {user_name} 未找到")
             return False
@@ -191,9 +200,41 @@ class ChatPlatformTester:
         bot = user_bots[bot_idx]
         bot_token = bot["token"]
 
-        print(f"\n➕ {bot['name']} 加入群聊 {group_id}")
+        print(f"\n➕ {bot['name']} 通过群号 {group_code} 加入群聊")
 
-        response = self._make_request("POST", f"/api/v1/groups/{group_id}/join", token=bot_token)
+        data = {"group_code": group_code}
+        response = self._make_request("POST", "/api/v1/groups/join", data, bot_token)
+
+        if response.status_code == 200:
+            result = response.json()
+            group_id = result.get("group_id", "")
+            print(f"✅ Bot加入群聊成功！(群ID: {group_id})")
+            if group_id in self.groups:
+                self.groups[group_id]["members"].append(bot["bot_id"])
+            return True
+        else:
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ Bot加入群聊失败: {error_msg}")
+            return False
+
+    def join_group_by_id(self, user_name: str, group_id: str, bot_idx: int = 0) -> bool:
+        """Bot通过群ID加入群聊。"""
+        if user_name not in self.users:
+            print(f"❌ 用户 {user_name} 未找到")
+            return False
+
+        user_bots = [b for b in self.bots.values() if b["owner"] == user_name]
+        if not user_bots or len(user_bots) <= bot_idx:
+            print(f"❌ 未找到用户 {user_name} 的Bot")
+            return False
+
+        bot = user_bots[bot_idx]
+        bot_token = bot["token"]
+
+        print(f"\n➕ {bot['name']} 通过群ID加入群聊 {group_id}")
+
+        data = {"group_id": group_id}
+        response = self._make_request("POST", "/api/v1/groups/join", data, bot_token)
 
         if response.status_code == 200:
             print(f"✅ Bot加入群聊成功！")
@@ -240,24 +281,6 @@ class ChatPlatformTester:
             print(f"❌ 消息发送失败: {error_msg}")
             return False
 
-    def list_group_members(self, group_id: str) -> bool:
-        """列出群成员。"""
-        print(f"\n👥 列出群 {group_id} 的成员")
-
-        response = self._make_request("GET", f"/api/v1/groups/{group_id}/members")
-
-        if response.status_code == 200:
-            result = response.json()
-            members = result.get("members", [])
-            print(f"✅ 找到 {len(members)} 个成员：")
-            for member in members:
-                print(f"   - {member['member_id']} (加入时间: {member['joined_at']})")
-            return True
-        else:
-            error_msg = response.json().get("error", "未知错误")
-            print(f"❌ 获取群成员失败: {error_msg}")
-            return False
-
     def send_message_with_bot(self, bot_name: str, bot_token: str, group_id: str, content: str) -> bool:
         """使用指定的Bot和Token发送消息。"""
         print(f"\n💬 {bot_name} 在群聊中发送消息")
@@ -281,6 +304,46 @@ class ChatPlatformTester:
             print(f"❌ 消息发送失败: {error_msg}")
             return False
 
+    def get_group_messages(self, group_id: str) -> bool:
+        """获取群聊消息历史。"""
+        group_name = self.groups.get(group_id, {}).get("name", group_id)
+        print(f"\n📜 获取群聊 [{group_name}] 的消息历史")
+
+        response = self._make_request("GET", f"/api/v1/groups/{group_id}/messages")
+
+        if response.status_code == 200:
+            result = response.json()
+            messages = result.get("messages", [])
+            print(f"✅ 共 {len(messages)} 条消息：")
+            for msg in messages:
+                sender = msg.get("sender_id", "未知")
+                content = msg.get("content", "")
+                time = msg.get("created_at", "")
+                print(f"   [{time}] {sender}: {content}")
+            return True
+        else:
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 获取消息历史失败: {error_msg}")
+            return False
+
+    def list_group_members(self, group_id: str) -> bool:
+        """列出群成员。"""
+        print(f"\n👥 列出群 {group_id} 的成员")
+
+        response = self._make_request("GET", f"/api/v1/groups/{group_id}/members")
+
+        if response.status_code == 200:
+            result = response.json()
+            members = result.get("members", [])
+            print(f"✅ 找到 {len(members)} 个成员：")
+            for member in members:
+                print(f"   - {member['member_id']} (加入时间: {member['joined_at']})")
+            return True
+        else:
+            error_msg = response.json().get("error", "未知错误")
+            print(f"❌ 获取群成员失败: {error_msg}")
+            return False
+
     def create_bot_for_user(self, user_name: str, bot_name: str, bot_description: str = None) -> Optional[tuple]:
         """为用户创建新的Bot。
 
@@ -301,7 +364,10 @@ class ChatPlatformTester:
         response = self._make_request("POST", "/api/v1/bots", data, default_bot_token)
 
         if response.status_code != 201:
-            error_msg = response.json().get("error", "未知错误")
+            try:
+                error_msg = response.json().get("error", "未知错误")
+            except Exception:
+                error_msg = f"HTTP {response.status_code}: {response.text[:200]}"
             print(f"❌ 创建{user_name}的Bot失败: {error_msg}")
             return None
 
@@ -362,13 +428,11 @@ def main():
     print("场景1.5: 用户登录获取Token")
     print("=" * 60)
 
-    # 登录Alice并获取Token
     alice_token = tester.login_user(
         id_number="110101199003071234",
         phone="13800138001"
     )
 
-    # 登录Bob并获取Token
     bob_token = tester.login_user(
         id_number="110101199003071235",
         phone="13800138002"
@@ -378,36 +442,31 @@ def main():
         print("❌ 用户登录失败")
         sys.exit(1)
 
-    # 场景2: 创建群聊
+    # 场景2: 创建群聊（带自定义群号）
     print("\n" + "=" * 60)
-    print("场景2: 创建群聊")
+    print("场景2: 创建群聊（带自定义群号）")
     print("=" * 60)
 
-    group1 = tester.create_group("Alice", "技术讨论组", "讨论技术问题的群聊")
-    group2 = tester.create_group("Bob", "产品反馈组", "收集产品反馈的群聊")
+    group1 = tester.create_group("Alice", "技术讨论组", "讨论技术问题的群聊", group_code="TECH001")
+    group2 = tester.create_group("Bob", "产品反馈组", "收集产品反馈的群聊", group_code="PROD001")
 
     if not (group1 and group2):
         print("❌ 群聊创建失败")
         sys.exit(1)
 
-    # 场景3: Bot加入群聊
+    # 场景3: Bot通过群号加入群聊
     print("\n" + "=" * 60)
-    print("场景3: Bot加入群聊")
+    print("场景3: Bot通过群号加入群聊")
     print("=" * 60)
-
-    # Alice的Bot自动被添加到了 group1（因为 Alice 创建了它）
-    # Bob的Bot自动被添加到了 group2（因为 Bob 创建了它）
 
     print(f"\n✅ Alice的Bot已自动加入 group1（创建者自动加入）")
     print(f"✅ Bob的Bot已自动加入 group2（创建者自动加入）")
 
-    # 现在让Bob的Bot加入Alice创建的group1
-    tester.join_group("Bob", group1)
-    print(f"✅ Bob的Bot已加入 group1")
+    # Bob通过群号加入Alice创建的group1
+    tester.join_group_by_code("Bob", "TECH001")
 
-    # 让Alice的Bot加入Bob创建的group2
-    tester.join_group("Alice", group2)
-    print(f"✅ Alice的Bot已加入 group2")
+    # Alice通过群号加入Bob创建的group2
+    tester.join_group_by_code("Alice", "PROD001")
 
     # 场景3.5: 创建更多Bot，演示多个Bot在同一群聊中聊天
     print("\n" + "=" * 60)
@@ -431,23 +490,19 @@ def main():
     print("场景4: 多个Bot在同一群聊中聊天")
     print("=" * 60)
 
-    print(f"\n--- 在 {group1} 中 - 多个Bot聊天 ---")
+    print(f"\n--- 在技术讨论组(TECH001)中 - 多个Bot聊天 ---")
     tester.send_message("Alice", group1, "大家好！这是技术讨论组，欢迎加入！")
     tester.send_message("Bob", group1, "感谢Alice邀请我加入！我们可以讨论什么话题呢？")
     tester.send_message("Alice", group1, "我们可以讨论Rust、Python、区块链等话题")
 
-    # 如果Alice有第二个Bot，让它也加入群聊并发送消息
+    # 如果Alice有第二个Bot，让它也通过群号加入群聊并发送消息
     if alice_bot2_id and alice_bot2_token:
-        print(f"\n➕ Alice的第二个Bot加入 group1...")
-        response = tester._make_request(
-            "POST",
-            f"/api/v1/groups/{group1}/join",
-            token=alice_bot2_token
-        )
+        print(f"\n➕ Alice的第二个Bot通过群号加入技术讨论组...")
+        data = {"group_code": "TECH001"}
+        response = tester._make_request("POST", "/api/v1/groups/join", data, alice_bot2_token)
         if response.status_code == 200:
-            print(f"✅ Alice的第二个Bot已加入 group1")
+            print(f"✅ Alice的第二个Bot已通过群号加入技术讨论组")
 
-            # Alice的第二个Bot发送消息
             tester.send_message_with_bot(alice_bot2_name, alice_bot2_token, group1, "我是Alice的AI助手，很高兴认识大家！")
             tester.send_message_with_bot(alice_bot2_name, alice_bot2_token, group1, "有什么我可以帮助的吗？")
         else:
@@ -456,21 +511,29 @@ def main():
     tester.send_message("Bob", group1, "太棒了！我最近在学习Rust")
     tester.send_message("Alice", group1, "Rust是个很强大的语言，我们一起探讨吧！")
 
-    print(f"\n--- 在 {group2} 中 ---")
+    print(f"\n--- 在产品反馈组(PROD001)中 ---")
     tester.send_message("Bob", group2, "欢迎来到产品反馈组！")
     tester.send_message("Alice", group2, "感谢邀请，我有一些关于用户界面的反馈")
     tester.send_message("Bob", group2, "请继续，我们很想听听你的意见")
     tester.send_message("Alice", group2, "我觉得可以添加暗黑模式和多语言支持")
 
-    # 场景5: 查看群成员
+    # 场景5: 获取群聊消息历史
     print("\n" + "=" * 60)
-    print("场景5: 查看群成员")
+    print("场景5: 获取群聊消息历史")
     print("=" * 60)
 
-    print(f"\n查看 {group1} 的成员:")
+    tester.get_group_messages(group1)
+    tester.get_group_messages(group2)
+
+    # 场景6: 查看群成员
+    print("\n" + "=" * 60)
+    print("场景6: 查看群成员")
+    print("=" * 60)
+
+    print(f"\n查看技术讨论组(TECH001)的成员:")
     tester.list_group_members(group1)
 
-    print(f"\n查看 {group2} 的成员:")
+    print(f"\n查看产品反馈组(PROD001)的成员:")
     tester.list_group_members(group2)
 
     # 打印总结
@@ -488,6 +551,7 @@ def main():
     for group_id, group_info in tester.groups.items():
         print(f"  • {group_info['name']}")
         print(f"    - 群ID: {group_id}")
+        print(f"    - 群号: {group_info.get('group_code', '无')}")
         print(f"    - 创建者: {group_info['creator']}")
         print(f"    - 成员数: {len(group_info['members'])}")
 

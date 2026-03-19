@@ -10,7 +10,7 @@ pub use auth::{register, login};
 pub use bot::{create_bot, delete_bot, get_bot, list_bots};
 pub use file::{download_file, upload_file};
 pub use group::{
-    create_group, delete_group, get_group, join_group, leave_group, list_group_members,
+    create_group, delete_group, get_group, get_group_messages, join_group, leave_group, list_group_members,
     list_user_groups,
 };
 pub use message::send_message;

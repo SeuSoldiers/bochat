@@ -263,6 +263,12 @@ body {
     text-overflow: ellipsis;
 }
 
+.group-item-code {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 2px;
+}
+
 /* 主聊天区域 */
 .main-chat {
     flex: 1;
@@ -287,6 +293,12 @@ body {
 .group-desc {
     font-size: 12px;
     color: #999;
+}
+
+.group-code {
+    font-size: 11px;
+    color: #7c8aff;
+    margin-top: 2px;
 }
 
 .chat-header-btns {
@@ -343,6 +355,17 @@ body {
 .message.own .message-bubble {
     background: #667eea;
     color: white;
+}
+
+.message-time {
+    font-size: 10px;
+    color: #999;
+    margin-top: 4px;
+}
+
+.message.own .message-time {
+    color: #999;
+    text-align: right;
 }
 
 .message-sender {
