@@ -65,9 +65,7 @@ export const useChatStore = defineStore('chat', () => {
     error.value = null
 
     try {
-      const newMessage = await sendMessage(data)
-      messages.value.push(newMessage)
-      return newMessage
+      return await sendMessage(data)
     } catch (err: any) {
       error.value = err.message || '发送消息失败'
       throw err
