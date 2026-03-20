@@ -39,6 +39,17 @@ def pretty_event(raw_message: str) -> str:
     timestamp = payload.get("timestamp", "")
     event_payload = payload.get("payload")
 
+    if event_type == "connection" and isinstance(event_payload, dict):
+        bot_id = event_payload.get("bot_id", "")
+        bot_name = event_payload.get("bot_name", "")
+        group_ids = event_payload.get("group_ids", [])
+        return (
+            f"[{timestamp}] connection\n"
+            f"bot_id: {bot_id}\n"
+            f"bot_name: {bot_name}\n"
+            f"group_ids: {group_ids}"
+        )
+
     try:
         body = json.dumps(event_payload, ensure_ascii=False, indent=2)
     except TypeError:
@@ -94,8 +105,10 @@ async def monitor(ws_url: str, reconnect_delay: float) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Monitor bochat websocket events with a bot token.")
-    parser.add_argument("token", help="bot token used as /ws?token=...")
+    parser = argparse.ArgumentParser(
+        description="Monitor websocket events for the groups currently joined by a single bot."
+    )
+    parser.add_argument("token", help="single bot token used as /ws?token=...")
     parser.add_argument(
         "--url",
         default="http://127.0.0.1:8080/ws",

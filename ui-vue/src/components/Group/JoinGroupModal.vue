@@ -49,6 +49,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Bot } from '@/types'
+import { getErrorMessage } from '@/utils/error'
 
 defineProps<{
   bots: Bot[]
@@ -81,7 +82,7 @@ const handleSubmit = async () => {
   try {
     emit('join', groupNumber.value, botId.value)
   } catch (err: any) {
-    error.value = err.message || '加入失败'
+    error.value = getErrorMessage(err, '加入失败')
   } finally {
     loading.value = false
   }

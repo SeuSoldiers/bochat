@@ -4,11 +4,19 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login, logout, register } from '@/services/auth'
+import {
+  getCurrentUser,
+  login,
+  logout,
+  register,
+  updateCurrentUser,
+  type AuthIdentityPayload,
+  type LoginResponse,
+  type RegisterPayload,
+} from '@/services/auth'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import type { User } from '@/types'
-
-type LoginResponse = User & { bot_token: string }
+import { getErrorMessage } from '@/utils/error'
 
 export const useAuthStore = defineStore('auth', () => {
   // 状态
@@ -37,28 +45,26 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const userId = computed(() => user.value?.id || '')
+  const userId = computed(() => parseUserIdFromToken(token.value) || '')
   const userPhone = computed(() => user.value?.phone || '')
   const userName = computed(() => user.value?.name || '')
 
   // 方法：注册
-  const handleRegister = async (name: string, phone: string, idNumber: string) => {
+  const handleRegister = async (payload: RegisterPayload) => {
     loading.value = true
     error.value = null
 
     try {
-      await register(name, phone, idNumber)
-
-      const response = await login(phone, idNumber)
+      const response = await register(payload)
       user.value = extractUser(response)
-      token.value = response.bot_token
+      token.value = response.token
 
-      localStorage.setItem(STORAGE_KEYS.TOKEN, response.bot_token)
+      localStorage.setItem(STORAGE_KEYS.TOKEN, response.token)
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user.value))
 
       return response
     } catch (err: any) {
-      error.value = err.message || '注册失败'
+      error.value = getErrorMessage(err, '注册失败')
       throw err
     } finally {
       loading.value = false
@@ -66,21 +72,73 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 方法：登录
-  const handleLogin = async (phone: string, idNumber: string) => {
+  const handleLogin = async (payload: AuthIdentityPayload) => {
     loading.value = true
     error.value = null
 
     try {
-      const response = await login(phone, idNumber)
+      const response = await login(payload)
       user.value = extractUser(response)
-      token.value = response.bot_token
+      token.value = response.token
 
-      localStorage.setItem(STORAGE_KEYS.TOKEN, response.bot_token)
+      localStorage.setItem(STORAGE_KEYS.TOKEN, response.token)
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user.value))
 
       return response
     } catch (err: any) {
-      error.value = err.message || '登录失败'
+      error.value = getErrorMessage(err, '登录失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const refreshCurrentUser = async () => {
+    if (!token.value) {
+      return null
+    }
+
+    try {
+      const profile = await getCurrentUser()
+      user.value = {
+        name: profile.name,
+        phone: profile.phone,
+        id_number: profile.id_number,
+        avatar_url: profile.avatar_url,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      }
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user.value))
+      return user.value
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '获取用户信息失败')
+      throw err
+    }
+  }
+
+  const updateProfile = async (payload: {
+    name?: string
+    phone?: string
+    id_number?: string
+    avatar_url?: string
+  }) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const updated = await updateCurrentUser(payload)
+      user.value = {
+        name: updated.name,
+        phone: updated.phone,
+        id_number: updated.id_number,
+        avatar_url: updated.avatar_url,
+        created_at: updated.created_at,
+        updated_at: updated.updated_at,
+      }
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user.value))
+      return user.value
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '更新用户信息失败')
       throw err
     } finally {
       loading.value = false
@@ -101,7 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem(STORAGE_KEYS.TOKEN)
       localStorage.removeItem(STORAGE_KEYS.USER)
     } catch (err: any) {
-      error.value = err.message || '登出失败'
+      error.value = getErrorMessage(err, '登出失败')
       throw err
     } finally {
       loading.value = false
@@ -130,6 +188,8 @@ export const useAuthStore = defineStore('auth', () => {
     initializeAuth,
     handleRegister,
     handleLogin,
+    refreshCurrentUser,
+    updateProfile,
     handleLogout,
     clearError,
   }
@@ -137,10 +197,24 @@ export const useAuthStore = defineStore('auth', () => {
 
 function extractUser(response: LoginResponse): User {
   return {
-    id: response.id,
     name: response.name,
     phone: response.phone,
     id_number: response.id_number,
+    avatar_url: response.avatar_url,
     created_at: response.created_at,
+    updated_at: response.updated_at,
   }
+}
+
+function parseUserIdFromToken(token: string | null): string | null {
+  if (!token) {
+    return null
+  }
+
+  const parts = token.split(':')
+  if (parts.length !== 4 || parts[0] !== 'u') {
+    return null
+  }
+
+  return parts[1] || null
 }

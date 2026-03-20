@@ -7,19 +7,24 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
+use crate::utils::{generate_group_id, verify_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{bearer_token, token_bot_id},
+    http::{require_bot_bearer_token, require_user_bearer_token, token_bot_id, token_user_id},
     AppState,
 };
-use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
-use crate::utils::{generate_group_id, verify_token};
 
 #[derive(Debug, Deserialize)]
 pub struct GroupMessagesQuery {
     pub bot_id: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LeaveGroupQuery {
+    pub bot_id: String,
 }
 
 /// 创建新群聊（仅用户可创建）
@@ -44,47 +49,22 @@ pub async fn create_group(
     );
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("创建群聊失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_user_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("创建群聊失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功");
 
     // 解析 token 获取 bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
+    let user_id = if let Ok(user_id) = token_user_id(&token) {
+        user_id.to_string()
     } else {
         tracing::warn!("创建群聊失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     };
-    tracing::debug!("从 token 解析出 Bot ID: {}", requester_bot_id);
-
-    // 查询 bot 找到其所有者
-    tracing::debug!("正在查询 Bot 所有者...");
-    let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
-    })?;
-
-    tracing::debug!("Bot 查询成功，所有者（用户）ID: {}", user_bot.owner_id);
-
-    // 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &user_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
-
-    let user_id = user_bot.owner_id.clone();
+    tracing::debug!("从 token 解析出用户 ID: {}", user_id);
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let member_bot_id = if let Some(target_bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
@@ -108,21 +88,25 @@ pub async fn create_group(
                 target_bot.owner_id,
                 user_id
             );
-            return Err(AppError::BotPermissionDenied);
+            return Err(AppError::BotOwnershipMismatch);
         }
 
         if target_bot.status != "active" {
             tracing::warn!("创建群聊失败: 目标 Bot 未激活: {}", target_bot.bot_id);
-            return Err(AppError::BadRequest("目标 Bot 未激活".to_string()));
+            return Err(AppError::BotInactive);
         }
 
         target_bot.bot_id
     } else {
-        if user_bot.status != "active" {
-            tracing::warn!("创建群聊失败: 当前认证 Bot 未激活: {}", user_bot.bot_id);
-            return Err(AppError::BadRequest("当前 Bot 未激活".to_string()));
-        }
-        requester_bot_id.to_string()
+        let default_bot_id: Option<String> = sqlx::query_scalar(
+            "SELECT bot_id FROM bots WHERE owner_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1"
+        )
+        .bind(&user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        default_bot_id.ok_or(AppError::NoAvailableBot)?
     };
 
     // 验证输入
@@ -189,16 +173,19 @@ pub async fn create_group(
         member_bot_id
     );
 
-    Ok(json_response(StatusCode::CREATED, json!({
-        "group_id": group_id,
-        "group_code": req.group_code,
-        "creator_id": user_id,
-        "name": req.name,
-        "description": req.description,
-        "status": "active",
-        "created_at": now,
-        "updated_at": now,
-    })))
+    Ok(json_response(
+        StatusCode::CREATED,
+        json!({
+            "group_id": group_id,
+            "group_code": req.group_code,
+            "creator_id": user_id,
+            "name": req.name,
+            "description": req.description,
+            "status": "active",
+            "created_at": now,
+            "updated_at": now,
+        }),
+    ))
 }
 
 /// 列出已认证用户创建的群聊
@@ -212,45 +199,22 @@ pub async fn list_user_groups(
     tracing::info!("=== 开始查询用户群聊列表 ===");
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("查询群聊列表失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_user_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("查询群聊列表失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功");
 
     // 解析 token 获取 bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
+    let user_id = if let Ok(user_id) = token_user_id(&token) {
+        user_id.to_string()
     } else {
         tracing::warn!("查询群聊列表失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     };
-    tracing::debug!("从 token 解析出 Bot ID: {}", requester_bot_id);
-
-    // 查询 bot 找到其所有者
-    tracing::debug!("正在查询 Bot...");
-    let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
-    })?;
-
-    tracing::debug!("Bot 查询成功，所有者 ID: {}", user_bot.owner_id);
-
-    // 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &user_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
+    tracing::debug!("从 token 解析出用户 ID: {}", user_id);
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     // 查询当前用户创建或其 Bot 已加入的群聊
     tracing::info!("正在查询当前用户可管理/已加入的群聊");
@@ -265,8 +229,8 @@ pub async fn list_user_groups(
         ORDER BY g.created_at DESC
         "#
     )
-    .bind(&user_bot.owner_id)
-    .bind(&user_bot.owner_id)
+    .bind(&user_id)
+    .bind(&user_id)
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
@@ -282,9 +246,12 @@ pub async fn list_user_groups(
 
     let responses: Vec<GroupResponse> = groups.into_iter().map(|g| g.into()).collect();
 
-    Ok(json_response(StatusCode::OK, json!({
-        "groups": responses,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "groups": responses,
+        }),
+    ))
 }
 
 /// Get group details
@@ -329,40 +296,20 @@ pub async fn join_group(
     }
 
     // Extract token from Authorization header
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("加入群聊失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_user_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("加入群聊失败: {}", err);
+        err
     })?;
 
     // Parse token to get bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
+    let requester_user_id = if let Ok(user_id) = token_user_id(&token) {
+        user_id.to_string()
     } else {
         tracing::warn!("加入群聊失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     };
-    tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
-
-    // Get the requester bot
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
-    })?;
-
-    // Verify token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
+    tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
@@ -380,30 +327,31 @@ pub async fn join_group(
             AppError::BotNotFound
         })?;
 
-        if target_bot.owner_id != requester_bot.owner_id {
+        if target_bot.owner_id != requester_user_id {
             tracing::warn!(
                 "加入群聊失败: 目标 Bot 不属于当前用户, owner_id={}, requester_owner={}",
                 target_bot.owner_id,
-                requester_bot.owner_id
+                requester_user_id
             );
-            return Err(AppError::BotPermissionDenied);
+            return Err(AppError::BotOwnershipMismatch);
         }
 
         if target_bot.status != "active" {
             tracing::warn!("加入群聊失败: 目标 Bot 未激活: {}", target_bot.bot_id);
-            return Err(AppError::BadRequest("目标 Bot 未激活".to_string()));
+            return Err(AppError::BotInactive);
         }
 
         target_bot.bot_id
     } else {
-        if requester_bot.status != "active" {
-            tracing::warn!(
-                "加入群聊失败: 当前认证 Bot 未激活: {}",
-                requester_bot.bot_id
-            );
-            return Err(AppError::BadRequest("当前 Bot 未激活".to_string()));
-        }
-        requester_bot.bot_id.clone()
+        let default_bot_id: Option<String> = sqlx::query_scalar(
+            "SELECT bot_id FROM bots WHERE owner_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1"
+        )
+        .bind(&requester_user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        default_bot_id.ok_or(AppError::NoAvailableBot)?
     };
 
     // 查找群聊
@@ -467,11 +415,14 @@ pub async fn join_group(
 
     tracing::info!("✅ Bot {} 已加入群聊 {}", target_bot_id, group_id_str);
 
-    Ok(json_response(StatusCode::OK, json!({
-        "message": "成功加入群聊",
-        "group_id": group_id_str,
-        "bot_id": target_bot_id,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "成功加入群聊",
+            "group_id": group_id_str,
+            "bot_id": target_bot_id,
+        }),
+    ))
 }
 
 /// Leave a group
@@ -480,42 +431,43 @@ pub async fn leave_group(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(group_id_str): Path<String>,
+    Query(query): Query<LeaveGroupQuery>,
 ) -> AppResult<Response> {
+    let token = require_user_bearer_token(&headers)?;
+    let requester_user_id = token_user_id(&token)?.to_string();
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    let bot_id = query.bot_id;
 
-    // Extract token from Authorization header
-    let token = bearer_token(&headers)?;
-
-    // Parse token to get bot_id
-    let bot_id = token_bot_id(&token)?;
-
-    // Get the bot
     let bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
-    .bind(bot_id)
+    .bind(&bot_id)
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    // Verify token
-    let _token_payload = verify_token(&token, &bot.secret, 86400)?;
+    if bot.owner_id != requester_user_id {
+        return Err(AppError::BotOwnershipMismatch);
+    }
 
-    // Remove bot from group
     sqlx::query("DELETE FROM group_members WHERE group_id = ? AND member_id = ?")
         .bind(&group_id_str)
-        .bind(bot_id)
+        .bind(&bot_id)
         .execute(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     tracing::info!("Bot {} left group {}", bot_id, group_id_str);
 
-    Ok(json_response(StatusCode::OK, json!({
-        "message": "Successfully left group",
-        "group_id": group_id_str,
-        "bot_id": bot_id,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "Successfully left group",
+            "group_id": group_id_str,
+            "bot_id": bot_id,
+        }),
+    ))
 }
 
 /// Remove a specific owned bot from a group
@@ -525,20 +477,9 @@ pub async fn remove_group_member(
     headers: HeaderMap,
     Path((group_id_str, target_bot_id)): Path<(String, String)>,
 ) -> AppResult<Response> {
-
-    let token = bearer_token(&headers)?;
-    let requester_bot_id = token_bot_id(&token)?;
-
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
-
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
+    let token = require_user_bearer_token(&headers)?;
+    let requester_user_id = token_user_id(&token)?.to_string();
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let target_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
@@ -549,8 +490,8 @@ pub async fn remove_group_member(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    if target_bot.owner_id != requester_bot.owner_id {
-        return Err(AppError::BotPermissionDenied);
+    if target_bot.owner_id != requester_user_id {
+        return Err(AppError::BotOwnershipMismatch);
     }
 
     sqlx::query("DELETE FROM group_members WHERE group_id = ? AND member_id = ?")
@@ -560,11 +501,14 @@ pub async fn remove_group_member(
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    Ok(json_response(StatusCode::OK, json!({
-        "message": "Bot removed from group successfully",
-        "group_id": group_id_str,
-        "bot_id": target_bot_id,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "Bot removed from group successfully",
+            "group_id": group_id_str,
+            "bot_id": target_bot_id,
+        }),
+    ))
 }
 
 /// Delete a group (only creator can delete)
@@ -574,25 +518,9 @@ pub async fn delete_group(
     headers: HeaderMap,
     Path(group_id_str): Path<String>,
 ) -> AppResult<Response> {
-
-    // Extract token from Authorization header
-    let token = bearer_token(&headers)?;
-
-    // Parse token to get bot_id
-    let bot_id = token_bot_id(&token)?;
-
-    // Get the bot to find its owner
-    let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
-
-    // Verify token
-    let _token_payload = verify_token(&token, &user_bot.secret, 86400)?;
+    let token = require_user_bearer_token(&headers)?;
+    let requester_user_id = token_user_id(&token)?.to_string();
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     // Get group
     let group: crate::models::Group = sqlx::query_as(
@@ -605,8 +533,8 @@ pub async fn delete_group(
     .ok_or(AppError::BadRequest("Group not found".to_string()))?;
 
     // Check if requester is the creator
-    if group.creator_id != user_bot.owner_id {
-        return Err(AppError::BotPermissionDenied);
+    if group.creator_id != requester_user_id {
+        return Err(AppError::Forbidden("只有群创建者才能删除该群".to_string()));
     }
 
     // Delete group members
@@ -625,10 +553,13 @@ pub async fn delete_group(
 
     tracing::info!("Group deleted: {}", group_id_str);
 
-    Ok(json_response(StatusCode::OK, json!({
-        "message": "Group deleted successfully",
-        "group_id": group_id_str,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "Group deleted successfully",
+            "group_id": group_id_str,
+        }),
+    ))
 }
 
 /// 获取群聊消息历史
@@ -648,14 +579,13 @@ pub async fn get_group_messages(
     Path(group_id_str): Path<String>,
     Query(query): Query<GroupMessagesQuery>,
 ) -> AppResult<Response> {
-
     tracing::info!("=== 获取群聊消息历史 ===");
     tracing::debug!("群聊 ID: {}", group_id_str);
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("获取消息失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_bot_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("获取消息失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功");
@@ -732,7 +662,7 @@ pub async fn get_group_messages(
                 target_bot.owner_id,
                 bot.owner_id
             );
-            return Err(AppError::BotPermissionDenied);
+            return Err(AppError::BotOwnershipMismatch);
         }
 
         target_bot.bot_id
@@ -758,7 +688,7 @@ pub async fn get_group_messages(
             access_bot_id,
             group_id_str
         );
-        return Err(AppError::Forbidden("只有群内的Bot才能查看消息".to_string()));
+        return Err(AppError::BotNotInGroup);
     }
 
     tracing::debug!("✅ Bot 是群内成员，继续获取消息");
@@ -827,12 +757,15 @@ pub async fn get_group_messages(
         })
         .collect();
 
-    Ok(json_response(StatusCode::OK, json!({
-        "group_id": group_id_str,
-        "limit": limit,
-        "offset": offset,
-        "messages": responses,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "group_id": group_id_str,
+            "limit": limit,
+            "offset": offset,
+            "messages": responses,
+        }),
+    ))
 }
 
 /// List group members
@@ -842,19 +775,9 @@ pub async fn list_group_members(
     headers: HeaderMap,
     Path(group_id_str): Path<String>,
 ) -> AppResult<Response> {
-    let token = bearer_token(&headers)?;
-    let requester_bot_id = token_bot_id(&token)?;
-
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
-
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
+    let token = require_user_bearer_token(&headers)?;
+    let requester_user_id = token_user_id(&token)?.to_string();
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let can_view: bool = sqlx::query_scalar(
         r#"
@@ -868,14 +791,16 @@ pub async fn list_group_members(
         "#,
     )
     .bind(&group_id_str)
-    .bind(&requester_bot.owner_id)
-    .bind(&requester_bot.owner_id)
+    .bind(&requester_user_id)
+    .bind(&requester_user_id)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     if !can_view {
-        return Err(AppError::Forbidden("无权查看该群成员".to_string()));
+        return Err(AppError::Forbidden(
+            "只有群创建者或群内 Bot 的拥有者可以查看成员".to_string(),
+        ));
     }
 
     let members: Vec<GroupMemberResponse> = sqlx::query_as(
@@ -892,7 +817,10 @@ pub async fn list_group_members(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    Ok(json_response(StatusCode::OK, json!({
-        "members": members,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "members": members,
+        }),
+    ))
 }

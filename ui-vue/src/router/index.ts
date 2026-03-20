@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 const LoginView = () => import('@/views/LoginView.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const ChatView = () => import('@/views/ChatView.vue')
+const ProfileView = () => import('@/views/ProfileView.vue')
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -35,6 +36,14 @@ export const routes: RouteRecordRaw[] = [
     path: '/chat',
     name: 'chat',
     component: ChatView,
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
     meta: {
       requiresAuth: true,
     },

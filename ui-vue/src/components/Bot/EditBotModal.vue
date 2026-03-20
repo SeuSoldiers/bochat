@@ -47,6 +47,7 @@
 import { ref } from 'vue'
 import type { Bot } from '@/types'
 import { uploadFile } from '@/services/file'
+import { getErrorMessage } from '@/utils/error'
 
 const props = defineProps<{
   bot: Bot
@@ -83,7 +84,7 @@ const handleSubmit = async () => {
       avatarUrl: form.value.avatarUrl,
     })
   } catch (err: any) {
-    error.value = err.message || '保存失败'
+    error.value = getErrorMessage(err, '保存失败')
   } finally {
     loading.value = false
   }
@@ -107,7 +108,7 @@ const handleFileChange = async (event: Event) => {
     const uploaded = await uploadFile(file)
     form.value.avatarUrl = uploaded.url
   } catch (err: any) {
-    error.value = err.message || '头像上传失败'
+    error.value = getErrorMessage(err, '头像上传失败')
   } finally {
     uploading.value = false
     target.value = ''

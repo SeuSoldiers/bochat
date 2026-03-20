@@ -7,6 +7,7 @@ import { ref, computed } from 'vue'
 import { getGroupList, createGroup, deleteGroup, getGroupMembers, joinGroup, getGroup, removeGroupMember } from '@/services/group'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import type { Group, CreateGroupRequest, GroupMember } from '@/types'
+import { getErrorMessage } from '@/utils/error'
 
 export const useGroupStore = defineStore('groups', () => {
   // 状态
@@ -44,7 +45,7 @@ export const useGroupStore = defineStore('groups', () => {
       groups.value = await getGroupList()
       return groups.value
     } catch (err: any) {
-      error.value = err.message || '获取群列表失败'
+      error.value = getErrorMessage(err, '获取群列表失败')
       throw err
     } finally {
       loading.value = false
@@ -66,7 +67,7 @@ export const useGroupStore = defineStore('groups', () => {
 
       return newGroup
     } catch (err: any) {
-      error.value = err.message || '创建群失败'
+      error.value = getErrorMessage(err, '创建群失败')
       throw err
     } finally {
       loading.value = false
@@ -97,7 +98,7 @@ export const useGroupStore = defineStore('groups', () => {
         }
       }
     } catch (err: any) {
-      error.value = err.message || '删除群失败'
+      error.value = getErrorMessage(err, '删除群失败')
       throw err
     } finally {
       loading.value = false
@@ -115,7 +116,7 @@ export const useGroupStore = defineStore('groups', () => {
       groupMembers.value[groupId] = members
       return members
     } catch (err: any) {
-      error.value = err.message || '获取群成员失败'
+      error.value = getErrorMessage(err, '获取群成员失败')
       throw err
     } finally {
       loading.value = false
@@ -146,7 +147,7 @@ export const useGroupStore = defineStore('groups', () => {
 
       return joinedGroup
     } catch (err: any) {
-      error.value = err.message || '加入群失败'
+      error.value = getErrorMessage(err, '加入群失败')
       throw err
     } finally {
       loading.value = false
@@ -163,7 +164,7 @@ export const useGroupStore = defineStore('groups', () => {
       groupMembers.value[groupId] = members
       return result
     } catch (err: any) {
-      error.value = err.message || '添加 Bot 到群聊失败'
+      error.value = getErrorMessage(err, '添加 Bot 到群聊失败')
       throw err
     } finally {
       loading.value = false
@@ -178,7 +179,7 @@ export const useGroupStore = defineStore('groups', () => {
       await removeGroupMember(groupId, botId)
       groupMembers.value[groupId] = (groupMembers.value[groupId] || []).filter((member) => member.member_id !== botId)
     } catch (err: any) {
-      error.value = err.message || '移出群聊失败'
+      error.value = getErrorMessage(err, '移出群聊失败')
       throw err
     } finally {
       loading.value = false

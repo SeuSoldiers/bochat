@@ -10,4 +10,4 @@ pub use group::{
     CreateGroupRequest, Group, GroupMember, GroupMemberResponse, GroupResponse, JoinGroupRequest,
 };
 pub use message::{CreateMessageRequest, Message, MessageResponse, MessageType};
-pub use user::{LoginRequest, RegisterRequest, User, UserResponse};
+pub use user::{LoginRequest, RegisterRequest, UpdateUserRequest, User, UserResponse};

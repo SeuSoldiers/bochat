@@ -1,4 +1,4 @@
-use chat_platform::{app_router, config::Config, db, AppState, ws};
+use chat_platform::{app_router, config::Config, db, ws, AppState};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {

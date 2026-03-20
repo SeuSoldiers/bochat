@@ -75,6 +75,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { uploadFile } from '@/services/file'
+import { getErrorMessage } from '@/utils/error'
 
 const emit = defineEmits<{
   create: [name: string, description: string, avatarUrl: string]
@@ -103,7 +104,7 @@ const handleSubmit = async () => {
   try {
     emit('create', form.value.name, form.value.description, form.value.avatarUrl)
   } catch (err: any) {
-    error.value = err.message || '创建失败'
+    error.value = getErrorMessage(err, '创建失败')
   } finally {
     loading.value = false
   }
@@ -127,7 +128,7 @@ const handleFileChange = async (event: Event) => {
     const uploaded = await uploadFile(file)
     form.value.avatarUrl = uploaded.url
   } catch (err: any) {
-    error.value = err.message || '头像上传失败'
+    error.value = getErrorMessage(err, '头像上传失败')
   } finally {
     uploading.value = false
     target.value = ''

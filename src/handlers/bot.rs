@@ -7,13 +7,13 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
+use crate::utils::{generate_bot_id, generate_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{bearer_token, token_bot_id},
+    http::{require_user_bearer_token, token_user_id},
     AppState,
 };
-use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
-use crate::utils::{generate_bot_id, generate_token, verify_token};
 
 /// 为已认证的用户创建新 Bot
 ///
@@ -32,49 +32,21 @@ pub async fn create_bot(
     tracing::info!("=== 开始创建新 Bot ===");
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("创建 Bot 失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_user_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("创建 Bot 失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功 (前30位): {}", &token[..30.min(token.len())]);
 
-    // 解析 token 获取 bot_id（先不验证）
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
+    let owner_id = if let Ok(user_id) = token_user_id(&token) {
+        user_id.to_string()
     } else {
-        tracing::warn!(
-            "创建 Bot 失败: Token 格式无效"
-        );
+        tracing::warn!("创建 Bot 失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     };
-    tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
-
-    // 从数据库获取请求者 bot（以获取 secret）
-    tracing::debug!("正在从数据库查询请求者 Bot...");
-    let owner_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询请求者 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("请求者 Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
-    })?;
-
-    tracing::debug!("请求者 Bot 查询成功，所有者 ID: {}", owner_bot.owner_id);
-
-    // 使用 bot 的 secret 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &owner_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
-
-    let owner_id = owner_bot.owner_id;
+    tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     // 验证输入
     if req.name.is_empty() {
@@ -128,18 +100,21 @@ pub async fn create_bot(
         owner_id
     );
 
-    Ok(json_response(StatusCode::CREATED, json!({
-        "bot_id": new_bot_id,
-        "owner_id": owner_id,
-        "name": req.name,
-        "description": req.description,
-        "avatar_url": req.avatar_url,
-        "status": "active",
-        "token": bot_token,
-        "secret": bot_secret,
-        "created_at": now,
-        "updated_at": now,
-    })))
+    Ok(json_response(
+        StatusCode::CREATED,
+        json!({
+            "bot_id": new_bot_id,
+            "owner_id": owner_id,
+            "name": req.name,
+            "description": req.description,
+            "avatar_url": req.avatar_url,
+            "status": "active",
+            "token": bot_token,
+            "secret": bot_secret,
+            "created_at": now,
+            "updated_at": now,
+        }),
+    ))
 }
 
 /// 列出已认证用户的所有 Bot
@@ -150,55 +125,28 @@ pub async fn create_bot(
 /// 3. 查询该用户的所有 bot
 /// 4. 返回 bot 列表
 #[tracing::instrument(skip(state))]
-pub async fn list_bots(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> AppResult<Response> {
+pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Response> {
     tracing::info!("=== 开始查询 Bot 列表 ===");
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("查询 Bot 列表失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_user_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("查询 Bot 列表失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功");
 
     // 解析 token 获取 bot_id（先不验证）
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
+    let owner_id = if let Ok(user_id) = token_user_id(&token) {
+        user_id.to_string()
     } else {
         tracing::warn!("查询 Bot 列表失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     };
-    tracing::debug!("从 token 解析出 Bot ID: {}", requester_bot_id);
-
-    // 从数据库获取请求者 bot（以获取 owner_id 和 secret）
-    tracing::debug!("正在查询请求者 Bot...");
-    let owner_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询请求者 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("请求者 Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
-    })?;
-
-    tracing::debug!("请求者 Bot 查询成功，所有者 ID: {}", owner_bot.owner_id);
-
-    // 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &owner_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
+    tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     // 查询该用户的所有 bot
-    let owner_id = owner_bot.owner_id;
     tracing::info!("正在查询用户所有 Bot: {}", owner_id);
 
     let bots: Vec<crate::models::Bot> = sqlx::query_as(
@@ -220,9 +168,12 @@ pub async fn list_bots(
 
     let responses: Vec<BotResponse> = bots.into_iter().map(|b| b.into()).collect();
 
-    Ok(json_response(StatusCode::OK, json!({
-        "bots": responses,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "bots": responses,
+        }),
+    ))
 }
 
 /// 获取指定的 Bot 信息
@@ -277,45 +228,22 @@ pub async fn delete_bot(
     tracing::info!("=== 开始删除 Bot: {} ===", target_bot_id);
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("删除 Bot 失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_user_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("删除 Bot 失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功");
 
     // 解析 token 获取请求者 bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
+    let requester_user_id = if let Ok(user_id) = token_user_id(&token) {
+        user_id.to_string()
     } else {
         tracing::warn!("删除 Bot 失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     };
-    tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
-
-    // 查询请求者 bot
-    tracing::debug!("正在查询请求者 Bot...");
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询请求者 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("请求者 Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
-    })?;
-
-    tracing::debug!("请求者 Bot 查询成功，所有者: {}", requester_bot.owner_id);
-
-    // 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
+    tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     // 查询目标 bot
     tracing::debug!("正在查询目标 Bot: {}", target_bot_id);
@@ -337,13 +265,13 @@ pub async fn delete_bot(
     tracing::debug!("目标 Bot 查询成功，所有者: {}", target_bot.owner_id);
 
     // 检查请求者是否是目标 bot 的所有者
-    if requester_bot.owner_id != target_bot.owner_id {
+    if requester_user_id != target_bot.owner_id {
         tracing::warn!(
             "删除 Bot 权限检查失败: 请求者所有者={}, 目标所有者={}",
-            requester_bot.owner_id,
+            requester_user_id,
             target_bot.owner_id
         );
-        return Err(AppError::BotPermissionDenied);
+        return Err(AppError::BotOwnershipMismatch);
     }
 
     tracing::info!("权限检查通过，开始删除 Bot 记录");
@@ -361,13 +289,16 @@ pub async fn delete_bot(
     tracing::info!(
         "✅ Bot 删除成功 - Bot ID: {}, 所有者: {}",
         target_bot_id,
-        requester_bot.owner_id
+        requester_user_id
     );
 
-    Ok(json_response(StatusCode::OK, json!({
-        "message": "Bot 删除成功",
-        "bot_id": target_bot_id,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "Bot 删除成功",
+            "bot_id": target_bot_id,
+        }),
+    ))
 }
 
 #[tracing::instrument(skip(state))]
@@ -377,20 +308,9 @@ pub async fn update_bot(
     Path(target_bot_id): Path<String>,
     Json(req): Json<UpdateBotRequest>,
 ) -> AppResult<Response> {
-
-    let token = bearer_token(&headers)?;
-    let requester_bot_id = token_bot_id(&token)?;
-
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
-
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
+    let token = require_user_bearer_token(&headers)?;
+    let requester_user_id = token_user_id(&token)?;
+    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let target_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
@@ -401,8 +321,8 @@ pub async fn update_bot(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    if requester_bot.owner_id != target_bot.owner_id {
-        return Err(AppError::BotPermissionDenied);
+    if requester_user_id != target_bot.owner_id {
+        return Err(AppError::BotOwnershipMismatch);
     }
 
     if req.name.trim().is_empty() {
@@ -436,5 +356,8 @@ pub async fn update_bot(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    Ok(json_response(StatusCode::OK, BotResponse::from(updated_bot)))
+    Ok(json_response(
+        StatusCode::OK,
+        BotResponse::from(updated_bot),
+    ))
 }

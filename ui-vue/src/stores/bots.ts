@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getBotList, createBot, deleteBot, updateBot } from '@/services/bot'
 import type { Bot, CreateBotRequest, UpdateBotRequest } from '@/types'
+import { getErrorMessage } from '@/utils/error'
 
 export const useBotStore = defineStore('bots', () => {
   // 状态
@@ -24,7 +25,7 @@ export const useBotStore = defineStore('bots', () => {
       bots.value = await getBotList()
       return bots.value
     } catch (err: any) {
-      error.value = err.message || '获取 Bot 列表失败'
+      error.value = getErrorMessage(err, '获取 Bot 列表失败')
       throw err
     } finally {
       loading.value = false
@@ -42,7 +43,7 @@ export const useBotStore = defineStore('bots', () => {
 
       return newBot
     } catch (err: any) {
-      error.value = err.message || '创建 Bot 失败'
+      error.value = getErrorMessage(err, '创建 Bot 失败')
       throw err
     } finally {
       loading.value = false
@@ -59,7 +60,7 @@ export const useBotStore = defineStore('bots', () => {
 
       bots.value = bots.value.filter((b: Bot) => b.bot_id !== botId)
     } catch (err: any) {
-      error.value = err.message || '删除 Bot 失败'
+      error.value = getErrorMessage(err, '删除 Bot 失败')
       throw err
     } finally {
       loading.value = false
@@ -78,7 +79,7 @@ export const useBotStore = defineStore('bots', () => {
       }
       return updatedBot
     } catch (err: any) {
-      error.value = err.message || '更新 Bot 失败'
+      error.value = getErrorMessage(err, '更新 Bot 失败')
       throw err
     } finally {
       loading.value = false

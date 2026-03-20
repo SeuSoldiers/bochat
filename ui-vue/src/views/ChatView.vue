@@ -25,6 +25,10 @@
 
       <!-- 消息区域 -->
       <div class="message-area">
+        <div v-if="messageError" class="page-error">
+          {{ messageError }}
+        </div>
+
         <!-- 消息列表 -->
         <MessageList
           v-if="groupStore.selectedGroup"
@@ -71,12 +75,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { storeToRefs } from 'pinia'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useBotStore } from '@/stores/bots'
 import { useGroupStore } from '@/stores/groups'
 import { useChatStore } from '@/stores/chat'
-import { useAuthStore } from '@/stores/auth'
 import TopNav from '@/components/Common/TopNav.vue'
 import BotGroupSelector from '@/components/Chat/BotGroupSelector.vue'
 import MessageList from '@/components/Chat/MessageList.vue'
@@ -86,12 +88,11 @@ import BotInfoModal from '@/components/Bot/BotInfoModal.vue'
 import { getBot } from '@/services/bot'
 import type { Bot } from '@/types'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { getErrorMessage } from '@/utils/error'
 
 const botStore = useBotStore()
 const groupStore = useGroupStore()
 const chatStore = useChatStore()
-const authStore = useAuthStore()
-const { token } = storeToRefs(authStore)
 
 const showMembers = ref(false)
 const activeBotId = ref('')
@@ -100,7 +101,12 @@ const showBotInfoModal = ref(false)
 const loadingBotInfo = ref(false)
 const viewingBot = ref<Bot | null>(null)
 
-useWebSocket(token)
+const wsBotToken = computed(() => {
+  const activeBot = botStore.bots.find((bot) => bot.bot_id === activeBotId.value)
+  return activeBot?.token || botStore.bots[0]?.token || null
+})
+
+useWebSocket(wsBotToken)
 
 // 初始化
 onMounted(async () => {
@@ -114,7 +120,13 @@ onMounted(async () => {
   // 如果有选中的群，加载消息
   if (groupStore.selectedGroup) {
     chatStore.setCurrentGroup(groupStore.selectedGroup.group_id)
-    await chatStore.fetchMessages(groupStore.selectedGroup.group_id, activeBotId.value)
+    await chatStore.fetchMessages(
+      groupStore.selectedGroup.group_id,
+      activeBotId.value,
+      50,
+      0,
+      getBotToken(activeBotId.value)
+    )
   }
 })
 
@@ -124,7 +136,7 @@ watch(
   async ([newGroupId, newBotId]) => {
     if (newGroupId) {
       chatStore.setCurrentGroup(newGroupId)
-      await chatStore.fetchMessages(newGroupId, newBotId)
+      await chatStore.fetchMessages(newGroupId, newBotId, 50, 0, getBotToken(newBotId))
     }
   }
 )
@@ -144,16 +156,28 @@ const handleSendMessage = async (content: string, botId: string) => {
   try {
     messageError.value = null
     activeBotId.value = botId
+    const botToken = getBotToken(botId)
+    if (!botToken) {
+      throw new Error('未找到对应 Bot Token')
+    }
     await chatStore.addMessage({
       group_id: groupStore.selectedGroup.group_id,
       content: { text: content },
       msg_type: 'text',
       bot_id: botId,
-    })
+    }, botToken)
   } catch (error: any) {
-    messageError.value = error.message || '发送消息失败'
+    messageError.value = getErrorMessage(error, '发送消息失败')
     console.error('Failed to send message:', error)
   }
+}
+
+const getBotToken = (botId?: string) => {
+  if (!botId) {
+    return ''
+  }
+
+  return botStore.bots.find((bot) => bot.bot_id === botId)?.token || ''
 }
 
 const handleAddBotToGroup = async (botId: string) => {
@@ -276,6 +300,15 @@ const openBotInfo = async (botId: string) => {
   justify-content: center;
   color: #cccccc;
   font-size: 16px;
+}
+
+.page-error {
+  padding: 12px 14px;
+  border: 1px solid #e0b4aa;
+  border-radius: 8px;
+  background: #fbf0ed;
+  color: #9e5647;
+  font-size: 13px;
 }
 
 @media (max-width: 768px) {

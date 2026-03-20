@@ -6,6 +6,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import type { ApiResponse } from '@/types'
+import { getErrorMessage } from '@/utils/error'
 
 // 获取 API 基础 URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
@@ -29,7 +30,11 @@ class ApiClient {
     // 请求拦截器
     this.instance.interceptors.request.use(
       (config) => {
-        // 每次请求时动态获取最新的 token
+        // 每次请求时动态获取最新的 token。若调用方已显式传 Authorization，则优先保留。
+        if (config.headers?.Authorization) {
+          return config
+        }
+
         const currentToken = localStorage.getItem(STORAGE_KEYS.TOKEN)
         if (currentToken) {
           config.headers.Authorization = `Bearer ${currentToken}`
@@ -65,7 +70,14 @@ class ApiClient {
         // 处理 HTTP 错误
         const status = error.response?.status
         const responseData = error.response?.data as ApiResponse & { error?: string } | undefined
-        const message = responseData?.message || responseData?.error || error.message
+        const message = getErrorMessage(
+          {
+            code: (responseData as any)?.code,
+            status,
+            message: responseData?.message || responseData?.error || error.message,
+          },
+          '请求失败'
+        )
 
         // 处理 401 未授权错误
         if (status === 401) {
@@ -74,6 +86,7 @@ class ApiClient {
         }
 
         const appError = new Error(message) as any
+        appError.code = (responseData as any)?.code
         appError.status = status
         appError.originalError = error
 

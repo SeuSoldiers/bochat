@@ -7,12 +7,12 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
+use crate::utils::verify_user_token;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{bearer_token, token_bot_id},
+    http::{require_user_bearer_token, token_user_id},
     AppState,
 };
-use crate::utils::verify_token;
 
 #[allow(dead_code)]
 const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
@@ -25,19 +25,13 @@ pub async fn upload_file(
     mut payload: Multipart,
 ) -> AppResult<axum::response::Response> {
     // Extract and verify token
-    let token = bearer_token(&headers)?;
-    let bot_id = token_bot_id(&token)?;
-
-    let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-        .bind(bot_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?
-        .ok_or(AppError::Unauthorized)?;
-
-    let _token_payload = verify_token(&token, &bot.secret, state.config.security.token_expiry_secs)?;
+    let token = require_user_bearer_token(&headers)?;
+    let user_id = token_user_id(&token)?.to_string();
+    let _token_payload = verify_user_token(
+        &token,
+        &state.config.security.jwt_secret,
+        state.config.security.token_expiry_secs,
+    )?;
 
     let mut uploaded_filename: Option<String> = None;
     let mut uploaded_mime: Option<String> = None;
@@ -74,7 +68,7 @@ pub async fn upload_file(
         if total_size > state.config.security.max_file_size_mb * 1024 * 1024 {
             tracing::warn!(
                 "文件上传被拒绝: 超出大小限制, bot_id={}, size={}",
-                bot.bot_id,
+                user_id,
                 total_size
             );
             return Err(AppError::FileTooLarge);
@@ -90,7 +84,7 @@ pub async fn upload_file(
 
     tracing::info!(
         "开始处理文件上传: bot_id={}, filename={}, size={}, mime_type={}, sha256={}",
-        bot.bot_id,
+        user_id,
         filename,
         total_size,
         mime_type,
@@ -119,16 +113,19 @@ pub async fn upload_file(
 
         tracing::info!(
             "文件复用命中: bot_id={}, existing_file_id={}, sha256={}",
-            bot.bot_id,
+            user_id,
             existing_file.file_id,
             content_hash
         );
 
-        return Ok(json_response(StatusCode::CREATED, json!({
-            "file_id": existing_file.file_id,
-            "url": file_url,
-            "created_at": existing_file.created_at,
-        })));
+        return Ok(json_response(
+            StatusCode::CREATED,
+            json!({
+                "file_id": existing_file.file_id,
+                "url": file_url,
+                "created_at": existing_file.created_at,
+            }),
+        ));
     }
 
     let file_id = crate::utils::generate_file_id();
@@ -147,7 +144,7 @@ pub async fn upload_file(
         "#
     )
     .bind(&file_id)
-    .bind(&bot.bot_id)
+    .bind(&user_id)
     .bind(&content_hash)
     .bind(&filename)
     .bind(total_size as i64)
@@ -162,17 +159,20 @@ pub async fn upload_file(
 
     tracing::info!(
         "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
-        bot.bot_id,
+        user_id,
         file_id,
         content_hash,
         storage_path.to_string_lossy()
     );
 
-    Ok(json_response(StatusCode::CREATED, json!({
-        "file_id": file_id,
-        "url": file_url,
-        "created_at": now,
-    })))
+    Ok(json_response(
+        StatusCode::CREATED,
+        json!({
+            "file_id": file_id,
+            "url": file_url,
+            "created_at": now,
+        }),
+    ))
 }
 
 #[tracing::instrument(skip(state))]

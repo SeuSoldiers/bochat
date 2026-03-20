@@ -5,6 +5,10 @@
 
     <!-- 主内容区 -->
     <div class="home-content">
+      <div v-if="actionError" class="page-error">
+        {{ actionError }}
+      </div>
+
       <div class="page-tabs">
         <button
           :class="['page-tab', { active: activeTab === 'bots' }]"
@@ -167,6 +171,7 @@ const showJoinGroupModal = ref(false)
 const showMembersModal = ref(false)
 const editingBot = ref<Bot | null>(null)
 const selectedGroupForMembers = ref<Group | null>(null)
+const actionError = ref<string | null>(null)
 
 // 初始化
 onMounted(() => {
@@ -178,9 +183,11 @@ onMounted(() => {
 // 创建 Bot
 const handleCreateBot = async (name: string, description: string, avatarUrl: string) => {
   try {
+    actionError.value = null
     await botStore.addBot({ name, description, avatar_url: avatarUrl || undefined })
     showCreateBotModal.value = false
   } catch (error) {
+    actionError.value = botStore.error || '创建 Bot 失败'
     console.error('Failed to create bot:', error)
   }
 }
@@ -189,8 +196,10 @@ const handleCreateBot = async (name: string, description: string, avatarUrl: str
 const handleDeleteBot = async (botId: string) => {
   if (confirm('确定要删除这个 Bot 吗？')) {
     try {
+      actionError.value = null
       await botStore.removeBotById(botId)
     } catch (error) {
+      actionError.value = botStore.error || '删除 Bot 失败'
       console.error('Failed to delete bot:', error)
     }
   }
@@ -207,6 +216,7 @@ const handleEditBot = async (payload: { name: string; description: string; avata
   }
 
   try {
+    actionError.value = null
     await botStore.updateBotInfo(editingBot.value.bot_id, {
       name: payload.name,
       description: payload.description || undefined,
@@ -215,6 +225,7 @@ const handleEditBot = async (payload: { name: string; description: string; avata
     showEditBotModal.value = false
     editingBot.value = null
   } catch (error) {
+    actionError.value = botStore.error || '更新 Bot 失败'
     console.error('Failed to update bot:', error)
   }
 }
@@ -222,9 +233,11 @@ const handleEditBot = async (payload: { name: string; description: string; avata
 // 创建群
 const handleCreateGroup = async (groupName: string, groupNumber: string, botId: string) => {
   try {
+    actionError.value = null
     await groupStore.addGroup({ name: groupName, group_code: groupNumber, bot_id: botId })
     showCreateGroupModal.value = false
   } catch (error) {
+    actionError.value = groupStore.error || '创建群失败'
     console.error('Failed to create group:', error)
   }
 }
@@ -233,8 +246,10 @@ const handleCreateGroup = async (groupName: string, groupNumber: string, botId: 
 const handleDeleteGroup = async (groupId: string) => {
   if (confirm('确定要删除这个群吗？')) {
     try {
+      actionError.value = null
       await groupStore.removeGroupById(groupId)
     } catch (error) {
+      actionError.value = groupStore.error || '删除群失败'
       console.error('Failed to delete group:', error)
     }
   }
@@ -243,10 +258,12 @@ const handleDeleteGroup = async (groupId: string) => {
 // 加入群
 const handleJoinGroup = async (groupNumber: string, botId: string) => {
   try {
+    actionError.value = null
     await groupStore.joinGroupByNumber(groupNumber, botId)
     showJoinGroupModal.value = false
     await groupStore.fetchGroups()
   } catch (error) {
+    actionError.value = groupStore.error || '加入群失败'
     console.error('Failed to join group:', error)
   }
 }
@@ -267,8 +284,10 @@ const handleAddBotToGroup = async (botId: string) => {
   }
 
   try {
+    actionError.value = null
     await groupStore.addBotToGroup(selectedGroupForMembers.value.group_id, botId)
   } catch (error) {
+    actionError.value = groupStore.error || '添加 Bot 到群聊失败'
     console.error('Failed to add bot to group:', error)
   }
 }
@@ -279,8 +298,10 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   }
 
   try {
+    actionError.value = null
     await groupStore.removeBotFromGroup(selectedGroupForMembers.value.group_id, botId)
   } catch (error) {
+    actionError.value = groupStore.error || '移出群聊失败'
     console.error('Failed to remove bot from group:', error)
   }
 }
@@ -307,6 +328,16 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   background: white;
   border: 1px solid #d4cfc8;
   border-radius: 10px;
+}
+
+.page-error {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e0b4aa;
+  border-radius: 8px;
+  background: #fbf0ed;
+  color: #9e5647;
+  font-size: 13px;
 }
 
 .page-tab {

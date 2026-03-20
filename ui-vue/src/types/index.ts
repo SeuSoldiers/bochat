@@ -2,11 +2,12 @@
  * 用户相关类型定义
  */
 export interface User {
-  id: string
   name: string
-  phone: string
-  id_number: string
+  phone?: string | null
+  id_number?: string | null
+  avatar_url?: string | null
   created_at: string
+  updated_at?: string
 }
 
 /**

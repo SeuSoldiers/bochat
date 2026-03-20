@@ -14,5 +14,5 @@ pub use group::{
     list_group_members, list_user_groups, remove_group_member,
 };
 pub use message::send_message;
-pub use user::delete_user;
+pub use user::{delete_user, get_current_user, update_current_user};
 pub use ws::ws_handler;

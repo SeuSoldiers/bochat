@@ -6,14 +6,14 @@ use axum::{
 };
 use serde_json::json;
 
-use crate::{
-    error::{json_response, AppError, AppResult},
-    http::{bearer_token, token_bot_id},
-    AppState,
-};
 use crate::models::CreateMessageRequest;
 use crate::utils::verify_token;
 use crate::ws::WsEvent;
+use crate::{
+    error::{json_response, AppError, AppResult},
+    http::{require_bot_bearer_token, token_bot_id},
+    AppState,
+};
 
 #[tracing::instrument(skip(state, msg_req))]
 pub async fn send_message(
@@ -29,9 +29,9 @@ pub async fn send_message(
     );
 
     // 从 Authorization 头提取 Bearer token
-    let token = bearer_token(&headers).map_err(|_| {
-        tracing::warn!("消息发送失败: 缺少 Authorization header");
-        AppError::Unauthorized
+    let token = require_bot_bearer_token(&headers).map_err(|err| {
+        tracing::warn!("消息发送失败: {}", err);
+        err
     })?;
 
     tracing::debug!("Token 提取成功");
@@ -91,7 +91,7 @@ pub async fn send_message(
                 target_bot.owner_id,
                 requester_bot.owner_id
             );
-            return Err(AppError::BotPermissionDenied);
+            return Err(AppError::BotOwnershipMismatch);
         }
 
         target_bot
@@ -102,7 +102,7 @@ pub async fn send_message(
     // 检查发送者 bot 是否活跃
     if sender_bot.status != "active" {
         tracing::warn!("消息发送失败: 发送者 Bot 状态非活跃: {}", sender_bot.status);
-        return Err(AppError::BadRequest("发送者 Bot 未激活".to_string()));
+        return Err(AppError::BotInactive);
     }
 
     tracing::debug!("发送者 Bot 状态检查通过");
@@ -146,7 +146,7 @@ pub async fn send_message(
             sender_bot.bot_id,
             msg_req.group_id
         );
-        return Err(AppError::BotPermissionDenied);
+        return Err(AppError::BotNotInGroup);
     }
 
     tracing::debug!("群聊成员检查通过");
@@ -192,7 +192,7 @@ pub async fn send_message(
     let member_bot_ids: Vec<String> =
         sqlx::query_scalar("SELECT member_id FROM group_members WHERE group_id = ?")
             .bind(&msg_req.group_id)
-    .fetch_all(&state.pool)
+            .fetch_all(&state.pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 

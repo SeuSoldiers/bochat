@@ -22,6 +22,13 @@
         >
           聊天
         </router-link>
+        <router-link
+          to="/profile"
+          class="nav-tab"
+          :class="{ active: $route.path === '/profile' }"
+        >
+          个人信息
+        </router-link>
       </div>
 
       <!-- 用户菜单 -->

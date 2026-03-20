@@ -64,6 +64,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Bot } from '@/types'
+import { getErrorMessage } from '@/utils/error'
 
 defineProps<{
   bots: Bot[]
@@ -104,7 +105,7 @@ const handleSubmit = async () => {
   try {
     emit('create', form.value.groupName, form.value.groupNumber, form.value.botId)
   } catch (err: any) {
-    error.value = err.message || '创建失败'
+    error.value = getErrorMessage(err, '创建失败')
   } finally {
     loading.value = false
   }

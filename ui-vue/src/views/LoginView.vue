@@ -23,28 +23,48 @@
           </button>
         </div>
 
-        <!-- 手机号输入 -->
+        <!-- 用户名输入（注册可选） -->
         <div v-if="!isLogin" class="form-group">
           <label for="name">姓名</label>
           <input
             id="name"
             v-model="form.name"
             type="text"
-            placeholder="请输入真实姓名"
-            required
+            placeholder="可选，不填则自动生成"
             :disabled="loading"
           />
         </div>
 
-        <!-- 手机号输入 -->
         <div class="form-group">
+          <label>登录方式</label>
+          <div class="identity-switch">
+            <button
+              type="button"
+              :class="['switch-btn', { active: identityType === 'phone' }]"
+              :disabled="loading"
+              @click="identityType = 'phone'"
+            >
+              手机号
+            </button>
+            <button
+              type="button"
+              :class="['switch-btn', { active: identityType === 'id_number' }]"
+              :disabled="loading"
+              @click="identityType = 'id_number'"
+            >
+              身份证号
+            </button>
+          </div>
+        </div>
+
+        <!-- 手机号输入 -->
+        <div v-if="identityType === 'phone'" class="form-group">
           <label for="phone">手机号</label>
           <input
             id="phone"
             v-model="form.phone"
             type="tel"
             placeholder="请输入手机号"
-            required
             :disabled="loading"
           />
         </div>
@@ -57,7 +77,15 @@
             v-model="form.idNumber"
             type="text"
             placeholder="请输入身份证号"
-            required
+            :disabled="loading"
+            v-if="identityType === 'id_number'"
+          />
+          <input
+            v-else
+            id="idNumberReadonly"
+            v-model="form.idNumber"
+            type="text"
+            placeholder="已切换为手机号登录，身份证号可留空"
             :disabled="loading"
           />
         </div>
@@ -81,11 +109,13 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { getErrorMessage } from '@/utils/error'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const isLogin = ref(true)
+const identityType = ref<'phone' | 'id_number'>('phone')
 const loading = ref(false)
 const form = ref({
   name: '',
@@ -99,10 +129,23 @@ const handleSubmit = async () => {
   loading.value = true
 
   try {
+    const payload = identityType.value === 'phone'
+      ? { phone: form.value.phone.trim() }
+      : { id_number: form.value.idNumber.trim() }
+
+    const identityValue = identityType.value === 'phone' ? payload.phone : payload.id_number
+    if (!identityValue) {
+      error.value = identityType.value === 'phone' ? '请输入手机号' : '请输入身份证号'
+      return
+    }
+
     if (isLogin.value) {
-      await authStore.handleLogin(form.value.phone, form.value.idNumber)
+      await authStore.handleLogin(payload)
     } else {
-      await authStore.handleRegister(form.value.name, form.value.phone, form.value.idNumber)
+      await authStore.handleRegister({
+        name: form.value.name.trim() || undefined,
+        ...payload,
+      })
     }
 
     // 等待 router 导航完成
@@ -113,7 +156,7 @@ const handleSubmit = async () => {
     form.value.phone = ''
     form.value.idNumber = ''
   } catch (err: any) {
-    error.value = err.message || (isLogin.value ? '登录失败' : '注册失败')
+    error.value = getErrorMessage(err, isLogin.value ? '登录失败' : '注册失败')
     console.error('登录/注册错误:', err)
   } finally {
     loading.value = false
@@ -222,6 +265,28 @@ const handleSubmit = async () => {
   background-color: #fafaf8;
   color: #cccccc;
   cursor: not-allowed;
+}
+
+.identity-switch {
+  display: flex;
+  gap: 8px;
+}
+
+.switch-btn {
+  flex: 1;
+  border: 1px solid #d4cfc8;
+  background: #fff;
+  color: #666;
+  border-radius: 6px;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.switch-btn.active {
+  border-color: #8b9d83;
+  color: #8b9d83;
+  background: #f3f7f1;
 }
 
 .error-message {

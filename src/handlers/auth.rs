@@ -1,18 +1,15 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Response,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::Response, Json};
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::models::RegisterRequest;
+use crate::utils::{generate_bot_id, generate_token, generate_user_id, generate_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
     AppState,
 };
-use crate::models::RegisterRequest;
-use crate::utils::{generate_bot_id, generate_token, generate_user_id};
+
+const NONE_PREFIX: &str = "_none_";
 
 /// 验证身份证号码格式：只检查位数
 ///
@@ -30,6 +27,26 @@ fn validate_id_number(id_number: &str) -> bool {
     is_valid
 }
 
+fn sanitize_optional(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn to_db_identifier(field: &str, value: Option<&str>, user_id: &str) -> String {
+    match value {
+        Some(v) => v.to_string(),
+        None => format!("{NONE_PREFIX}{field}_{user_id}"),
+    }
+}
+
+fn default_user_name() -> String {
+    let short_uuid = Uuid::new_v4().simple().to_string();
+    format!("用户-{}", &short_uuid[..8])
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn register(
     State(state): State<AppState>,
@@ -37,35 +54,41 @@ pub async fn register(
 ) -> AppResult<Response> {
     // 记录注册请求
     tracing::info!("=== 开始处理用户注册请求 ===");
+    let name = req
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(default_user_name);
+    let phone = sanitize_optional(&req.phone);
+    let id_number = sanitize_optional(&req.id_number);
+
     tracing::debug!(
-        "请求数据: 姓名={}, 身份证号={}, 手机号={}",
-        req.name.as_ref().unwrap_or(&"(未提供)".to_string()),
-        req.id_number,
-        req.phone
+        "请求数据: 姓名={}, 身份证号存在={}, 手机号存在={}",
+        name,
+        id_number.is_some(),
+        phone.is_some()
     );
 
-    // 验证必填字段
-    if req.id_number.is_empty() || req.phone.is_empty() {
-        tracing::warn!("注册失败: 缺少必填字段");
+    if phone.is_none() && id_number.is_none() {
+        tracing::warn!("注册失败: 手机号和身份证号至少填写一项");
         return Err(AppError::BadRequest(
-            "缺少必填字段（身份证号和手机号为必需）".to_string(),
+            "手机号和身份证号至少填写一项".to_string(),
         ));
     }
 
-    // 如果没有提供名字，使用手机号后4位作为默认名字
-    let name = req
-        .name
-        .clone()
-        .unwrap_or_else(|| format!("用户{}", &req.phone[req.phone.len().saturating_sub(4)..]));
-
-    // 验证身份证号格式 (18位)
-    if !validate_id_number(&req.id_number) {
-        tracing::warn!("注册失败: 身份证号格式无效 (期望18位): {}", req.id_number);
-        return Err(AppError::InvalidIdNumber);
+    if let Some(ref id) = id_number {
+        if !validate_id_number(id) {
+            tracing::warn!("注册失败: 身份证号格式无效 (期望18位): {}", id);
+            return Err(AppError::InvalidIdNumber);
+        }
     }
 
     let user_id = generate_user_id();
     let now = chrono::Utc::now().to_rfc3339();
+    let db_phone = to_db_identifier("phone", phone.as_deref(), &user_id);
+    let db_id_number = to_db_identifier("id_number", id_number.as_deref(), &user_id);
 
     tracing::debug!("生成新用户ID: {}", user_id);
     tracing::debug!("当前时间戳: {}", now);
@@ -74,23 +97,26 @@ pub async fn register(
     tracing::info!("正在数据库中创建用户记录: {}", user_id);
     sqlx::query(
         r#"
-        INSERT INTO users (user_id, name, id_number, phone, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO users (user_id, name, id_number, phone, avatar_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&user_id)
     .bind(&name)
-    .bind(&req.id_number)
-    .bind(&req.phone)
+    .bind(&db_id_number)
+    .bind(&db_phone)
+    .bind(None::<String>)
     .bind(&now)
     .bind(&now)
     .execute(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("数据库错误: {}", e);
-        if e.to_string().contains("UNIQUE") {
-            tracing::warn!("身份证号已被使用: {}", req.id_number);
+        let err_msg = e.to_string();
+        if err_msg.contains("users.id_number") {
             AppError::IdNumberConflict
+        } else if err_msg.contains("users.phone") {
+            AppError::PhoneConflict
         } else {
             AppError::DatabaseError(e.to_string())
         }
@@ -141,21 +167,20 @@ pub async fn register(
 
     tracing::info!("Bot记录创建成功");
 
-    tracing::info!(
-        "✅ 用户注册成功 - 用户ID: {}, Bot ID: {}, 身份证号: {}",
-        user_id,
-        bot_id,
-        req.id_number
-    );
+    tracing::info!("✅ 用户注册成功 - 用户ID: {}, Bot ID: {}", user_id, bot_id);
 
-    Ok(json_response(StatusCode::CREATED, json!({
-        "message": "注册成功",
-        "id": user_id,
-        "name": name,
-        "id_number": req.id_number,
-        "phone": req.phone,
-        "created_at": now,
-    })))
+    Ok(json_response(
+        StatusCode::CREATED,
+        json!({
+            "message": "注册成功",
+            "name": name,
+            "id_number": id_number,
+            "phone": phone,
+            "avatar_url": null,
+            "token": generate_user_token(&user_id, &state.config.security.jwt_secret)?,
+            "created_at": now,
+        }),
+    ))
 }
 
 #[tracing::instrument(skip(pool))]
@@ -166,7 +191,7 @@ pub async fn get_user_by_id(
     tracing::debug!("查询用户信息: {}", user_id);
 
     let user = sqlx::query_as(
-        "SELECT user_id, name, id_number, phone, created_at, updated_at FROM users WHERE user_id = ?"
+        "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE user_id = ?"
     )
     .bind(user_id)
     .fetch_optional(pool)
@@ -196,75 +221,86 @@ pub async fn login(
     Json(req): Json<crate::models::LoginRequest>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始处理用户登录请求 ===");
-    tracing::debug!("请求数据: 身份证号={}, 手机号={}", req.id_number, req.phone);
+    let phone = sanitize_optional(&req.phone);
+    let id_number = sanitize_optional(&req.id_number);
 
-    // 验证必填字段
-    if req.id_number.is_empty() || req.phone.is_empty() {
-        tracing::warn!("登录失败: 缺少必填字段");
-        return Err(AppError::BadRequest("缺少必填字段".to_string()));
+    tracing::debug!(
+        "请求数据: 身份证号存在={}, 手机号存在={}",
+        id_number.is_some(),
+        phone.is_some()
+    );
+
+    if phone.is_none() && id_number.is_none() {
+        tracing::warn!("登录失败: 手机号和身份证号至少填写一项");
+        return Err(AppError::BadRequest(
+            "手机号和身份证号至少填写一项".to_string(),
+        ));
     }
 
-    // 验证身份证号格式
-    if !validate_id_number(&req.id_number) {
-        tracing::warn!("登录失败: 身份证号格式无效: {}", req.id_number);
-        return Err(AppError::InvalidIdNumber);
+    if let Some(ref id) = id_number {
+        if !validate_id_number(id) {
+            tracing::warn!("登录失败: 身份证号格式无效: {}", id);
+            return Err(AppError::InvalidIdNumber);
+        }
     }
 
     tracing::debug!("输入验证通过");
 
     // 查询用户
     tracing::info!("正在查询用户...");
-    let user: crate::models::User = sqlx::query_as(
-        "SELECT user_id, name, id_number, phone, created_at, updated_at FROM users WHERE id_number = ? AND phone = ?"
-    )
-    .bind(&req.id_number)
-    .bind(&req.phone)
-    .fetch_optional(&state.pool)
-    .await
+    let user = match (phone.as_deref(), id_number.as_deref()) {
+        (Some(p), Some(id)) => {
+            sqlx::query_as::<_, crate::models::User>(
+                "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE phone = ? OR id_number = ?"
+            )
+            .bind(p)
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+        }
+        (Some(p), None) => {
+            sqlx::query_as::<_, crate::models::User>(
+                "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE phone = ?"
+            )
+            .bind(p)
+            .fetch_optional(&state.pool)
+            .await
+        }
+        (None, Some(id)) => {
+            sqlx::query_as::<_, crate::models::User>(
+                "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE id_number = ?"
+            )
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+        }
+        (None, None) => unreachable!(),
+    }
     .map_err(|e| {
         tracing::error!("查询用户时数据库错误: {}", e);
         AppError::DatabaseError(e.to_string())
     })?
     .ok_or_else(|| {
-        tracing::warn!("用户不存在或身份验证失败: 身份证号={}, 手机号={}", req.id_number, req.phone);
+        tracing::warn!("用户不存在或身份验证失败");
         AppError::UserNotFound
     })?;
 
     tracing::debug!("用户查询成功: {}", user.user_id);
 
-    // 查询用户的默认 Bot（第一个创建的 bot）
-    tracing::debug!("正在查询用户的默认 Bot...");
-    let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1"
-    )
-    .bind(&user.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("用户的 Bot 不存在: {}", user.user_id);
-        AppError::BotNotFound
-    })?;
+    let user_token = generate_user_token(&user.user_id, &state.config.security.jwt_secret)?;
 
-    tracing::debug!("Bot 查询成功: {}", bot.bot_id);
+    tracing::info!("✅ 用户登录成功 - 用户ID: {}", user.user_id);
 
-    tracing::info!(
-        "✅ 用户登录成功 - 用户ID: {}, Bot ID: {}, 身份证号: {}",
-        user.user_id,
-        bot.bot_id,
-        user.id_number
-    );
-
-    Ok(json_response(StatusCode::OK, json!({
-        "message": "登录成功",
-        "id": user.user_id,
-        "name": user.name,
-        "phone": user.phone,
-        "id_number": user.id_number,
-        "bot_token": bot.token,
-        "created_at": user.created_at,
-    })))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "登录成功",
+            "name": user.name,
+            "phone": crate::models::user::UserResponse::from(user.clone()).phone,
+            "id_number": crate::models::user::UserResponse::from(user.clone()).id_number,
+            "avatar_url": user.avatar_url,
+            "token": user_token,
+            "created_at": user.created_at,
+        }),
+    ))
 }

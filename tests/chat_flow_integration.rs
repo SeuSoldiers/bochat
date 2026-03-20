@@ -135,7 +135,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     )
     .await;
     assert_eq!(alice_login_status, StatusCode::OK);
-    let alice_token = body_str(&alice_login_body, "bot_token").to_string();
+    let alice_token = body_str(&alice_login_body, "token").to_string();
 
     let (bob_login_status, bob_login_body) = send_json(
         &app,
@@ -149,17 +149,19 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     )
     .await;
     assert_eq!(bob_login_status, StatusCode::OK);
-    let bob_token = body_str(&bob_login_body, "bot_token").to_string();
+    let bob_token = body_str(&bob_login_body, "token").to_string();
 
     let (alice_bots_status, alice_bots_body) =
         send_json(&app, "GET", "/api/v1/bots", Some(&alice_token), None).await;
     assert_eq!(alice_bots_status, StatusCode::OK);
     let alice_default_bot_id = body_str(&alice_bots_body["bots"][0], "bot_id").to_string();
+    let alice_default_bot_token = body_str(&alice_bots_body["bots"][0], "token").to_string();
 
     let (bob_bots_status, bob_bots_body) =
         send_json(&app, "GET", "/api/v1/bots", Some(&bob_token), None).await;
     assert_eq!(bob_bots_status, StatusCode::OK);
     let bob_default_bot_id = body_str(&bob_bots_body["bots"][0], "bot_id").to_string();
+    let bob_default_bot_token = body_str(&bob_bots_body["bots"][0], "token").to_string();
 
     let (alice_group_status, alice_group_body) = send_json(
         &app,
@@ -230,15 +232,18 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         &app,
         "POST",
         "/api/v1/groups/join",
-        Some(&alice_second_bot_token),
-        Some(json!({ "group_code": "TECH001" })),
+        Some(&alice_token),
+        Some(json!({
+            "group_code": "TECH001",
+            "bot_id": alice_second_bot_id
+        })),
     )
     .await;
     assert_eq!(second_bot_join_status, StatusCode::OK);
 
     for (token, payload) in [
         (
-            alice_token.as_str(),
+            alice_default_bot_token.as_str(),
             json!({
                 "group_id": tech_group_id,
                 "content": { "text": "大家好！这是技术讨论组，欢迎加入！" },
@@ -246,7 +251,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            bob_token.as_str(),
+            bob_default_bot_token.as_str(),
             json!({
                 "group_id": tech_group_id,
                 "content": { "text": "感谢Alice邀请我加入！我们可以讨论什么话题呢？" },
@@ -254,7 +259,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            alice_token.as_str(),
+            alice_default_bot_token.as_str(),
             json!({
                 "group_id": tech_group_id,
                 "content": { "text": "我们可以讨论Rust、Python、区块链等话题" },
@@ -278,7 +283,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            bob_token.as_str(),
+            bob_default_bot_token.as_str(),
             json!({
                 "group_id": tech_group_id,
                 "content": { "text": "太棒了！我最近在学习Rust" },
@@ -286,7 +291,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            alice_token.as_str(),
+            alice_default_bot_token.as_str(),
             json!({
                 "group_id": tech_group_id,
                 "content": { "text": "Rust是个很强大的语言，我们一起探讨吧！" },
@@ -294,7 +299,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            bob_token.as_str(),
+            bob_default_bot_token.as_str(),
             json!({
                 "group_id": product_group_id,
                 "content": { "text": "欢迎来到产品反馈组！" },
@@ -302,7 +307,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            alice_token.as_str(),
+            alice_default_bot_token.as_str(),
             json!({
                 "group_id": product_group_id,
                 "content": { "text": "感谢邀请，我有一些关于用户界面的反馈" },
@@ -310,7 +315,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            bob_token.as_str(),
+            bob_default_bot_token.as_str(),
             json!({
                 "group_id": product_group_id,
                 "content": { "text": "请继续，我们很想听听你的意见" },
@@ -318,7 +323,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
         (
-            alice_token.as_str(),
+            alice_default_bot_token.as_str(),
             json!({
                 "group_id": product_group_id,
                 "content": { "text": "我觉得可以添加暗黑模式和多语言支持" },
@@ -341,7 +346,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         &app,
         "GET",
         &format!("/api/v1/groups/{tech_group_id}/messages?limit=100&offset=0"),
-        Some(&bob_token),
+        Some(&bob_default_bot_token),
         None,
     )
     .await;
@@ -360,7 +365,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         &app,
         "GET",
         &format!("/api/v1/groups/{product_group_id}/messages?limit=100&offset=0"),
-        Some(&alice_token),
+        Some(&alice_default_bot_token),
         None,
     )
     .await;

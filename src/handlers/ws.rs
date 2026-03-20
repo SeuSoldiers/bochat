@@ -9,12 +9,13 @@ use futures_util::StreamExt;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
-use crate::{
-    error::{AppError, AppResult},
-    AppState,
-};
 use crate::utils::verify_token;
 use crate::ws::{WsEvent, WsManager};
+use crate::{
+    error::{AppError, AppResult},
+    http::require_bot_bearer_token,
+    AppState,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct WsQuery {
@@ -27,8 +28,13 @@ pub async fn ws_handler(
     State(state): State<AppState>,
     Query(query): Query<WsQuery>,
 ) -> AppResult<Response> {
-    let token = &query.token;
-    let requester_bot_id = crate::http::token_bot_id(token)?;
+    let token = require_bot_bearer_token(&axum::http::HeaderMap::from_iter([(
+        axum::http::header::AUTHORIZATION,
+        format!("Bearer {}", query.token)
+            .parse()
+            .map_err(|_| AppError::BotTokenRequired)?,
+    )]))?;
+    let requester_bot_id = crate::http::token_bot_id(&token)?;
 
     let requester_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
@@ -40,42 +46,44 @@ pub async fn ws_handler(
     .ok_or(AppError::BotNotFound)?;
 
     let _token_payload = verify_token(
-        token,
+        &token,
         &requester_bot.secret,
         state.config.security.token_expiry_secs,
     )?;
 
-    let owned_bot_ids: Vec<String> =
-        sqlx::query_scalar("SELECT bot_id FROM bots WHERE owner_id = ? ORDER BY created_at ASC")
-            .bind(&requester_bot.owner_id)
-            .fetch_all(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let group_ids: Vec<String> = sqlx::query_scalar(
+        "SELECT group_id FROM group_members WHERE member_id = ? ORDER BY joined_at ASC",
+    )
+    .bind(&requester_bot.bot_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let ws_manager = state.ws_manager.clone();
-    let owner_id = requester_bot.owner_id.clone();
+    let bot_id = requester_bot.bot_id.clone();
+    let bot_name = requester_bot.name.clone();
 
     Ok(ws.on_upgrade(move |socket| async move {
-        handle_socket(socket, ws_manager, owned_bot_ids, owner_id).await;
+        handle_socket(socket, ws_manager, bot_id, bot_name, group_ids).await;
     }))
 }
 
 async fn handle_socket(
     mut socket: WebSocket,
     ws_manager: WsManager,
-    bot_ids: Vec<String>,
-    owner_id: String,
+    bot_id: String,
+    bot_name: String,
+    group_ids: Vec<String>,
 ) {
     let (tx, mut rx) = mpsc::unbounded_channel::<WsEvent>();
-    for bot_id in &bot_ids {
-        ws_manager.add_connection(bot_id.clone(), tx.clone()).await;
-    }
+    ws_manager.add_connection(bot_id.clone(), tx.clone()).await;
 
     let connection_event = WsEvent {
         event_type: "connection".to_string(),
         payload: serde_json::json!({
-            "owner_id": owner_id,
-            "bot_ids": bot_ids,
+            "bot_id": bot_id,
+            "bot_name": bot_name,
+            "group_ids": group_ids,
         }),
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
@@ -110,7 +118,5 @@ async fn handle_socket(
         }
     }
 
-    for bot_id in &bot_ids {
-        ws_manager.remove_connection(bot_id).await;
-    }
+    ws_manager.remove_connection(&bot_id).await;
 }

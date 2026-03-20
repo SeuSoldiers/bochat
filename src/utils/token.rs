@@ -12,6 +12,12 @@ pub struct TokenPayload {
     pub timestamp: i64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UserTokenPayload {
+    pub user_id: String,
+    pub timestamp: i64,
+}
+
 pub fn generate_token(bot_id: &str, secret: &str) -> AppResult<String> {
     let timestamp = Utc::now().timestamp();
     let payload = format!("{}:{}", bot_id, timestamp);
@@ -59,6 +65,59 @@ pub fn verify_token(token: &str, secret: &str, max_age_secs: u64) -> AppResult<T
 
     Ok(TokenPayload {
         bot_id: bot_id.to_string(),
+        timestamp,
+    })
+}
+
+pub fn generate_user_token(user_id: &str, secret: &str) -> AppResult<String> {
+    let timestamp = Utc::now().timestamp();
+    let payload = format!("u:{}:{}", user_id, timestamp);
+
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|_| AppError::InternalError("Failed to create HMAC".to_string()))?;
+
+    mac.update(payload.as_bytes());
+    let signature = hex::encode(mac.finalize().into_bytes());
+
+    Ok(format!("{}:{}", payload, signature))
+}
+
+pub fn verify_user_token(
+    token: &str,
+    secret: &str,
+    max_age_secs: u64,
+) -> AppResult<UserTokenPayload> {
+    let parts: Vec<&str> = token.split(':').collect();
+    if parts.len() != 4 || parts[0] != "u" {
+        return Err(AppError::InvalidToken);
+    }
+
+    let user_id = parts[1];
+    let timestamp_str = parts[2];
+    let signature = parts[3];
+
+    let timestamp = timestamp_str
+        .parse::<i64>()
+        .map_err(|_| AppError::InvalidToken)?;
+
+    let now = Utc::now().timestamp();
+    if now - timestamp > max_age_secs as i64 {
+        return Err(AppError::InvalidToken);
+    }
+
+    let payload = format!("u:{}:{}", user_id, timestamp);
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|_| AppError::InternalError("Failed to create HMAC".to_string()))?;
+
+    mac.update(payload.as_bytes());
+    let expected_signature = hex::encode(mac.finalize().into_bytes());
+
+    if signature != expected_signature {
+        return Err(AppError::InvalidToken);
+    }
+
+    Ok(UserTokenPayload {
+        user_id: user_id.to_string(),
         timestamp,
     })
 }

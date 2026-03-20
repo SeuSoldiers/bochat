@@ -30,6 +30,26 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
+    if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        .execute(pool)
+        .await
+    {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(crate::error::AppError::DatabaseError(e.to_string()));
+        }
+    }
+
+    sqlx::query(
+        r#"
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique
+        ON users(phone)
+        WHERE phone NOT LIKE '_none_%'
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
     // Create bots table
     sqlx::query(
         r#"
