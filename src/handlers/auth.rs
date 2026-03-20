@@ -29,13 +29,21 @@ pub async fn register(
 ) -> AppResult<HttpResponse> {
     // 记录注册请求
     tracing::info!("=== 开始处理用户注册请求 ===");
-    tracing::debug!("请求数据: 姓名={}, 身份证号={}, 手机号={}", req.name, req.id_number, req.phone);
+    tracing::debug!("请求数据: 姓名={}, 身份证号={}, 手机号={}",
+        req.name.as_ref().unwrap_or(&"(未提供)".to_string()),
+        req.id_number,
+        req.phone);
 
     // 验证必填字段
-    if req.name.is_empty() || req.id_number.is_empty() || req.phone.is_empty() {
+    if req.id_number.is_empty() || req.phone.is_empty() {
         tracing::warn!("注册失败: 缺少必填字段");
-        return Err(AppError::BadRequest("缺少必填字段".to_string()));
+        return Err(AppError::BadRequest("缺少必填字段（身份证号和手机号为必需）".to_string()));
     }
+
+    // 如果没有提供名字，使用手机号后4位作为默认名字
+    let name = req.name.clone().unwrap_or_else(|| {
+        format!("用户{}", &req.phone[req.phone.len().saturating_sub(4)..])
+    });
 
     // 验证身份证号格式 (18位)
     if !validate_id_number(&req.id_number) {
@@ -58,7 +66,7 @@ pub async fn register(
         "#,
     )
     .bind(&user_id)
-    .bind(&req.name)
+    .bind(&name)
     .bind(&req.id_number)
     .bind(&req.phone)
     .bind(&now)
@@ -97,7 +105,7 @@ pub async fn register(
     )
     .bind(&bot_id)
     .bind(&user_id)
-    .bind(format!("{}的默认Bot", req.name))
+    .bind(format!("{}的默认Bot", name))
     .bind(Some("用户注册时自动创建的默认Bot"))
     .bind("active")
     .bind(&bot_token)
@@ -122,10 +130,11 @@ pub async fn register(
 
     Ok(HttpResponse::Created().json(json!({
         "message": "注册成功",
-        "user_id": user_id,
-        "name": req.name,
+        "id": user_id,
+        "name": name,
         "id_number": req.id_number,
         "phone": req.phone,
+        "created_at": now,
     })))
 }
 
@@ -231,10 +240,11 @@ pub async fn login(
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "登录成功",
-        "user_id": user.user_id,
+        "id": user.user_id,
         "name": user.name,
         "phone": user.phone,
-        "bot_id": bot.bot_id,
-        "token": bot.token,
+        "id_number": user.id_number,
+        "bot_token": bot.token,
+        "created_at": user.created_at,
     })))
 }

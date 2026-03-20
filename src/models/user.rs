@@ -12,7 +12,8 @@ pub struct User {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegisterRequest {
-    pub name: String,
+    #[serde(default)]
+    pub name: Option<String>,
     pub id_number: String, // 18位身份证号
     pub phone: String,
 }

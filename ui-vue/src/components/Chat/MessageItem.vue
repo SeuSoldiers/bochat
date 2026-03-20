@@ -1,0 +1,102 @@
+<template>
+  <div class="message-item">
+    <div class="message-avatar">
+      {{ message.sender_name.charAt(0) }}
+    </div>
+    <div class="message-content">
+      <div class="message-header">
+        <span class="message-sender">{{ message.sender_name }}</span>
+        <span class="message-time">{{ formatTime(message.created_at) }}</span>
+      </div>
+      <div class="message-text">{{ message.content }}</div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { Message } from '@/types'
+
+defineProps<{
+  message: Message
+}>()
+
+const formatTime = (dateStr: string) => {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / (1000 * 60))
+
+  if (diffMins < 1) return '刚刚'
+  if (diffMins < 60) return `${diffMins}分钟前`
+
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}小时前`
+
+  return date.toLocaleDateString('zh-CN')
+}
+</script>
+
+<style scoped>
+.message-item {
+  display: flex;
+  gap: 12px;
+  animation: fadeIn 0.3s ease;
+}
+
+.message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #8b9d83;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.message-sender {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a4a4a;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #cccccc;
+}
+
+.message-text {
+  font-size: 14px;
+  color: #4a4a4a;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+  background-color: #fafaf8;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+</style>

@@ -1,0 +1,89 @@
+/* 全局样式 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* 莫兰迪色系变量已在 styles.ts 中动态设置 */
+
+  /* 默认字体和大小 */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text, #4a4a4a);
+
+  /* 平滑动画 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+  background-color: var(--color-bg, #f5f3f1);
+  height: 100%;
+  width: 100%;
+}
+
+#app {
+  min-height: 100vh;
+  background-color: var(--color-bg, #f5f3f1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 提高图片渲染质量 */
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border, #d4cfc8);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-light, #888888);
+}
+
+/* 深色模式支持（可选） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* 可在此处定义暗黑模式颜色 */
+  }
+}
+
+/* 响应式断点工具类 */
+@media (max-width: 768px) {
+  :root {
+    font-size: 13px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  body {
+    background: white;
+  }
+
+  #app {
+    background: white;
+  }
+}
