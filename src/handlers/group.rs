@@ -1,6 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use serde_json::json;
 use serde::Deserialize;
+use serde_json::json;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
@@ -10,6 +10,8 @@ use crate::utils::{generate_group_id, verify_token};
 #[derive(Debug, Deserialize)]
 pub struct GroupMessagesQuery {
     pub bot_id: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 /// 创建新群聊（仅用户可创建）
@@ -27,7 +29,11 @@ pub async fn create_group(
     req: web::Json<CreateGroupRequest>,
 ) -> AppResult<HttpResponse> {
     tracing::info!("=== 开始创建新群聊 ===");
-    tracing::debug!("请求数据: 群名称={}, 群描述={}", req.name, req.description.as_deref().unwrap_or("无"));
+    tracing::debug!(
+        "请求数据: 群名称={}, 群描述={}",
+        req.name,
+        req.description.as_deref().unwrap_or("无")
+    );
 
     // 从 Authorization 头提取 Bearer token
     let token = http_req
@@ -173,7 +179,12 @@ pub async fn create_group(
         AppError::DatabaseError(e.to_string())
     })?;
 
-    tracing::info!("✅ 群聊创建成功 - 群聊ID: {}, 创建者: {}, Bot已自动加入: {}", group_id, user_id, member_bot_id);
+    tracing::info!(
+        "✅ 群聊创建成功 - 群聊ID: {}, 创建者: {}, Bot已自动加入: {}",
+        group_id,
+        user_id,
+        member_bot_id
+    );
 
     Ok(HttpResponse::Created().json(json!({
         "group_id": group_id,
@@ -266,7 +277,10 @@ pub async fn list_user_groups(
     })?;
 
     tracing::info!("✅ 查询成功，共找到 {} 个群聊", groups.len());
-    tracing::debug!("群聊列表: {:?}", groups.iter().map(|g| &g.group_id).collect::<Vec<_>>());
+    tracing::debug!(
+        "群聊列表: {:?}",
+        groups.iter().map(|g| &g.group_id).collect::<Vec<_>>()
+    );
 
     let responses: Vec<GroupResponse> = groups.into_iter().map(|g| g.into()).collect();
 
@@ -302,12 +316,18 @@ pub async fn join_group(
     req: web::Json<JoinGroupRequest>,
 ) -> AppResult<HttpResponse> {
     tracing::info!("=== 开始加入群聊 ===");
-    tracing::debug!("请求参数: group_id={:?}, group_code={:?}", req.group_id, req.group_code);
+    tracing::debug!(
+        "请求参数: group_id={:?}, group_code={:?}",
+        req.group_id,
+        req.group_code
+    );
 
     // 至少需要一个标识符
     if req.group_id.is_none() && req.group_code.is_none() {
         tracing::warn!("加入群聊失败: 既没有 group_id 也没有 group_code");
-        return Err(AppError::BadRequest("必须提供 group_id 或 group_code".to_string()));
+        return Err(AppError::BadRequest(
+            "必须提供 group_id 或 group_code".to_string(),
+        ));
     }
 
     // Extract token from Authorization header
@@ -384,7 +404,10 @@ pub async fn join_group(
         target_bot.bot_id
     } else {
         if requester_bot.status != "active" {
-            tracing::warn!("加入群聊失败: 当前认证 Bot 未激活: {}", requester_bot.bot_id);
+            tracing::warn!(
+                "加入群聊失败: 当前认证 Bot 未激活: {}",
+                requester_bot.bot_id
+            );
             return Err(AppError::BadRequest("当前 Bot 未激活".to_string()));
         }
         requester_bot.bot_id.clone()
@@ -398,16 +421,15 @@ pub async fn join_group(
         let gcode = req.group_code.as_ref().unwrap();
         tracing::debug!("使用 group_code 查找群聊: {}", gcode);
 
-        let found_group: Option<String> = sqlx::query_scalar(
-            "SELECT group_id FROM groups WHERE group_code = ?"
-        )
-        .bind(gcode)
-        .fetch_optional(pool.get_ref())
-        .await
-        .map_err(|e| {
-            tracing::error!("查询群聊时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?;
+        let found_group: Option<String> =
+            sqlx::query_scalar("SELECT group_id FROM groups WHERE group_code = ?")
+                .bind(gcode)
+                .fetch_optional(pool.get_ref())
+                .await
+                .map_err(|e| {
+                    tracing::error!("查询群聊时数据库错误: {}", e);
+                    AppError::DatabaseError(e.to_string())
+                })?;
 
         found_group.ok_or_else(|| {
             tracing::warn!("群号不存在: {}", gcode);
@@ -763,7 +785,7 @@ pub async fn get_group_messages(
     };
 
     let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)"
+        "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)",
     )
     .bind(&group_id_str)
     .bind(&access_bot_id)
@@ -775,11 +797,18 @@ pub async fn get_group_messages(
     })?;
 
     if !is_member {
-        tracing::warn!("Bot {} 不是群 {} 的成员，无权查看消息", access_bot_id, group_id_str);
+        tracing::warn!(
+            "Bot {} 不是群 {} 的成员，无权查看消息",
+            access_bot_id,
+            group_id_str
+        );
         return Err(AppError::Forbidden("只有群内的Bot才能查看消息".to_string()));
     }
 
     tracing::debug!("✅ Bot 是群内成员，继续获取消息");
+
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let offset = query.offset.unwrap_or(0).max(0);
 
     #[derive(sqlx::FromRow)]
     struct MessageRow {
@@ -808,9 +837,12 @@ pub async fn get_group_messages(
         LEFT JOIN bots b ON b.bot_id = m.sender_id
         WHERE m.group_id = ?
         ORDER BY m.created_at ASC
-        "#
+        LIMIT ? OFFSET ?
+        "#,
     )
     .bind(&group_id_str)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool.get_ref())
     .await
     .map_err(|e| {
@@ -841,6 +873,8 @@ pub async fn get_group_messages(
 
     Ok(HttpResponse::Ok().json(json!({
         "group_id": group_id_str,
+        "limit": limit,
+        "offset": offset,
         "messages": responses,
     })))
 }
@@ -887,7 +921,7 @@ pub async fn list_group_members(
             LEFT JOIN bots b ON b.bot_id = gm.member_id
             WHERE g.group_id = ? AND (g.creator_id = ? OR b.owner_id = ?)
         )
-        "#
+        "#,
     )
     .bind(&group_id_str)
     .bind(&requester_bot.owner_id)

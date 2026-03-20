@@ -7,6 +7,7 @@ edition = "2021"
 # Web Framework
 actix-web = "4"
 actix-rt = "2"
+actix = "0.13"
 actix-web-actors = "4"
 actix-cors = "0.7"
 actix-multipart = "0.6"

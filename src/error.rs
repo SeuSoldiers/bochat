@@ -64,7 +64,9 @@ impl ResponseError for AppError {
             | AppError::MessageNotFound
             | AppError::FileNotFound => StatusCode::NOT_FOUND,
             AppError::InvalidIdNumber | AppError::InvalidToken => StatusCode::BAD_REQUEST,
-            AppError::Unauthorized | AppError::BotPermissionDenied | AppError::Forbidden(_) => StatusCode::FORBIDDEN,
+            AppError::Unauthorized | AppError::BotPermissionDenied | AppError::Forbidden(_) => {
+                StatusCode::FORBIDDEN
+            }
             AppError::IdNumberConflict => StatusCode::CONFLICT,
             AppError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             AppError::BadRequest(_) | AppError::InvalidFileFormat => StatusCode::BAD_REQUEST,

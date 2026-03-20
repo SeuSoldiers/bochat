@@ -1,3 +1,3 @@
 pub mod manager;
 
-pub use manager::WsManager;
+pub use manager::{WsEvent, WsManager};

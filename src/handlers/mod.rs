@@ -6,12 +6,12 @@ pub mod message;
 pub mod user;
 pub mod ws;
 
-pub use auth::{register, login};
+pub use auth::{login, register};
 pub use bot::{create_bot, delete_bot, get_bot, list_bots, update_bot};
 pub use file::{download_file, upload_file};
 pub use group::{
-    create_group, delete_group, get_group, get_group_messages, join_group, leave_group, list_group_members,
-    list_user_groups, remove_group_member,
+    create_group, delete_group, get_group, get_group_messages, join_group, leave_group,
+    list_group_members, list_user_groups, remove_group_member,
 };
 pub use message::send_message;
 pub use user::delete_user;

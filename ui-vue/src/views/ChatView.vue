@@ -5,17 +5,14 @@
 
     <!-- 主聊天区 -->
     <div class="chat-main">
-      <!-- Bot 和群选择器 -->
-      <BotGroupSelector
-        :groups="groupStore.groups"
-        :selected-group="groupStore.selectedGroup"
-        @select-group="groupStore.selectGroup"
-      />
+      <div class="chat-header">
+        <BotGroupSelector
+          :groups="groupStore.groups"
+          :selected-group="groupStore.selectedGroup"
+          @select-group="groupStore.selectGroup"
+        />
 
-      <!-- 消息区域 -->
-      <div class="message-area">
-        <!-- 头部：当前群信息 -->
-        <div v-if="groupStore.selectedGroup" class="chat-header">
+        <div v-if="groupStore.selectedGroup" class="group-summary">
           <div class="group-info">
             <h3>{{ groupStore.selectedGroup.name }}</h3>
             <p>群号: {{ groupStore.selectedGroup.group_code || '未设置' }}</p>
@@ -24,7 +21,10 @@
             👥 成员
           </button>
         </div>
+      </div>
 
+      <!-- 消息区域 -->
+      <div class="message-area">
         <!-- 消息列表 -->
         <MessageList
           v-if="groupStore.selectedGroup"
@@ -72,9 +72,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useBotStore } from '@/stores/bots'
 import { useGroupStore } from '@/stores/groups'
 import { useChatStore } from '@/stores/chat'
+import { useAuthStore } from '@/stores/auth'
 import TopNav from '@/components/Common/TopNav.vue'
 import BotGroupSelector from '@/components/Chat/BotGroupSelector.vue'
 import MessageList from '@/components/Chat/MessageList.vue'
@@ -83,10 +85,13 @@ import MembersModal from '@/components/Group/MembersModal.vue'
 import BotInfoModal from '@/components/Bot/BotInfoModal.vue'
 import { getBot } from '@/services/bot'
 import type { Bot } from '@/types'
+import { useWebSocket } from '@/composables/useWebSocket'
 
 const botStore = useBotStore()
 const groupStore = useGroupStore()
 const chatStore = useChatStore()
+const authStore = useAuthStore()
+const { token } = storeToRefs(authStore)
 
 const showMembers = ref(false)
 const activeBotId = ref('')
@@ -94,6 +99,8 @@ const messageError = ref<string | null>(null)
 const showBotInfoModal = ref(false)
 const loadingBotInfo = ref(false)
 const viewingBot = ref<Bot | null>(null)
+
+useWebSocket(token)
 
 // 初始化
 onMounted(async () => {
@@ -202,13 +209,21 @@ const openBotInfo = async (botId: string) => {
   display: flex;
   flex-direction: column;
   padding: 20px;
-  gap: 20px;
+  gap: 16px;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
 }
 
 .chat-header {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.group-summary {
+  flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -222,12 +237,13 @@ const openBotInfo = async (botId: string) => {
   font-size: 16px;
   font-weight: 600;
   color: #4a4a4a;
-  margin-bottom: 4px;
+  margin: 0 0 4px 0;
 }
 
 .group-info p {
   font-size: 12px;
   color: #888888;
+  margin: 0;
 }
 
 .view-members-btn {
@@ -268,6 +284,12 @@ const openBotInfo = async (botId: string) => {
   }
 
   .chat-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .group-summary {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;

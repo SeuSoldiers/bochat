@@ -5,15 +5,21 @@ use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::CreateMessageRequest;
 use crate::utils::verify_token;
+use crate::ws::{WsEvent, WsManager};
 
-#[tracing::instrument(skip(pool, msg_req))]
+#[tracing::instrument(skip(pool, msg_req, ws_manager))]
 pub async fn send_message(
     pool: web::Data<DbPool>,
+    ws_manager: web::Data<WsManager>,
     http_req: HttpRequest,
     msg_req: web::Json<CreateMessageRequest>,
 ) -> AppResult<HttpResponse> {
     tracing::info!("=== 开始处理消息发送请求 ===");
-    tracing::debug!("目标群聊: {}, 消息内容: {}", msg_req.group_id, msg_req.content);
+    tracing::debug!(
+        "目标群聊: {}, 消息内容: {}",
+        msg_req.group_id,
+        msg_req.content
+    );
 
     // 从 Authorization 头提取 Bearer token
     let token = http_req
@@ -133,7 +139,11 @@ pub async fn send_message(
     })?;
 
     if !is_member {
-        tracing::warn!("消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}", sender_bot.bot_id, msg_req.group_id);
+        tracing::warn!(
+            "消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}",
+            sender_bot.bot_id,
+            msg_req.group_id
+        );
         return Err(AppError::BotPermissionDenied);
     }
 
@@ -166,14 +176,7 @@ pub async fn send_message(
         AppError::DatabaseError(e.to_string())
     })?;
 
-    tracing::info!(
-        "✅ 消息发送成功 - 消息ID: {}, 群聊ID: {}, 发送者: {}",
-        msg_id,
-        msg_req.group_id,
-        sender_bot.bot_id
-    );
-
-    Ok(HttpResponse::Created().json(json!({
+    let response_payload = json!({
         "msg_id": msg_id,
         "group_id": msg_req.group_id,
         "sender_id": sender_bot.bot_id,
@@ -182,5 +185,33 @@ pub async fn send_message(
         "content": msg_req.content,
         "msg_type": msg_type,
         "created_at": now,
-    })))
+    });
+
+    let member_bot_ids: Vec<String> =
+        sqlx::query_scalar("SELECT member_id FROM group_members WHERE group_id = ?")
+            .bind(&msg_req.group_id)
+            .fetch_all(pool.get_ref())
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let ws_event = WsEvent {
+        event_type: "message".to_string(),
+        payload: response_payload.clone(),
+        timestamp: now.clone(),
+    };
+
+    for bot_id in member_bot_ids {
+        ws_manager
+            .broadcast_message(&bot_id, ws_event.clone())
+            .await;
+    }
+
+    tracing::info!(
+        "✅ 消息发送成功 - 消息ID: {}, 群聊ID: {}, 发送者: {}",
+        msg_id,
+        msg_req.group_id,
+        sender_bot.bot_id
+    );
+
+    Ok(HttpResponse::Created().json(response_payload))
 }

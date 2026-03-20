@@ -4,18 +4,16 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct WsMessage {
-    pub msg_type: String,
-    pub msg_id: Option<i64>,
-    pub sender_id: Option<String>,
-    pub to_id: Option<String>,
-    pub content: Option<serde_json::Value>,
-    pub created_at: Option<String>,
+pub struct WsEvent {
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub timestamp: String,
 }
 
 pub struct WsManager {
     // Map of bot_id to list of WebSocket connections
-    connections: Arc<RwLock<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<WsMessage>>>>>,
+    connections: Arc<RwLock<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<WsEvent>>>>>,
 }
 
 impl WsManager {
@@ -28,7 +26,7 @@ impl WsManager {
     pub async fn add_connection(
         &self,
         bot_id: String,
-        tx: tokio::sync::mpsc::UnboundedSender<WsMessage>,
+        tx: tokio::sync::mpsc::UnboundedSender<WsEvent>,
     ) {
         let mut connections = self.connections.write().await;
         connections.entry(bot_id).or_insert_with(Vec::new).push(tx);
@@ -44,7 +42,7 @@ impl WsManager {
         }
     }
 
-    pub async fn broadcast_message(&self, bot_id: &str, message: WsMessage) {
+    pub async fn broadcast_message(&self, bot_id: &str, message: WsEvent) {
         let connections = self.connections.read().await;
         if let Some(conns) = connections.get(bot_id) {
             for tx in conns {

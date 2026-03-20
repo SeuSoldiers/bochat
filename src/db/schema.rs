@@ -178,6 +178,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         CREATE TABLE IF NOT EXISTS files (
             file_id TEXT PRIMARY KEY,
             owner_id TEXT NOT NULL,
+            content_hash TEXT,
             filename TEXT NOT NULL,
             size INTEGER NOT NULL,
             mime_type TEXT NOT NULL,
@@ -185,6 +186,26 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (owner_id) REFERENCES bots(bot_id)
         )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    if let Err(e) = sqlx::query("ALTER TABLE files ADD COLUMN content_hash TEXT")
+        .execute(pool)
+        .await
+    {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(crate::error::AppError::DatabaseError(e.to_string()));
+        }
+    }
+
+    sqlx::query(
+        r#"
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_files_content_hash
+        ON files(content_hash)
+        WHERE content_hash IS NOT NULL
         "#,
     )
     .execute(pool)

@@ -17,7 +17,8 @@ use crate::utils::{generate_bot_id, generate_token, generate_user_id};
 /// - false: 否则
 fn validate_id_number(id_number: &str) -> bool {
     // 标准身份证号是18位数字（暂时只检查位数和数字格式）
-    let is_valid = id_number.len() == 18 && id_number.chars().all(|c| c.is_ascii_digit() || c == 'X');
+    let is_valid =
+        id_number.len() == 18 && id_number.chars().all(|c| c.is_ascii_digit() || c == 'X');
     tracing::debug!("验证身份证号: {} -> {}", id_number, is_valid);
     is_valid
 }
@@ -29,21 +30,26 @@ pub async fn register(
 ) -> AppResult<HttpResponse> {
     // 记录注册请求
     tracing::info!("=== 开始处理用户注册请求 ===");
-    tracing::debug!("请求数据: 姓名={}, 身份证号={}, 手机号={}",
+    tracing::debug!(
+        "请求数据: 姓名={}, 身份证号={}, 手机号={}",
         req.name.as_ref().unwrap_or(&"(未提供)".to_string()),
         req.id_number,
-        req.phone);
+        req.phone
+    );
 
     // 验证必填字段
     if req.id_number.is_empty() || req.phone.is_empty() {
         tracing::warn!("注册失败: 缺少必填字段");
-        return Err(AppError::BadRequest("缺少必填字段（身份证号和手机号为必需）".to_string()));
+        return Err(AppError::BadRequest(
+            "缺少必填字段（身份证号和手机号为必需）".to_string(),
+        ));
     }
 
     // 如果没有提供名字，使用手机号后4位作为默认名字
-    let name = req.name.clone().unwrap_or_else(|| {
-        format!("用户{}", &req.phone[req.phone.len().saturating_sub(4)..])
-    });
+    let name = req
+        .name
+        .clone()
+        .unwrap_or_else(|| format!("用户{}", &req.phone[req.phone.len().saturating_sub(4)..]));
 
     // 验证身份证号格式 (18位)
     if !validate_id_number(&req.id_number) {
@@ -91,10 +97,16 @@ pub async fn register(
 
     tracing::debug!("生成默认Bot信息:");
     tracing::debug!("  Bot ID: {}", bot_id);
-    tracing::debug!("  Bot Secret: {} (前16位)", &bot_secret[..16.min(bot_secret.len())]);
+    tracing::debug!(
+        "  Bot Secret: {} (前16位)",
+        &bot_secret[..16.min(bot_secret.len())]
+    );
 
     let bot_token = generate_token(&bot_id, &bot_secret)?;
-    tracing::debug!("生成Bot Token: {} (前50位)", &bot_token[..50.min(bot_token.len())]);
+    tracing::debug!(
+        "生成Bot Token: {} (前50位)",
+        &bot_token[..50.min(bot_token.len())]
+    );
 
     tracing::info!("正在数据库中创建Bot记录: {}", bot_id);
     sqlx::query(

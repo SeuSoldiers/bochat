@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct File {
     pub file_id: String,
     pub owner_id: String,
+    pub content_hash: String,
     pub filename: String,
     pub size: i64,
     pub mime_type: String,

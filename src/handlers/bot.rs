@@ -39,7 +39,10 @@ pub async fn create_bot(
     // 解析 token 获取 bot_id（先不验证）
     let parts: Vec<&str> = token.split(':').collect();
     if parts.len() != 3 {
-        tracing::warn!("创建 Bot 失败: Token 格式无效，预期3部分，实际{}", parts.len());
+        tracing::warn!(
+            "创建 Bot 失败: Token 格式无效，预期3部分，实际{}",
+            parts.len()
+        );
         return Err(AppError::InvalidToken);
     }
     let requester_bot_id = parts[0];
@@ -87,7 +90,10 @@ pub async fn create_bot(
 
     tracing::debug!("生成新 Bot 信息:");
     tracing::debug!("  新 Bot ID: {}", new_bot_id);
-    tracing::debug!("  Bot Secret (前16位): {}", &bot_secret[..16.min(bot_secret.len())]);
+    tracing::debug!(
+        "  Bot Secret (前16位): {}",
+        &bot_secret[..16.min(bot_secret.len())]
+    );
     tracing::debug!("  时间戳: {}", now);
 
     tracing::info!("正在数据库中插入新 Bot 记录: {}", new_bot_id);
@@ -114,7 +120,11 @@ pub async fn create_bot(
         AppError::DatabaseError(e.to_string())
     })?;
 
-    tracing::info!("✅ Bot 创建成功 - Bot ID: {}, 所有者: {}", new_bot_id, owner_id);
+    tracing::info!(
+        "✅ Bot 创建成功 - Bot ID: {}, 所有者: {}",
+        new_bot_id,
+        owner_id
+    );
 
     Ok(HttpResponse::Created().json(json!({
         "bot_id": new_bot_id,
@@ -203,7 +213,10 @@ pub async fn list_bots(pool: web::Data<DbPool>, http_req: HttpRequest) -> AppRes
     })?;
 
     tracing::info!("✅ 查询成功，共找到 {} 个 Bot", bots.len());
-    tracing::debug!("Bot 列表: {:?}", bots.iter().map(|b| &b.bot_id).collect::<Vec<_>>());
+    tracing::debug!(
+        "Bot 列表: {:?}",
+        bots.iter().map(|b| &b.bot_id).collect::<Vec<_>>()
+    );
 
     let responses: Vec<BotResponse> = bots.into_iter().map(|b| b.into()).collect();
 
@@ -237,7 +250,12 @@ pub async fn get_bot(
     })?;
 
     tracing::info!("✅ Bot 查询成功: {}", requested_bot_id);
-    tracing::debug!("Bot 信息: 名称={}, 所有者={}, 状态={}", bot.name, bot.owner_id, bot.status);
+    tracing::debug!(
+        "Bot 信息: 名称={}, 所有者={}, 状态={}",
+        bot.name,
+        bot.owner_id,
+        bot.status
+    );
 
     let response: BotResponse = bot.into();
     Ok(HttpResponse::Ok().json(response))

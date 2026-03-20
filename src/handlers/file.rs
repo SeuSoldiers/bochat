@@ -2,6 +2,7 @@ use actix_multipart::Multipart;
 use actix_web::{http::header, web, HttpRequest, HttpResponse};
 use futures_util::TryStreamExt as _;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
 use crate::db::DbPool;
@@ -45,19 +46,15 @@ pub async fn upload_file(
 
     let mut uploaded_filename: Option<String> = None;
     let mut uploaded_mime: Option<String> = None;
-    let file_id = crate::utils::generate_file_id();
     let now = chrono::Utc::now().to_rfc3339();
     let upload_dir = std::path::PathBuf::from(&config.storage.file_storage_path);
     tokio::fs::create_dir_all(&upload_dir)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
-    let storage_path = upload_dir.join(&file_id);
-    let mut file = tokio::fs::File::create(&storage_path)
-        .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
     let mut total_size: u64 = 0;
+    let mut file_bytes = Vec::new();
 
-    while let Some(mut field) = payload
+    if let Some(mut field) = payload
         .try_next()
         .await
         .map_err(|e| AppError::BadRequest(e.to_string()))?
@@ -66,7 +63,7 @@ pub async fn upload_file(
 
         let filename = content_disposition
             .get_filename()
-            .map(|name| sanitize_filename(name))
+            .map(sanitize_filename)
             .unwrap_or_else(|| "upload.bin".to_string());
         uploaded_filename = Some(filename);
         uploaded_mime = Some(
@@ -83,27 +80,81 @@ pub async fn upload_file(
         {
             total_size += chunk.len() as u64;
             if total_size > config.security.max_file_size_mb * 1024 * 1024 {
+                tracing::warn!(
+                    "文件上传被拒绝: 超出大小限制, bot_id={}, size={}",
+                    bot.bot_id,
+                    total_size
+                );
                 return Err(AppError::FileTooLarge);
             }
 
-            file.write_all(&chunk)
-                .await
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+            file_bytes.extend_from_slice(&chunk);
         }
-        break;
     }
 
-    let filename = uploaded_filename.ok_or_else(|| AppError::BadRequest("未上传文件".to_string()))?;
+    let filename =
+        uploaded_filename.ok_or_else(|| AppError::BadRequest("未上传文件".to_string()))?;
     let mime_type = uploaded_mime.unwrap_or_else(|| "application/octet-stream".to_string());
+    let content_hash = hex::encode(Sha256::digest(&file_bytes));
+
+    tracing::info!(
+        "开始处理文件上传: bot_id={}, filename={}, size={}, mime_type={}, sha256={}",
+        bot.bot_id,
+        filename,
+        total_size,
+        mime_type,
+        content_hash
+    );
+
+    let existing_file: Option<crate::models::File> = sqlx::query_as(
+        "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE content_hash = ?"
+    )
+    .bind(&content_hash)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let scheme = http_req.connection_info().scheme().to_string();
+    let host = http_req.connection_info().host().to_string();
+
+    if let Some(existing_file) = existing_file {
+        let file_url = format!(
+            "{}://{}/api/v1/file/download/{}",
+            scheme, host, existing_file.file_id
+        );
+
+        tracing::info!(
+            "文件复用命中: bot_id={}, existing_file_id={}, sha256={}",
+            bot.bot_id,
+            existing_file.file_id,
+            content_hash
+        );
+
+        return Ok(HttpResponse::Created().json(json!({
+            "file_id": existing_file.file_id,
+            "url": file_url,
+            "created_at": existing_file.created_at,
+        })));
+    }
+
+    let file_id = crate::utils::generate_file_id();
+    let storage_path = upload_dir.join(&file_id);
+    let mut file = tokio::fs::File::create(&storage_path)
+        .await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+    file.write_all(&file_bytes)
+        .await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     sqlx::query(
         r#"
-        INSERT INTO files (file_id, owner_id, filename, size, mime_type, storage_path, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#
     )
     .bind(&file_id)
     .bind(&bot.bot_id)
+    .bind(&content_hash)
     .bind(&filename)
     .bind(total_size as i64)
     .bind(&mime_type)
@@ -113,12 +164,14 @@ pub async fn upload_file(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let connection = http_req.connection_info();
-    let file_url = format!(
-        "{}://{}/api/v1/file/download/{}",
-        connection.scheme(),
-        connection.host(),
-        file_id
+    let file_url = format!("{}://{}/api/v1/file/download/{}", scheme, host, file_id);
+
+    tracing::info!(
+        "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
+        bot.bot_id,
+        file_id,
+        content_hash,
+        storage_path.to_string_lossy()
     );
 
     Ok(HttpResponse::Created().json(json!({
@@ -136,7 +189,7 @@ pub async fn download_file(
     file_id: web::Path<String>,
 ) -> AppResult<HttpResponse> {
     let file: crate::models::File = sqlx::query_as(
-        "SELECT file_id, owner_id, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = ?"
+        "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = ?"
     )
     .bind(file_id.as_str())
     .fetch_optional(pool.get_ref())
@@ -159,6 +212,12 @@ pub async fn download_file(
 
 fn sanitize_filename(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }

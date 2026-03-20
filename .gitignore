@@ -2,3 +2,7 @@
 .env
 *.db
 /.claude
+
+CLAUDE.md
+
+assets/files

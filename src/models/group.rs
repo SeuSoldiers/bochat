@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Group {
     pub group_id: String,
     pub group_code: Option<String>, // 可选的群号，用户可以输入这个号码加入群聊
-    pub creator_id: String, // 创建者的User ID
+    pub creator_id: String,         // 创建者的User ID
     pub name: String,
     pub description: Option<String>,
     pub status: String, // active / inactive
@@ -17,7 +17,7 @@ pub struct CreateGroupRequest {
     pub name: String,
     pub description: Option<String>,
     pub group_code: Option<String>, // 可选，如果不提供则不设置
-    pub bot_id: Option<String>, // 可选，指定自动加入群聊的 Bot
+    pub bot_id: Option<String>,     // 可选，指定自动加入群聊的 Bot
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

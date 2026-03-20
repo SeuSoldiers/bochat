@@ -33,6 +33,8 @@ defineEmits<{
 
 <style scoped>
 .selector-container {
+  flex: 1;
+  min-width: 0;
   padding: 15px;
   background-color: white;
   border-radius: 8px;
@@ -43,12 +45,12 @@ defineEmits<{
   font-size: 14px;
   font-weight: 600;
   color: #4a4a4a;
-  margin: 0 0 12px 0;
+  margin: 0 0 10px 0;
 }
 
 .items-list {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -56,7 +58,7 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   background-color: #fafaf8;
   border: 1px solid #e8e3dd;
   border-radius: 6px;
@@ -65,6 +67,7 @@ defineEmits<{
   color: #888888;
   transition: all 0.3s ease;
   text-align: left;
+  max-width: 220px;
 }
 
 .item:hover {
@@ -83,7 +86,7 @@ defineEmits<{
 }
 
 .item-name {
-  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -94,5 +97,12 @@ defineEmits<{
   color: #cccccc;
   margin: 0;
   padding: 10px 0;
+}
+
+@media (max-width: 768px) {
+  .item {
+    max-width: none;
+    width: 100%;
+  }
 }
 </style>
