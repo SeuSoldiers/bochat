@@ -5,12 +5,8 @@ edition = "2021"
 
 [dependencies]
 # Web Framework
-actix-web = "4"
-actix-rt = "2"
-actix = "0.13"
-actix-web-actors = "4"
-actix-cors = "0.7"
-actix-multipart = "0.6"
+axum = { version = "0.7", features = ["multipart", "ws"] }
+tower-http = { version = "0.5", features = ["cors"] }
 
 # Async Runtime
 tokio = { version = "1", features = ["full"] }
@@ -51,9 +47,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 anyhow = "1"
 thiserror = "1"
 
-# Middleware
-actix-http = "3"
-
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3"
+tower = "0.5"

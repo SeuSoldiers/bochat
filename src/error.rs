@@ -1,4 +1,9 @@
-use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
 
@@ -56,7 +61,7 @@ pub enum AppError {
     Forbidden(String),
 }
 
-impl ResponseError for AppError {
+impl AppError {
     fn status_code(&self) -> StatusCode {
         match self {
             AppError::UserNotFound
@@ -74,14 +79,35 @@ impl ResponseError for AppError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
+}
 
-    fn error_response(&self) -> HttpResponse {
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
         let status = self.status_code();
-        HttpResponse::build(status).json(json!({
-            "error": self.to_string(),
-            "status": status.as_u16(),
-        }))
+        (
+            status,
+            Json(json!({
+                "error": self.to_string(),
+                "status": status.as_u16(),
+            })),
+        )
+            .into_response()
     }
+}
+
+pub fn json_response<T: Serialize>(status: StatusCode, payload: T) -> Response {
+    (status, Json(payload)).into_response()
+}
+
+pub fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
+    (
+        status,
+        Json(json!({
+            "error": message.into(),
+            "status": status.as_u16(),
+        })),
+    )
+        .into_response()
 }
 
 // Result type alias for convenience

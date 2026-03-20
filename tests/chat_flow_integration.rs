@@ -1,14 +1,18 @@
-use actix_web::{
-    http::{header, StatusCode},
-    test, web, App,
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+    Router,
 };
 use chat_platform::{
+    app_router,
     config::{Config, DatabaseConfig, SecurityConfig, ServerConfig, StorageConfig},
-    configure_routes, db,
+    db,
     ws::WsManager,
+    AppState,
 };
 use serde_json::{json, Value};
 use tempfile::TempDir;
+use tower::util::ServiceExt;
 
 fn test_config(temp_dir: &TempDir) -> Config {
     let file_storage_path = temp_dir.path().join("files");
@@ -36,204 +40,201 @@ fn test_config(temp_dir: &TempDir) -> Config {
     }
 }
 
-fn auth_header(token: &str) -> (header::HeaderName, String) {
-    (header::AUTHORIZATION, format!("Bearer {token}"))
-}
-
 fn body_str<'a>(value: &'a Value, key: &str) -> &'a str {
     value[key]
         .as_str()
         .unwrap_or_else(|| panic!("missing string field `{key}` in {value}"))
 }
 
-#[actix_web::test]
+async fn send_json(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+    payload: Option<Value>,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json");
+
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+
+    let body = payload
+        .map(|value| Body::from(value.to_string()))
+        .unwrap_or_else(Body::empty);
+
+    let response = app
+        .clone()
+        .oneshot(builder.body(body).expect("build request"))
+        .await
+        .expect("request should succeed");
+    let status = response.status();
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read response body");
+    let value = serde_json::from_slice(&body).unwrap_or_else(|_| json!({}));
+    (status, value)
+}
+
+#[tokio::test]
 async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let config = test_config(&temp_dir);
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::run_migrations(&pool).await.expect("run migrations");
 
-    let config_data = web::Data::new(config);
-    let pool_data = web::Data::new(pool);
-    let ws_manager_data = web::Data::new(WsManager::new());
+    let app = app_router(AppState {
+        config,
+        pool,
+        ws_manager: WsManager::new(),
+    });
 
-    let app = test::init_service(
-        App::new()
-            .app_data(config_data.clone())
-            .app_data(pool_data.clone())
-            .app_data(ws_manager_data.clone())
-            .configure(configure_routes),
-    )
-    .await;
+    let (health_status, _) = send_json(&app, "GET", "/health", None, None).await;
+    assert_eq!(health_status, StatusCode::OK);
 
-    let health_response = test::call_service(&app, test::TestRequest::get().uri("/health").to_request()).await;
-    assert_eq!(health_response.status(), StatusCode::OK);
-
-    let alice_register = test::call_service(
+    let (alice_register_status, _) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/auth/register")
-            .set_json(json!({
-                "name": "Alice",
-                "id_number": "110101199003071234",
-                "phone": "13800138001"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "name": "Alice",
+            "id_number": "110101199003071234",
+            "phone": "13800138001"
+        })),
     )
     .await;
-    assert_eq!(alice_register.status(), StatusCode::CREATED);
+    assert_eq!(alice_register_status, StatusCode::CREATED);
 
-    let bob_register = test::call_service(
+    let (bob_register_status, _) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/auth/register")
-            .set_json(json!({
-                "name": "Bob",
-                "id_number": "110101199003071235",
-                "phone": "13800138002"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "name": "Bob",
+            "id_number": "110101199003071235",
+            "phone": "13800138002"
+        })),
     )
     .await;
-    assert_eq!(bob_register.status(), StatusCode::CREATED);
+    assert_eq!(bob_register_status, StatusCode::CREATED);
 
-    let alice_login = test::call_service(
+    let (alice_login_status, alice_login_body) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/auth/login")
-            .set_json(json!({
-                "id_number": "110101199003071234",
-                "phone": "13800138001"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        Some(json!({
+            "id_number": "110101199003071234",
+            "phone": "13800138001"
+        })),
     )
     .await;
-    assert_eq!(alice_login.status(), StatusCode::OK);
-    let alice_login_body: Value = test::read_body_json(alice_login).await;
+    assert_eq!(alice_login_status, StatusCode::OK);
     let alice_token = body_str(&alice_login_body, "bot_token").to_string();
 
-    let bob_login = test::call_service(
+    let (bob_login_status, bob_login_body) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/auth/login")
-            .set_json(json!({
-                "id_number": "110101199003071235",
-                "phone": "13800138002"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        Some(json!({
+            "id_number": "110101199003071235",
+            "phone": "13800138002"
+        })),
     )
     .await;
-    assert_eq!(bob_login.status(), StatusCode::OK);
-    let bob_login_body: Value = test::read_body_json(bob_login).await;
+    assert_eq!(bob_login_status, StatusCode::OK);
     let bob_token = body_str(&bob_login_body, "bot_token").to_string();
 
-    let alice_bots_response = test::call_service(
-        &app,
-        test::TestRequest::get()
-            .uri("/api/v1/bots")
-            .insert_header(auth_header(&alice_token))
-            .to_request(),
-    )
-    .await;
-    assert_eq!(alice_bots_response.status(), StatusCode::OK);
-    let alice_bots_body: Value = test::read_body_json(alice_bots_response).await;
+    let (alice_bots_status, alice_bots_body) =
+        send_json(&app, "GET", "/api/v1/bots", Some(&alice_token), None).await;
+    assert_eq!(alice_bots_status, StatusCode::OK);
     let alice_default_bot_id = body_str(&alice_bots_body["bots"][0], "bot_id").to_string();
 
-    let bob_bots_response = test::call_service(
-        &app,
-        test::TestRequest::get()
-            .uri("/api/v1/bots")
-            .insert_header(auth_header(&bob_token))
-            .to_request(),
-    )
-    .await;
-    assert_eq!(bob_bots_response.status(), StatusCode::OK);
-    let bob_bots_body: Value = test::read_body_json(bob_bots_response).await;
+    let (bob_bots_status, bob_bots_body) =
+        send_json(&app, "GET", "/api/v1/bots", Some(&bob_token), None).await;
+    assert_eq!(bob_bots_status, StatusCode::OK);
     let bob_default_bot_id = body_str(&bob_bots_body["bots"][0], "bot_id").to_string();
 
-    let alice_group_response = test::call_service(
+    let (alice_group_status, alice_group_body) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/groups")
-            .insert_header(auth_header(&alice_token))
-            .set_json(json!({
-                "name": "技术讨论组",
-                "description": "讨论技术问题的群聊",
-                "group_code": "TECH001"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/groups",
+        Some(&alice_token),
+        Some(json!({
+            "name": "技术讨论组",
+            "description": "讨论技术问题的群聊",
+            "group_code": "TECH001"
+        })),
     )
     .await;
-    assert_eq!(alice_group_response.status(), StatusCode::CREATED);
-    let alice_group_body: Value = test::read_body_json(alice_group_response).await;
+    assert_eq!(alice_group_status, StatusCode::CREATED);
     let tech_group_id = body_str(&alice_group_body, "group_id").to_string();
 
-    let bob_group_response = test::call_service(
+    let (bob_group_status, bob_group_body) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/groups")
-            .insert_header(auth_header(&bob_token))
-            .set_json(json!({
-                "name": "产品反馈组",
-                "description": "收集产品反馈的群聊",
-                "group_code": "PROD001"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/groups",
+        Some(&bob_token),
+        Some(json!({
+            "name": "产品反馈组",
+            "description": "收集产品反馈的群聊",
+            "group_code": "PROD001"
+        })),
     )
     .await;
-    assert_eq!(bob_group_response.status(), StatusCode::CREATED);
-    let bob_group_body: Value = test::read_body_json(bob_group_response).await;
+    assert_eq!(bob_group_status, StatusCode::CREATED);
     let product_group_id = body_str(&bob_group_body, "group_id").to_string();
 
-    let bob_join_tech = test::call_service(
+    let (bob_join_tech_status, _) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/groups/join")
-            .insert_header(auth_header(&bob_token))
-            .set_json(json!({ "group_code": "TECH001" }))
-            .to_request(),
+        "POST",
+        "/api/v1/groups/join",
+        Some(&bob_token),
+        Some(json!({ "group_code": "TECH001" })),
     )
     .await;
-    assert_eq!(bob_join_tech.status(), StatusCode::OK);
+    assert_eq!(bob_join_tech_status, StatusCode::OK);
 
-    let alice_join_product = test::call_service(
+    let (alice_join_product_status, _) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/groups/join")
-            .insert_header(auth_header(&alice_token))
-            .set_json(json!({ "group_code": "PROD001" }))
-            .to_request(),
+        "POST",
+        "/api/v1/groups/join",
+        Some(&alice_token),
+        Some(json!({ "group_code": "PROD001" })),
     )
     .await;
-    assert_eq!(alice_join_product.status(), StatusCode::OK);
+    assert_eq!(alice_join_product_status, StatusCode::OK);
 
-    let alice_second_bot_response = test::call_service(
+    let (alice_second_bot_status, alice_second_bot_body) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/bots")
-            .insert_header(auth_header(&alice_token))
-            .set_json(json!({
-                "name": "Alice的AI助手",
-                "description": "帮助Alice处理任务"
-            }))
-            .to_request(),
+        "POST",
+        "/api/v1/bots",
+        Some(&alice_token),
+        Some(json!({
+            "name": "Alice的AI助手",
+            "description": "帮助Alice处理任务"
+        })),
     )
     .await;
-    assert_eq!(alice_second_bot_response.status(), StatusCode::CREATED);
-    let alice_second_bot_body: Value = test::read_body_json(alice_second_bot_response).await;
+    assert_eq!(alice_second_bot_status, StatusCode::CREATED);
     let alice_second_bot_id = body_str(&alice_second_bot_body, "bot_id").to_string();
     let alice_second_bot_token = body_str(&alice_second_bot_body, "token").to_string();
 
-    let second_bot_join_tech = test::call_service(
+    let (second_bot_join_status, _) = send_json(
         &app,
-        test::TestRequest::post()
-            .uri("/api/v1/groups/join")
-            .insert_header(auth_header(&alice_second_bot_token))
-            .set_json(json!({ "group_code": "TECH001" }))
-            .to_request(),
+        "POST",
+        "/api/v1/groups/join",
+        Some(&alice_second_bot_token),
+        Some(json!({ "group_code": "TECH001" })),
     )
     .await;
-    assert_eq!(second_bot_join_tech.status(), StatusCode::OK);
+    assert_eq!(second_bot_join_status, StatusCode::OK);
 
     for (token, payload) in [
         (
@@ -325,30 +326,26 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
             }),
         ),
     ] {
-        let send_message_response = test::call_service(
+        let (status, _) = send_json(
             &app,
-            test::TestRequest::post()
-                .uri("/api/v1/message/send")
-                .insert_header(auth_header(token))
-                .set_json(payload)
-                .to_request(),
+            "POST",
+            "/api/v1/message/send",
+            Some(token),
+            Some(payload),
         )
         .await;
-        assert_eq!(send_message_response.status(), StatusCode::CREATED);
+        assert_eq!(status, StatusCode::CREATED);
     }
 
-    let tech_messages_response = test::call_service(
+    let (tech_messages_status, tech_messages_body) = send_json(
         &app,
-        test::TestRequest::get()
-            .uri(&format!(
-                "/api/v1/groups/{tech_group_id}/messages?limit=100&offset=0"
-            ))
-            .insert_header(auth_header(&bob_token))
-            .to_request(),
+        "GET",
+        &format!("/api/v1/groups/{tech_group_id}/messages?limit=100&offset=0"),
+        Some(&bob_token),
+        None,
     )
     .await;
-    assert_eq!(tech_messages_response.status(), StatusCode::OK);
-    let tech_messages_body: Value = test::read_body_json(tech_messages_response).await;
+    assert_eq!(tech_messages_status, StatusCode::OK);
     let tech_messages = tech_messages_body["messages"]
         .as_array()
         .expect("messages should be an array");
@@ -359,63 +356,51 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     assert_eq!(tech_messages[1]["sender_id"], bob_default_bot_id);
     assert_eq!(tech_messages[3]["sender_id"], alice_second_bot_id);
 
-    let product_messages_response = test::call_service(
+    let (product_messages_status, product_messages_body) = send_json(
         &app,
-        test::TestRequest::get()
-            .uri(&format!(
-                "/api/v1/groups/{product_group_id}/messages?limit=100&offset=0"
-            ))
-            .insert_header(auth_header(&alice_token))
-            .to_request(),
+        "GET",
+        &format!("/api/v1/groups/{product_group_id}/messages?limit=100&offset=0"),
+        Some(&alice_token),
+        None,
     )
     .await;
-    assert_eq!(product_messages_response.status(), StatusCode::OK);
-    let product_messages_body: Value = test::read_body_json(product_messages_response).await;
+    assert_eq!(product_messages_status, StatusCode::OK);
     let product_messages = product_messages_body["messages"]
         .as_array()
         .expect("messages should be an array");
     assert_eq!(product_messages.len(), 4);
 
-    let tech_members_response = test::call_service(
+    let (tech_members_status, tech_members_body) = send_json(
         &app,
-        test::TestRequest::get()
-            .uri(&format!("/api/v1/groups/{tech_group_id}/members"))
-            .insert_header(auth_header(&alice_token))
-            .to_request(),
+        "GET",
+        &format!("/api/v1/groups/{tech_group_id}/members"),
+        Some(&alice_token),
+        None,
     )
     .await;
-    assert_eq!(tech_members_response.status(), StatusCode::OK);
-    let tech_members_body: Value = test::read_body_json(tech_members_response).await;
+    assert_eq!(tech_members_status, StatusCode::OK);
     let tech_members = tech_members_body["members"]
         .as_array()
         .expect("members should be an array");
     assert_eq!(tech_members.len(), 3);
 
-    let product_members_response = test::call_service(
+    let (product_members_status, product_members_body) = send_json(
         &app,
-        test::TestRequest::get()
-            .uri(&format!("/api/v1/groups/{product_group_id}/members"))
-            .insert_header(auth_header(&bob_token))
-            .to_request(),
+        "GET",
+        &format!("/api/v1/groups/{product_group_id}/members"),
+        Some(&bob_token),
+        None,
     )
     .await;
-    assert_eq!(product_members_response.status(), StatusCode::OK);
-    let product_members_body: Value = test::read_body_json(product_members_response).await;
+    assert_eq!(product_members_status, StatusCode::OK);
     let product_members = product_members_body["members"]
         .as_array()
         .expect("members should be an array");
     assert_eq!(product_members.len(), 2);
 
-    let bob_groups_response = test::call_service(
-        &app,
-        test::TestRequest::get()
-            .uri("/api/v1/groups")
-            .insert_header(auth_header(&bob_token))
-            .to_request(),
-    )
-    .await;
-    assert_eq!(bob_groups_response.status(), StatusCode::OK);
-    let bob_groups_body: Value = test::read_body_json(bob_groups_response).await;
+    let (bob_groups_status, bob_groups_body) =
+        send_json(&app, "GET", "/api/v1/groups", Some(&bob_token), None).await;
+    assert_eq!(bob_groups_status, StatusCode::OK);
     let bob_groups = bob_groups_body["groups"]
         .as_array()
         .expect("groups should be an array");

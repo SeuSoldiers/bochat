@@ -1,9 +1,16 @@
-use actix_web::{web, HttpResponse};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::Response,
+    Json,
+};
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{json_response, AppError, AppResult},
+    AppState,
+};
 use crate::models::RegisterRequest;
 use crate::utils::{generate_bot_id, generate_token, generate_user_id};
 
@@ -23,11 +30,11 @@ fn validate_id_number(id_number: &str) -> bool {
     is_valid
 }
 
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn register(
-    pool: web::Data<DbPool>,
-    req: web::Json<RegisterRequest>,
-) -> AppResult<HttpResponse> {
+    State(state): State<AppState>,
+    Json(req): Json<RegisterRequest>,
+) -> AppResult<Response> {
     // 记录注册请求
     tracing::info!("=== 开始处理用户注册请求 ===");
     tracing::debug!(
@@ -77,7 +84,7 @@ pub async fn register(
     .bind(&req.phone)
     .bind(&now)
     .bind(&now)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("数据库错误: {}", e);
@@ -125,7 +132,7 @@ pub async fn register(
     .bind(&bot_secret)
     .bind(&now)
     .bind(&now)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("创建Bot时数据库错误: {}", e);
@@ -141,7 +148,7 @@ pub async fn register(
         req.id_number
     );
 
-    Ok(HttpResponse::Created().json(json!({
+    Ok(json_response(StatusCode::CREATED, json!({
         "message": "注册成功",
         "id": user_id,
         "name": name,
@@ -153,7 +160,7 @@ pub async fn register(
 
 #[tracing::instrument(skip(pool))]
 pub async fn get_user_by_id(
-    pool: web::Data<DbPool>,
+    pool: &crate::db::DbPool,
     user_id: &str,
 ) -> AppResult<crate::models::User> {
     tracing::debug!("查询用户信息: {}", user_id);
@@ -162,7 +169,7 @@ pub async fn get_user_by_id(
         "SELECT user_id, name, id_number, phone, created_at, updated_at FROM users WHERE user_id = ?"
     )
     .bind(user_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(pool)
     .await
     .map_err(|e| {
         tracing::error!("查询用户时数据库错误: {}", e);
@@ -183,11 +190,11 @@ pub async fn get_user_by_id(
 /// 1. 验证身份证号和手机号
 /// 2. 查询用户的默认 Bot
 /// 3. 生成并返回 Token
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn login(
-    pool: web::Data<DbPool>,
-    req: web::Json<crate::models::LoginRequest>,
-) -> AppResult<HttpResponse> {
+    State(state): State<AppState>,
+    Json(req): Json<crate::models::LoginRequest>,
+) -> AppResult<Response> {
     tracing::info!("=== 开始处理用户登录请求 ===");
     tracing::debug!("请求数据: 身份证号={}, 手机号={}", req.id_number, req.phone);
 
@@ -212,7 +219,7 @@ pub async fn login(
     )
     .bind(&req.id_number)
     .bind(&req.phone)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("查询用户时数据库错误: {}", e);
@@ -231,7 +238,7 @@ pub async fn login(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1"
     )
     .bind(&user.user_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("查询 Bot 时数据库错误: {}", e);
@@ -251,7 +258,7 @@ pub async fn login(
         user.id_number
     );
 
-    Ok(HttpResponse::Ok().json(json!({
+    Ok(json_response(StatusCode::OK, json!({
         "message": "登录成功",
         "id": user.user_id,
         "name": user.name,

@@ -1,68 +1,61 @@
-use actix_multipart::Multipart;
-use actix_web::{http::header, web, HttpRequest, HttpResponse};
-use futures_util::TryStreamExt as _;
+use axum::{
+    body::Body,
+    extract::{Host, Multipart, Path, State},
+    http::{header, HeaderMap, Response, StatusCode},
+};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
-use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{json_response, AppError, AppResult},
+    http::{bearer_token, token_bot_id},
+    AppState,
+};
 use crate::utils::verify_token;
 
 #[allow(dead_code)]
 const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 
-#[tracing::instrument(skip(pool, config, http_req, payload))]
+#[tracing::instrument(skip(state, payload))]
 pub async fn upload_file(
-    pool: web::Data<DbPool>,
-    config: web::Data<crate::config::Config>,
-    http_req: HttpRequest,
+    State(state): State<AppState>,
+    Host(host): Host,
+    headers: HeaderMap,
     mut payload: Multipart,
-) -> AppResult<HttpResponse> {
+) -> AppResult<axum::response::Response> {
     // Extract and verify token
-    let token = http_req
-        .headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|h| h.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
-
-    let parts: Vec<&str> = token.split(':').collect();
-    if parts.len() != 3 {
-        return Err(AppError::InvalidToken);
-    }
-    let bot_id = parts[0];
+    let token = bearer_token(&headers)?;
+    let bot_id = token_bot_id(&token)?;
 
     let bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
         .bind(bot_id)
-        .fetch_optional(pool.get_ref())
+        .fetch_optional(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?
         .ok_or(AppError::Unauthorized)?;
 
-    let _token_payload = verify_token(token, &bot.secret, config.security.token_expiry_secs)?;
+    let _token_payload = verify_token(&token, &bot.secret, state.config.security.token_expiry_secs)?;
 
     let mut uploaded_filename: Option<String> = None;
     let mut uploaded_mime: Option<String> = None;
     let now = chrono::Utc::now().to_rfc3339();
-    let upload_dir = std::path::PathBuf::from(&config.storage.file_storage_path);
+    let upload_dir = std::path::PathBuf::from(&state.config.storage.file_storage_path);
     tokio::fs::create_dir_all(&upload_dir)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
     let mut total_size: u64 = 0;
     let mut file_bytes = Vec::new();
 
-    if let Some(mut field) = payload
-        .try_next()
+    if let Some(field) = payload
+        .next_field()
         .await
         .map_err(|e| AppError::BadRequest(e.to_string()))?
     {
-        let content_disposition = field.content_disposition();
-
-        let filename = content_disposition
-            .get_filename()
+        let filename = field
+            .file_name()
             .map(sanitize_filename)
             .unwrap_or_else(|| "upload.bin".to_string());
         uploaded_filename = Some(filename);
@@ -73,23 +66,21 @@ pub async fn upload_file(
                 .unwrap_or_else(|| "application/octet-stream".to_string()),
         );
 
-        while let Some(chunk) = field
-            .try_next()
+        let bytes = field
+            .bytes()
             .await
-            .map_err(|e| AppError::BadRequest(e.to_string()))?
-        {
-            total_size += chunk.len() as u64;
-            if total_size > config.security.max_file_size_mb * 1024 * 1024 {
-                tracing::warn!(
-                    "文件上传被拒绝: 超出大小限制, bot_id={}, size={}",
-                    bot.bot_id,
-                    total_size
-                );
-                return Err(AppError::FileTooLarge);
-            }
-
-            file_bytes.extend_from_slice(&chunk);
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        total_size = bytes.len() as u64;
+        if total_size > state.config.security.max_file_size_mb * 1024 * 1024 {
+            tracing::warn!(
+                "文件上传被拒绝: 超出大小限制, bot_id={}, size={}",
+                bot.bot_id,
+                total_size
+            );
+            return Err(AppError::FileTooLarge);
         }
+
+        file_bytes.extend_from_slice(&bytes);
     }
 
     let filename =
@@ -110,12 +101,15 @@ pub async fn upload_file(
         "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE content_hash = ?"
     )
     .bind(&content_hash)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let scheme = http_req.connection_info().scheme().to_string();
-    let host = http_req.connection_info().host().to_string();
+    let scheme = headers
+        .get("x-forwarded-proto")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("http")
+        .to_string();
 
     if let Some(existing_file) = existing_file {
         let file_url = format!(
@@ -130,7 +124,7 @@ pub async fn upload_file(
             content_hash
         );
 
-        return Ok(HttpResponse::Created().json(json!({
+        return Ok(json_response(StatusCode::CREATED, json!({
             "file_id": existing_file.file_id,
             "url": file_url,
             "created_at": existing_file.created_at,
@@ -160,7 +154,7 @@ pub async fn upload_file(
     .bind(&mime_type)
     .bind(storage_path.to_string_lossy().to_string())
     .bind(&now)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -174,25 +168,23 @@ pub async fn upload_file(
         storage_path.to_string_lossy()
     );
 
-    Ok(HttpResponse::Created().json(json!({
+    Ok(json_response(StatusCode::CREATED, json!({
         "file_id": file_id,
         "url": file_url,
         "created_at": now,
     })))
 }
 
-#[tracing::instrument(skip(pool, _config, _http_req))]
+#[tracing::instrument(skip(state))]
 pub async fn download_file(
-    pool: web::Data<DbPool>,
-    _config: web::Data<crate::config::Config>,
-    _http_req: HttpRequest,
-    file_id: web::Path<String>,
-) -> AppResult<HttpResponse> {
+    State(state): State<AppState>,
+    Path(file_id): Path<String>,
+) -> AppResult<Response<Body>> {
     let file: crate::models::File = sqlx::query_as(
         "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = ?"
     )
     .bind(file_id.as_str())
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::FileNotFound)?;
@@ -201,13 +193,15 @@ pub async fn download_file(
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-    Ok(HttpResponse::Ok()
-        .insert_header((header::CONTENT_TYPE, file.mime_type))
-        .insert_header((
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, file.mime_type)
+        .header(
             header::CONTENT_DISPOSITION,
             format!("inline; filename=\"{}\"", file.filename),
-        ))
-        .body(bytes))
+        )
+        .body(Body::from(bytes))
+        .map_err(|e| AppError::InternalError(e.to_string()))
 }
 
 fn sanitize_filename(name: &str) -> String {

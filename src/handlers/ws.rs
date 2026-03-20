@@ -1,11 +1,18 @@
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
-use actix_web::{web, HttpRequest, HttpResponse};
-use actix_web_actors::ws;
+use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Query, State,
+    },
+    response::Response,
+};
+use futures_util::StreamExt;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
-use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    AppState,
+};
 use crate::utils::verify_token;
 use crate::ws::{WsEvent, WsManager};
 
@@ -14,72 +21,20 @@ pub struct WsQuery {
     pub token: String,
 }
 
-pub struct WsSession {
-    bot_ids: Vec<String>,
-    rx: mpsc::UnboundedReceiver<WsEvent>,
-    ws_manager: web::Data<WsManager>,
-}
-
-impl Actor for WsSession {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(std::time::Duration::from_millis(200), |act, ctx| {
-            while let Ok(event) = act.rx.try_recv() {
-                if let Ok(text) = serde_json::to_string(&event) {
-                    ctx.text(text);
-                }
-            }
-        });
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        let bot_ids = self.bot_ids.clone();
-        let ws_manager = self.ws_manager.clone();
-        actix_rt::spawn(async move {
-            for bot_id in bot_ids {
-                ws_manager.remove_connection(&bot_id).await;
-            }
-        });
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            Ok(ws::Message::Text(_)) | Ok(ws::Message::Binary(_)) | Ok(ws::Message::Pong(_)) => {}
-            Err(_) => ctx.stop(),
-            _ => {}
-        }
-    }
-}
-
-#[tracing::instrument(skip(config, http_req, pool, ws_manager, stream))]
+#[tracing::instrument(skip(state, ws))]
 pub async fn ws_handler(
-    config: web::Data<crate::config::Config>,
-    pool: web::Data<DbPool>,
-    ws_manager: web::Data<WsManager>,
-    http_req: HttpRequest,
-    query: web::Query<WsQuery>,
-    stream: web::Payload,
-) -> AppResult<HttpResponse> {
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    Query(query): Query<WsQuery>,
+) -> AppResult<Response> {
     let token = &query.token;
-    let parts: Vec<&str> = token.split(':').collect();
-    if parts.len() != 3 {
-        return Err(AppError::InvalidToken);
-    }
-    let requester_bot_id = parts[0];
+    let requester_bot_id = crate::http::token_bot_id(token)?;
 
     let requester_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
@@ -87,36 +42,75 @@ pub async fn ws_handler(
     let _token_payload = verify_token(
         token,
         &requester_bot.secret,
-        config.security.token_expiry_secs,
+        state.config.security.token_expiry_secs,
     )?;
 
     let owned_bot_ids: Vec<String> =
         sqlx::query_scalar("SELECT bot_id FROM bots WHERE owner_id = ? ORDER BY created_at ASC")
             .bind(&requester_bot.owner_id)
-            .fetch_all(pool.get_ref())
+            .fetch_all(&state.pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let (tx, rx) = mpsc::unbounded_channel();
-    for bot_id in &owned_bot_ids {
+    let ws_manager = state.ws_manager.clone();
+    let owner_id = requester_bot.owner_id.clone();
+
+    Ok(ws.on_upgrade(move |socket| async move {
+        handle_socket(socket, ws_manager, owned_bot_ids, owner_id).await;
+    }))
+}
+
+async fn handle_socket(
+    mut socket: WebSocket,
+    ws_manager: WsManager,
+    bot_ids: Vec<String>,
+    owner_id: String,
+) {
+    let (tx, mut rx) = mpsc::unbounded_channel::<WsEvent>();
+    for bot_id in &bot_ids {
         ws_manager.add_connection(bot_id.clone(), tx.clone()).await;
     }
 
     let connection_event = WsEvent {
         event_type: "connection".to_string(),
         payload: serde_json::json!({
-            "owner_id": requester_bot.owner_id,
-            "bot_ids": owned_bot_ids,
+            "owner_id": owner_id,
+            "bot_ids": bot_ids,
         }),
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
     let _ = tx.send(connection_event);
 
-    let session = WsSession {
-        bot_ids: owned_bot_ids,
-        rx,
-        ws_manager,
-    };
+    loop {
+        tokio::select! {
+            maybe_event = rx.recv() => {
+                match maybe_event {
+                    Some(event) => {
+                        if let Ok(text) = serde_json::to_string(&event) {
+                            if socket.send(Message::Text(text)).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    None => break,
+                }
+            }
+            maybe_message = socket.next() => {
+                match maybe_message {
+                    Some(Ok(Message::Ping(payload))) => {
+                        if socket.send(Message::Pong(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    Some(Ok(Message::Text(_))) | Some(Ok(Message::Binary(_))) | Some(Ok(Message::Pong(_))) => {}
+                    Some(Err(_)) => break,
+                }
+            }
+        }
+    }
 
-    ws::start(session, &http_req, stream).map_err(|e| AppError::InternalError(e.to_string()))
+    for bot_id in &bot_ids {
+        ws_manager.remove_connection(bot_id).await;
+    }
 }

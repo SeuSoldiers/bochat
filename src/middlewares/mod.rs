@@ -1,3 +1,1 @@
-pub mod auth;
-
-pub use auth::AuthMiddleware;
+// Middleware placeholders live here when needed.
