@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -14,12 +15,16 @@ impl BotStatus {
             BotStatus::Inactive => "inactive",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for BotStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "active" => Some(BotStatus::Active),
-            "inactive" => Some(BotStatus::Inactive),
-            _ => None,
+            "active" => Ok(BotStatus::Active),
+            "inactive" => Ok(BotStatus::Inactive),
+            _ => Err(format!("Unknown bot status: {}", s)),
         }
     }
 }

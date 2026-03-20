@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -15,12 +16,16 @@ impl MessageType {
             MessageType::File => "file",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for MessageType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "text" => Some(MessageType::Text),
-            "file" => Some(MessageType::File),
-            _ => None,
+            "text" => Ok(MessageType::Text),
+            "file" => Ok(MessageType::File),
+            _ => Err(format!("Unknown message type: {}", s)),
         }
     }
 }
