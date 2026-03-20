@@ -30,6 +30,7 @@
           v-if="groupStore.selectedGroup"
           :messages="chatStore.groupMessages"
           :loading="chatStore.loading"
+          @view-bot="openBotInfo"
         />
 
         <!-- 未选择群 -->
@@ -59,6 +60,13 @@
       @remove-bot="handleRemoveBotFromGroup"
       @close="showMembers = false"
     />
+
+    <BotInfoModal
+      v-if="showBotInfoModal"
+      :bot="viewingBot"
+      :loading="loadingBotInfo"
+      @close="showBotInfoModal = false"
+    />
   </div>
 </template>
 
@@ -72,6 +80,9 @@ import BotGroupSelector from '@/components/Chat/BotGroupSelector.vue'
 import MessageList from '@/components/Chat/MessageList.vue'
 import MessageInput from '@/components/Chat/MessageInput.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
+import BotInfoModal from '@/components/Bot/BotInfoModal.vue'
+import { getBot } from '@/services/bot'
+import type { Bot } from '@/types'
 
 const botStore = useBotStore()
 const groupStore = useGroupStore()
@@ -80,6 +91,9 @@ const chatStore = useChatStore()
 const showMembers = ref(false)
 const activeBotId = ref('')
 const messageError = ref<string | null>(null)
+const showBotInfoModal = ref(false)
+const loadingBotInfo = ref(false)
+const viewingBot = ref<Bot | null>(null)
 
 // 初始化
 onMounted(async () => {
@@ -158,6 +172,20 @@ const openMembersModal = async () => {
 
   await groupStore.fetchGroupMembers(groupStore.selectedGroup.group_id)
   showMembers.value = true
+}
+
+const openBotInfo = async (botId: string) => {
+  showBotInfoModal.value = true
+  loadingBotInfo.value = true
+
+  try {
+    viewingBot.value = await getBot(botId)
+  } catch (error) {
+    console.error('Failed to load bot info:', error)
+    viewingBot.value = null
+  } finally {
+    loadingBotInfo.value = false
+  }
 }
 </script>
 

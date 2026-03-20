@@ -40,7 +40,7 @@ pub async fn send_message(
     // 查询请求者 bot 并使用其 secret 验证 token
     tracing::debug!("正在查询发送者 Bot...");
     let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -63,7 +63,7 @@ pub async fn send_message(
 
     let sender_bot = if let Some(target_bot_id) = msg_req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
         )
         .bind(target_bot_id)
         .fetch_optional(pool.get_ref())
@@ -177,6 +177,8 @@ pub async fn send_message(
         "msg_id": msg_id,
         "group_id": msg_req.group_id,
         "sender_id": sender_bot.bot_id,
+        "sender_name": sender_bot.name,
+        "sender_avatar_url": sender_bot.avatar_url,
         "content": msg_req.content,
         "msg_type": msg_type,
         "created_at": now,

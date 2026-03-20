@@ -6,7 +6,7 @@
 
     <div v-else-if="messages.length > 0" class="messages">
       <div v-for="message in messages" :key="message.msg_id" class="message-group">
-        <MessageItem :message="message" />
+        <MessageItem :message="message" @view-bot="$emit('view-bot', $event)" />
       </div>
     </div>
 
@@ -23,6 +23,10 @@ import MessageItem from './MessageItem.vue'
 defineProps<{
   messages: Message[]
   loading?: boolean
+}>()
+
+defineEmits<{
+  'view-bot': [botId: string]
 }>()
 </script>
 

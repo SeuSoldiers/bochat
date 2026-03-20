@@ -17,6 +17,7 @@ export interface Bot {
   owner_id: string
   name: string
   description?: string
+  avatar_url?: string
   status: string
   token: string
   created_at: string
@@ -26,6 +27,13 @@ export interface Bot {
 export interface CreateBotRequest {
   name: string
   description?: string
+  avatar_url?: string
+}
+
+export interface UpdateBotRequest {
+  name: string
+  description?: string
+  avatar_url?: string
 }
 
 /**
@@ -71,6 +79,8 @@ export interface Message {
   msg_id: number
   group_id: string
   sender_id: string
+  sender_name?: string
+  sender_avatar_url?: string
   content: {
     text?: string
     [key: string]: unknown

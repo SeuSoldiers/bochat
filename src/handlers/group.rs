@@ -54,7 +54,7 @@ pub async fn create_group(
     // 查询 bot 找到其所有者
     tracing::debug!("正在查询 Bot 所有者...");
     let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -79,7 +79,7 @@ pub async fn create_group(
 
     let member_bot_id = if let Some(target_bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
         )
         .bind(target_bot_id)
         .fetch_optional(pool.get_ref())
@@ -222,7 +222,7 @@ pub async fn list_user_groups(
     // 查询 bot 找到其所有者
     tracing::debug!("正在查询 Bot...");
     let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -332,7 +332,7 @@ pub async fn join_group(
 
     // Get the requester bot
     let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -353,7 +353,7 @@ pub async fn join_group(
 
     let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
         )
         .bind(bot_id)
         .fetch_optional(pool.get_ref())
@@ -485,7 +485,7 @@ pub async fn leave_group(
 
     // Get the bot
     let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(bot_id)
     .fetch_optional(pool.get_ref())
@@ -536,7 +536,7 @@ pub async fn remove_group_member(
     let requester_bot_id = parts[0];
 
     let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -547,7 +547,7 @@ pub async fn remove_group_member(
     let _token_payload = verify_token(token, &requester_bot.secret, 86400)?;
 
     let target_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(&target_bot_id)
     .fetch_optional(pool.get_ref())
@@ -599,7 +599,7 @@ pub async fn delete_group(
 
     // Get the bot to find its owner
     let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(bot_id)
     .fetch_optional(pool.get_ref())
@@ -694,7 +694,7 @@ pub async fn get_group_messages(
     // 查询 bot 信息
     tracing::debug!("正在查询 Bot 信息...");
     let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -734,7 +734,7 @@ pub async fn get_group_messages(
     tracing::debug!("正在验证 Bot 是否在群内...");
     let access_bot_id = if let Some(target_bot_id) = query.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
         )
         .bind(target_bot_id)
         .fetch_optional(pool.get_ref())
@@ -781,9 +781,34 @@ pub async fn get_group_messages(
 
     tracing::debug!("✅ Bot 是群内成员，继续获取消息");
 
-    // 获取群聊的所有消息，按创建时间升序排列
-    let messages: Vec<crate::models::Message> = sqlx::query_as(
-        "SELECT msg_id, group_id, sender_id, content, msg_type, created_at FROM messages WHERE group_id = ? ORDER BY created_at ASC"
+    #[derive(sqlx::FromRow)]
+    struct MessageRow {
+        msg_id: i64,
+        group_id: String,
+        sender_id: String,
+        sender_name: Option<String>,
+        sender_avatar_url: Option<String>,
+        content: String,
+        msg_type: String,
+        created_at: String,
+    }
+
+    let messages: Vec<MessageRow> = sqlx::query_as(
+        r#"
+        SELECT
+            m.msg_id,
+            m.group_id,
+            m.sender_id,
+            b.name as sender_name,
+            b.avatar_url as sender_avatar_url,
+            m.content,
+            m.msg_type,
+            m.created_at
+        FROM messages m
+        LEFT JOIN bots b ON b.bot_id = m.sender_id
+        WHERE m.group_id = ?
+        ORDER BY m.created_at ASC
+        "#
     )
     .bind(&group_id_str)
     .fetch_all(pool.get_ref())
@@ -797,7 +822,21 @@ pub async fn get_group_messages(
 
     let responses: Vec<crate::models::MessageResponse> = messages
         .into_iter()
-        .map(|m| m.into())
+        .map(|m| {
+            let content = serde_json::from_str(&m.content)
+                .unwrap_or_else(|_| serde_json::Value::String(m.content.clone()));
+
+            crate::models::MessageResponse {
+                msg_id: m.msg_id,
+                group_id: m.group_id,
+                sender_id: m.sender_id,
+                sender_name: m.sender_name,
+                sender_avatar_url: m.sender_avatar_url,
+                content,
+                msg_type: m.msg_type,
+                created_at: m.created_at,
+            }
+        })
         .collect();
 
     Ok(HttpResponse::Ok().json(json!({
@@ -829,7 +868,7 @@ pub async fn list_group_members(
     let requester_bot_id = parts[0];
 
     let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())

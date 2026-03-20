@@ -99,14 +99,15 @@ pub async fn register(
     tracing::info!("正在数据库中创建Bot记录: {}", bot_id);
     sqlx::query(
         r#"
-        INSERT INTO bots (bot_id, owner_id, name, description, status, token, secret, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bots (bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&bot_id)
     .bind(&user_id)
     .bind(format!("{}的默认Bot", name))
     .bind(Some("用户注册时自动创建的默认Bot"))
+    .bind(None::<String>)
     .bind("active")
     .bind(&bot_token)
     .bind(&bot_secret)
@@ -215,7 +216,7 @@ pub async fn login(
     // 查询用户的默认 Bot（第一个创建的 bot）
     tracing::debug!("正在查询用户的默认 Bot...");
     let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1"
     )
     .bind(&user.user_id)
     .fetch_optional(pool.get_ref())

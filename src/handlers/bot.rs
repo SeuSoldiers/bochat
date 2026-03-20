@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{BotResponse, CreateBotRequest};
+use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
 use crate::utils::{generate_bot_id, generate_token, verify_token};
 
 /// 为已认证的用户创建新 Bot
@@ -48,7 +48,7 @@ pub async fn create_bot(
     // 从数据库获取请求者 bot（以获取 secret）
     tracing::debug!("正在从数据库查询请求者 Bot...");
     let owner_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -93,14 +93,15 @@ pub async fn create_bot(
     tracing::info!("正在数据库中插入新 Bot 记录: {}", new_bot_id);
     sqlx::query(
         r#"
-        INSERT INTO bots (bot_id, owner_id, name, description, status, token, secret, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bots (bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&new_bot_id)
     .bind(&owner_id)
     .bind(&req.name)
     .bind(&req.description)
+    .bind(&req.avatar_url)
     .bind("active")
     .bind(&bot_token)
     .bind(&bot_secret)
@@ -120,6 +121,7 @@ pub async fn create_bot(
         "owner_id": owner_id,
         "name": req.name,
         "description": req.description,
+        "avatar_url": req.avatar_url,
         "status": "active",
         "token": bot_token,
         "secret": bot_secret,
@@ -164,7 +166,7 @@ pub async fn list_bots(pool: web::Data<DbPool>, http_req: HttpRequest) -> AppRes
     // 从数据库获取请求者 bot（以获取 owner_id 和 secret）
     tracing::debug!("正在查询请求者 Bot...");
     let owner_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -190,7 +192,7 @@ pub async fn list_bots(pool: web::Data<DbPool>, http_req: HttpRequest) -> AppRes
     tracing::info!("正在查询用户所有 Bot: {}", owner_id);
 
     let bots: Vec<crate::models::Bot> = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at DESC"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at DESC"
     )
     .bind(&owner_id)
     .fetch_all(pool.get_ref())
@@ -220,7 +222,7 @@ pub async fn get_bot(
     tracing::info!("=== 查询 Bot 详情: {} ===", requested_bot_id);
 
     let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(&requested_bot_id)
     .fetch_optional(pool.get_ref())
@@ -283,7 +285,7 @@ pub async fn delete_bot(
     // 查询请求者 bot
     tracing::debug!("正在查询请求者 Bot...");
     let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
@@ -307,7 +309,7 @@ pub async fn delete_bot(
     // 查询目标 bot
     tracing::debug!("正在查询目标 Bot: {}", target_bot_id);
     let target_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(&target_bot_id)
     .fetch_optional(pool.get_ref())
@@ -355,4 +357,84 @@ pub async fn delete_bot(
         "message": "Bot 删除成功",
         "bot_id": target_bot_id,
     })))
+}
+
+#[tracing::instrument(skip(pool))]
+pub async fn update_bot(
+    pool: web::Data<DbPool>,
+    http_req: HttpRequest,
+    bot_id: web::Path<String>,
+    req: web::Json<UpdateBotRequest>,
+) -> AppResult<HttpResponse> {
+    let target_bot_id = bot_id.into_inner();
+
+    let token = http_req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or(AppError::Unauthorized)?;
+
+    let parts: Vec<&str> = token.split(':').collect();
+    if parts.len() != 3 {
+        return Err(AppError::InvalidToken);
+    }
+    let requester_bot_id = parts[0];
+
+    let requester_bot: crate::models::Bot = sqlx::query_as(
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+    )
+    .bind(requester_bot_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    .ok_or(AppError::BotNotFound)?;
+
+    let _token_payload = verify_token(token, &requester_bot.secret, 86400)?;
+
+    let target_bot: crate::models::Bot = sqlx::query_as(
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+    )
+    .bind(&target_bot_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    .ok_or(AppError::BotNotFound)?;
+
+    if requester_bot.owner_id != target_bot.owner_id {
+        return Err(AppError::BotPermissionDenied);
+    }
+
+    if req.name.trim().is_empty() {
+        return Err(AppError::BadRequest("Bot 名称是必需的".to_string()));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        r#"
+        UPDATE bots
+        SET name = ?, description = ?, avatar_url = ?, updated_at = ?
+        WHERE bot_id = ?
+        "#,
+    )
+    .bind(&req.name)
+    .bind(&req.description)
+    .bind(&req.avatar_url)
+    .bind(&now)
+    .bind(&target_bot_id)
+    .execute(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let updated_bot: crate::models::Bot = sqlx::query_as(
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+    )
+    .bind(&target_bot_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    .ok_or(AppError::BotNotFound)?;
+
+    Ok(HttpResponse::Ok().json(BotResponse::from(updated_bot)))
 }

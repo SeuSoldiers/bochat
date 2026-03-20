@@ -40,6 +40,7 @@
             v-for="bot in botStore.bots"
             :key="bot.bot_id"
             :bot="bot"
+            @edit="openEditBot(bot)"
             @delete="handleDeleteBot(bot.bot_id)"
           />
         </div>
@@ -102,6 +103,13 @@
       @close="showCreateBotModal = false"
     />
 
+    <EditBotModal
+      v-if="showEditBotModal && editingBot"
+      :bot="editingBot"
+      @save="handleEditBot"
+      @close="showEditBotModal = false"
+    />
+
     <!-- 创建群模态框 -->
     <CreateGroupModal
       v-if="showCreateGroupModal"
@@ -139,12 +147,13 @@ import { useGroupStore } from '@/stores/groups'
 import { useAuthStore } from '@/stores/auth'
 import TopNav from '@/components/Common/TopNav.vue'
 import BotCard from '@/components/Bot/BotCard.vue'
+import EditBotModal from '@/components/Bot/EditBotModal.vue'
 import GroupCard from '@/components/Group/GroupCard.vue'
 import CreateBotModal from '@/components/Bot/CreateBotModal.vue'
 import CreateGroupModal from '@/components/Group/CreateGroupModal.vue'
 import JoinGroupModal from '@/components/Group/JoinGroupModal.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
-import type { Group } from '@/types'
+import type { Bot, Group } from '@/types'
 
 const botStore = useBotStore()
 const groupStore = useGroupStore()
@@ -152,9 +161,11 @@ const authStore = useAuthStore()
 
 const activeTab = ref<'bots' | 'groups'>('bots')
 const showCreateBotModal = ref(false)
+const showEditBotModal = ref(false)
 const showCreateGroupModal = ref(false)
 const showJoinGroupModal = ref(false)
 const showMembersModal = ref(false)
+const editingBot = ref<Bot | null>(null)
 const selectedGroupForMembers = ref<Group | null>(null)
 
 // 初始化
@@ -165,9 +176,9 @@ onMounted(() => {
 })
 
 // 创建 Bot
-const handleCreateBot = async (name: string, description: string) => {
+const handleCreateBot = async (name: string, description: string, avatarUrl: string) => {
   try {
-    await botStore.addBot({ name, description })
+    await botStore.addBot({ name, description, avatar_url: avatarUrl || undefined })
     showCreateBotModal.value = false
   } catch (error) {
     console.error('Failed to create bot:', error)
@@ -182,6 +193,29 @@ const handleDeleteBot = async (botId: string) => {
     } catch (error) {
       console.error('Failed to delete bot:', error)
     }
+  }
+}
+
+const openEditBot = (bot: Bot) => {
+  editingBot.value = bot
+  showEditBotModal.value = true
+}
+
+const handleEditBot = async (payload: { name: string; description: string; avatarUrl: string }) => {
+  if (!editingBot.value) {
+    return
+  }
+
+  try {
+    await botStore.updateBotInfo(editingBot.value.bot_id, {
+      name: payload.name,
+      description: payload.description || undefined,
+      avatar_url: payload.avatarUrl || undefined,
+    })
+    showEditBotModal.value = false
+    editingBot.value = null
+  } catch (error) {
+    console.error('Failed to update bot:', error)
   }
 }
 

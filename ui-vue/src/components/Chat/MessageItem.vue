@@ -1,8 +1,9 @@
 <template>
   <div class="message-item">
-    <div class="message-avatar">
-      {{ senderLabel.charAt(0) }}
-    </div>
+    <button class="message-avatar avatar-button" @click="$emit('view-bot', message.sender_id)">
+      <img v-if="message.sender_avatar_url" :src="message.sender_avatar_url" :alt="senderLabel" class="avatar-image" />
+      <span v-else>{{ senderLabel.charAt(0) }}</span>
+    </button>
     <div class="message-content">
       <div class="message-header">
         <span class="message-sender">{{ senderLabel }}</span>
@@ -21,7 +22,11 @@ const props = defineProps<{
   message: Message
 }>()
 
-const senderLabel = computed(() => props.message.sender_id.slice(0, 8))
+defineEmits<{
+  'view-bot': [botId: string]
+}>()
+
+const senderLabel = computed(() => props.message.sender_name || props.message.sender_id.slice(0, 8))
 
 const messageText = computed(() => {
   const { content } = props.message
@@ -72,6 +77,19 @@ const formatTime = (dateStr: string) => {
   font-size: 16px;
   font-weight: 600;
   flex-shrink: 0;
+}
+
+.avatar-button {
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .message-content {

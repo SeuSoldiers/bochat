@@ -28,7 +28,7 @@ pub async fn delete_user(
 
     // Get user's bot
     let user_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
     .bind(bot_id)
     .fetch_optional(pool.get_ref())

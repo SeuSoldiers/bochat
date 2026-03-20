@@ -85,6 +85,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/v1/bots", web::post().to(handlers::create_bot))
             .route("/api/v1/bots", web::get().to(handlers::list_bots))
             .route("/api/v1/bots/{bot_id}", web::get().to(handlers::get_bot))
+            .route("/api/v1/bots/{bot_id}", web::put().to(handlers::update_bot))
             .route("/api/v1/bots/{bot_id}", web::delete().to(handlers::delete_bot))
             // Group endpoints
             .route("/api/v1/groups", web::post().to(handlers::create_group))

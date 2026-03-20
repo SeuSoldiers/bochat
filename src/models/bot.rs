@@ -35,6 +35,7 @@ pub struct Bot {
     pub owner_id: String, // 所属用户ID
     pub name: String,
     pub description: Option<String>,
+    pub avatar_url: Option<String>,
     pub status: String, // active / inactive
     pub token: String,  // Bot令牌，用于API认证
     #[serde(skip)]
@@ -47,6 +48,14 @@ pub struct Bot {
 pub struct CreateBotRequest {
     pub name: String,
     pub description: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UpdateBotRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,6 +64,7 @@ pub struct BotResponse {
     pub owner_id: String,
     pub name: String,
     pub description: Option<String>,
+    pub avatar_url: Option<String>,
     pub status: String,
     pub token: String,
     pub created_at: String,
@@ -68,6 +78,7 @@ impl From<Bot> for BotResponse {
             owner_id: bot.owner_id,
             name: bot.name,
             description: bot.description,
+            avatar_url: bot.avatar_url,
             status: bot.status,
             token: bot.token,
             created_at: bot.created_at,

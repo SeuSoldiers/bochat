@@ -4,8 +4,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getBotList, createBot, deleteBot } from '@/services/bot'
-import type { Bot, CreateBotRequest } from '@/types'
+import { getBotList, createBot, deleteBot, updateBot } from '@/services/bot'
+import type { Bot, CreateBotRequest, UpdateBotRequest } from '@/types'
 
 export const useBotStore = defineStore('bots', () => {
   // 状态
@@ -66,6 +66,25 @@ export const useBotStore = defineStore('bots', () => {
     }
   }
 
+  const updateBotInfo = async (botId: string, data: UpdateBotRequest) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const updatedBot = await updateBot(botId, data)
+      const index = bots.value.findIndex((bot) => bot.bot_id === botId)
+      if (index >= 0) {
+        bots.value[index] = updatedBot
+      }
+      return updatedBot
+    } catch (err: any) {
+      error.value = err.message || '更新 Bot 失败'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 方法：清除错误
   const clearError = () => {
     error.value = null
@@ -84,6 +103,7 @@ export const useBotStore = defineStore('bots', () => {
     fetchBots,
     addBot,
     removeBotById,
+    updateBotInfo,
     clearError,
   }
 })

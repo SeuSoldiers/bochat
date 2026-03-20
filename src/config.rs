@@ -5,6 +5,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub security: SecurityConfig,
+    pub storage: StorageConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -27,6 +28,11 @@ pub struct SecurityConfig {
     pub token_expiry_secs: u64,
     pub max_file_size_mb: u64,
     pub rate_limit_per_second: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StorageConfig {
+    pub file_storage_path: String,
 }
 
 impl Config {
@@ -75,10 +81,16 @@ impl Config {
                 .unwrap_or(10),
         };
 
+        let storage = StorageConfig {
+            file_storage_path: std::env::var("FILE_STORAGE_PATH")
+                .unwrap_or_else(|_| "./assets/files/".to_string()),
+        };
+
         Config {
             server,
             database,
             security,
+            storage,
         }
     }
 }
@@ -101,6 +113,9 @@ impl Default for Config {
                 token_expiry_secs: 86400,
                 max_file_size_mb: 100,
                 rate_limit_per_second: 10,
+            },
+            storage: StorageConfig {
+                file_storage_path: "./assets/files/".to_string(),
             },
         }
     }

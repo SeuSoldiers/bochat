@@ -51,6 +51,15 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
+    if let Err(e) = sqlx::query("ALTER TABLE bots ADD COLUMN avatar_url TEXT")
+        .execute(pool)
+        .await
+    {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(crate::error::AppError::DatabaseError(e.to_string()));
+        }
+    }
+
     // Create index on owner_id for faster bot lookups by user
     sqlx::query(
         r#"

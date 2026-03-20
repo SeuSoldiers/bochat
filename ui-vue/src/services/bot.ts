@@ -3,7 +3,7 @@
  */
 
 import { apiClient, unwrapCollectionResponse } from './api'
-import type { Bot, CreateBotRequest } from '@/types'
+import type { Bot, CreateBotRequest, UpdateBotRequest } from '@/types'
 
 /**
  * 获取 Bot 列表
@@ -25,6 +25,10 @@ export async function getBot(botId: string) {
  */
 export async function createBot(data: CreateBotRequest) {
   return apiClient.post<Bot>('/bots', data)
+}
+
+export async function updateBot(botId: string, data: UpdateBotRequest) {
+  return apiClient.put<Bot>(`/bots/${botId}`, data)
 }
 
 /**

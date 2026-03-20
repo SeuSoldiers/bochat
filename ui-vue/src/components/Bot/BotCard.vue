@@ -1,8 +1,15 @@
 <template>
   <div :class="['bot-card', { selected }]" @click="$emit('select')">
     <div class="card-header">
-      <h3 class="bot-name">{{ bot.name }}</h3>
+      <div class="bot-main">
+        <img v-if="bot.avatar_url" :src="bot.avatar_url" :alt="bot.name" class="bot-avatar" />
+        <div v-else class="bot-avatar fallback">{{ bot.name.charAt(0) }}</div>
+        <h3 class="bot-name">{{ bot.name }}</h3>
+      </div>
       <div class="card-actions">
+        <button class="action-btn edit-btn" @click.stop="$emit('edit')" title="编辑">
+          ✎
+        </button>
         <button class="action-btn copy-btn" @click.stop="copyToken" title="复制 Token">
           📋
         </button>
@@ -43,6 +50,7 @@ const props = defineProps<{
 
 defineEmits<{
   select: []
+  edit: []
   delete: []
 }>()
 
@@ -95,6 +103,31 @@ const copyToken = async () => {
   margin-bottom: 12px;
 }
 
+.bot-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bot-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #f5f3f1;
+  flex-shrink: 0;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: #8b9d83;
+  font-weight: 600;
+}
+
 .bot-name {
   font-size: 16px;
   font-weight: 600;
@@ -124,6 +157,10 @@ const copyToken = async () => {
 
 .copy-btn:hover {
   color: #8b9d83;
+}
+
+.edit-btn:hover {
+  color: #7a8c72;
 }
 
 .delete-btn:hover {
