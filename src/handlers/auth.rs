@@ -174,9 +174,7 @@ pub async fn register(
         json!({
             "message": "注册成功",
             "name": name,
-            "id_number": id_number,
             "phone": phone,
-            "avatar_url": null,
             "token": generate_user_token(&user_id, &state.config.security.jwt_secret)?,
             "created_at": now,
         }),
@@ -297,10 +295,7 @@ pub async fn login(
             "message": "登录成功",
             "name": user.name,
             "phone": crate::models::user::UserResponse::from(user.clone()).phone,
-            "id_number": crate::models::user::UserResponse::from(user.clone()).id_number,
-            "avatar_url": user.avatar_url,
             "token": user_token,
-            "created_at": user.created_at,
         }),
     ))
 }

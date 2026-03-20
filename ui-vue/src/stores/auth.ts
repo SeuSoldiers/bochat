@@ -103,7 +103,6 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = {
         name: profile.name,
         phone: profile.phone,
-        id_number: profile.id_number,
         avatar_url: profile.avatar_url,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
@@ -119,7 +118,6 @@ export const useAuthStore = defineStore('auth', () => {
   const updateProfile = async (payload: {
     name?: string
     phone?: string
-    id_number?: string
     avatar_url?: string
   }) => {
     loading.value = true
@@ -130,7 +128,6 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = {
         name: updated.name,
         phone: updated.phone,
-        id_number: updated.id_number,
         avatar_url: updated.avatar_url,
         created_at: updated.created_at,
         updated_at: updated.updated_at,
@@ -199,10 +196,6 @@ function extractUser(response: LoginResponse): User {
   return {
     name: response.name,
     phone: response.phone,
-    id_number: response.id_number,
-    avatar_url: response.avatar_url,
-    created_at: response.created_at,
-    updated_at: response.updated_at,
   }
 }
 

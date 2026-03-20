@@ -37,8 +37,6 @@ pub struct UpdateUserRequest {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    pub id_number: Option<String>,
-    #[serde(default)]
     pub phone: Option<String>,
     #[serde(default)]
     pub avatar_url: Option<String>,
@@ -47,20 +45,20 @@ pub struct UpdateUserRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserResponse {
     pub name: String,
-    pub id_number: Option<String>,
     pub phone: Option<String>,
     pub avatar_url: Option<String>,
     pub created_at: String,
+    pub updated_at: String,
 }
 
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         UserResponse {
             name: user.name,
-            id_number: normalize_optional_field(user.id_number),
             phone: normalize_optional_field(user.phone),
             avatar_url: user.avatar_url,
             created_at: user.created_at,
+            updated_at: user.updated_at,
         }
     }
 }

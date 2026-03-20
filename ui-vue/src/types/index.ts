@@ -4,9 +4,8 @@
 export interface User {
   name: string
   phone?: string | null
-  id_number?: string | null
   avatar_url?: string | null
-  created_at: string
+  created_at?: string
   updated_at?: string
 }
 

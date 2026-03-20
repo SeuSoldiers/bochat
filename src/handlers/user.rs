@@ -10,7 +10,7 @@ use crate::utils::verify_user_token;
 use crate::{
     error::{json_response, AppError, AppResult},
     http::{require_user_bearer_token, token_user_id},
-    models::UpdateUserRequest,
+    models::{UpdateUserRequest, UserResponse},
     AppState,
 };
 
@@ -31,10 +31,6 @@ fn to_db_identifier(field: &str, value: Option<&str>, user_id: &str) -> String {
     }
 }
 
-fn validate_id_number(id_number: &str) -> bool {
-    id_number.len() == 18 && id_number.chars().all(|c| c.is_ascii_digit() || c == 'X')
-}
-
 #[tracing::instrument(skip(state))]
 pub async fn get_current_user(
     State(state): State<AppState>,
@@ -53,17 +49,7 @@ pub async fn get_current_user(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::UserNotFound)?;
 
-    Ok(json_response(
-        StatusCode::OK,
-        json!({
-            "name": user.name,
-            "phone": normalize_optional_field(&user.phone),
-            "id_number": normalize_optional_field(&user.id_number),
-            "avatar_url": user.avatar_url,
-            "created_at": user.created_at,
-            "updated_at": user.updated_at,
-        }),
-    ))
+    Ok(json_response(StatusCode::OK, json!(UserResponse::from(user))))
 }
 
 #[tracing::instrument(skip(state, req))]
@@ -99,18 +85,7 @@ pub async fn update_current_user(
         None => normalize_optional_field(&current_user.phone),
     };
 
-    let next_id_number = match req.id_number.as_deref().map(str::trim) {
-        Some("") => None,
-        Some(value) => {
-            if !validate_id_number(value) {
-                return Err(AppError::InvalidIdNumber);
-            }
-            Some(value.to_string())
-        }
-        None => normalize_optional_field(&current_user.id_number),
-    };
-
-    if next_phone.is_none() && next_id_number.is_none() {
+    if next_phone.is_none() && normalize_optional_field(&current_user.id_number).is_none() {
         return Err(AppError::BadRequest(
             "手机号和身份证号至少填写一项".to_string(),
         ));
@@ -123,18 +98,16 @@ pub async fn update_current_user(
     };
 
     let db_phone = to_db_identifier("phone", next_phone.as_deref(), &user_id);
-    let db_id_number = to_db_identifier("id_number", next_id_number.as_deref(), &user_id);
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
         r#"
         UPDATE users
-        SET name = ?, id_number = ?, phone = ?, avatar_url = ?, updated_at = ?
+        SET name = ?, phone = ?, avatar_url = ?, updated_at = ?
         WHERE user_id = ?
         "#,
     )
     .bind(&next_name)
-    .bind(&db_id_number)
     .bind(&db_phone)
     .bind(&next_avatar_url)
     .bind(&now)
@@ -143,9 +116,7 @@ pub async fn update_current_user(
     .await
     .map_err(|e| {
         let err_msg = e.to_string();
-        if err_msg.contains("users.id_number") {
-            AppError::IdNumberConflict
-        } else if err_msg.contains("users.phone") {
+        if err_msg.contains("users.phone") {
             AppError::PhoneConflict
         } else {
             AppError::DatabaseError(err_msg)
@@ -158,7 +129,6 @@ pub async fn update_current_user(
             "message": "用户信息更新成功",
             "name": next_name,
             "phone": next_phone,
-            "id_number": next_id_number,
             "avatar_url": next_avatar_url,
             "created_at": current_user.created_at,
             "updated_at": now,

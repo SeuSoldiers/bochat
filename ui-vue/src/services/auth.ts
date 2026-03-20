@@ -45,7 +45,6 @@ export async function getCurrentUser() {
 export async function updateCurrentUser(payload: {
   name?: string
   phone?: string
-  id_number?: string
   avatar_url?: string
 }) {
   return apiClient.put<User>('/users/me', payload)

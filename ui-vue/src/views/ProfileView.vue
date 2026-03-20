@@ -7,7 +7,7 @@
         <header class="card-header">
           <div>
             <h2>个人信息</h2>
-            <p>管理你的用户名、手机号、身份证号和头像</p>
+            <p>管理你的用户名、手机号和头像</p>
           </div>
         </header>
 
@@ -26,17 +26,6 @@
               v-model="form.phone"
               type="tel"
               placeholder="留空表示不使用手机号登录"
-              :disabled="saving || loading"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="idNumber">身份证号</label>
-            <input
-              id="idNumber"
-              v-model="form.idNumber"
-              type="text"
-              placeholder="留空表示不使用身份证号登录"
               :disabled="saving || loading"
             />
           </div>
@@ -90,14 +79,12 @@ const saveSuccess = ref<string | null>(null)
 const form = reactive({
   name: '',
   phone: '',
-  idNumber: '',
   avatarUrl: '',
 })
 
 const fillForm = () => {
   form.name = authStore.user?.name || ''
   form.phone = authStore.user?.phone || ''
-  form.idNumber = authStore.user?.id_number || ''
   form.avatarUrl = authStore.user?.avatar_url || ''
 }
 
@@ -134,7 +121,6 @@ const handleSave = async () => {
     await authStore.updateProfile({
       name: form.name.trim() || undefined,
       phone: form.phone.trim(),
-      id_number: form.idNumber.trim(),
       avatar_url: form.avatarUrl.trim(),
     })
     saveSuccess.value = '保存成功'

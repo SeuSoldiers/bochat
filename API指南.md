@@ -13,6 +13,8 @@
 
 ```json
 {
+  "code": "bad_request",
+  "message": "错误信息",
   "error": "错误信息",
   "status": 400
 }
@@ -29,26 +31,25 @@
 ```json
 {
   "name": "张三",
-  "id_number": "110101199003071234",
   "phone": "13800138000"
 }
 ```
 
 说明：
 
-- `name` 可省略，后端会回退生成默认昵称
+- `phone` 和 `id_number` 二选一，至少填写一项
+- `name` 可省略，后端会回退生成 `用户-xxxxxxxx` 形式的默认昵称
 - 注册成功时会自动创建一个默认 Bot
-- 但接口返回的是用户信息，不直接返回 token
+- 接口会直接返回用户级 `token`
 
 响应：
 
 ```json
 {
   "message": "注册成功",
-  "id": "u_xxx",
-  "name": "张三",
-  "id_number": "110101199003071234",
+  "name": "用户-1a2b3c4d",
   "phone": "13800138000",
+  "token": "u:u_xxx:1710000000:signature",
   "created_at": "2026-03-20T10:00:00Z"
 }
 ```
@@ -61,8 +62,15 @@
 
 ```json
 {
-  "id_number": "110101199003071234",
   "phone": "13800138000"
+}
+```
+
+或
+
+```json
+{
+  "id_number": "110101199003071234"
 }
 ```
 
@@ -71,12 +79,9 @@
 ```json
 {
   "message": "登录成功",
-  "id": "u_xxx",
   "name": "张三",
   "phone": "13800138000",
-  "id_number": "110101199003071234",
-  "token": "u:u_xxx:1710000000:signature",
-  "created_at": "2026-03-20T10:00:00Z"
+  "token": "u:u_xxx:1710000000:signature"
 }
 ```
 
@@ -84,6 +89,44 @@
 
 - 这里返回的是用户级临时 token
 - Bot token 需要后续通过 `GET /api/v1/bots` 获取
+- 认证与用户资料接口不会返回用户内部 `user_id`
+
+### 1.3 获取当前用户信息
+
+`GET /api/v1/users/me`
+
+响应：
+
+```json
+{
+  "name": "张三",
+  "phone": "13800138000",
+  "avatar_url": "https://example.com/avatar.png",
+  "created_at": "2026-03-20T10:00:00Z",
+  "updated_at": "2026-03-20T12:00:00Z"
+}
+```
+
+### 1.4 更新当前用户信息
+
+`PUT /api/v1/users/me`
+
+请求：
+
+```json
+{
+  "name": "新的用户名",
+  "phone": "13800138000",
+  "avatar_url": "https://example.com/avatar.png"
+}
+```
+
+说明：
+
+- `name` 可修改，但不能为空字符串
+- `phone` 为当前资料页可编辑的登录手机号
+- `avatar_url` 可直接传 URL，也可先调用文件上传接口再回填
+- 前端个人信息页对应这一组接口
 
 ## 2. Bot 接口
 
@@ -198,7 +241,7 @@
 
 - `bot_id` 可选
 - 若传入，则创建群后自动把这个 Bot 拉入群
-- 若不传，则默认使用当前认证 Bot 入群
+- 若不传，则后端会选择当前用户最早创建的可用 Bot 自动入群
 - `bot_id` 必须属于当前用户
 
 ### 3.2 查询当前用户可见的群
@@ -265,7 +308,9 @@
 
 说明：
 
-- 让当前认证 Bot 退出群
+- 需要用户 token
+- 通过查询参数显式指定要退群的 Bot，例如 `?bot_id=b_xxx`
+- 只能让自己名下的 Bot 退群
 
 ### 3.6 移除指定 Bot
 
@@ -406,7 +451,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
 说明：
 
 - multipart 上传
-- 需要 Bot token
+- 需要用户 token
 - 文件保存到 `FILE_STORAGE_PATH`
 - 后端会记录哈希并复用相同内容文件
 
@@ -486,7 +531,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
 
 说明：
 
-- 需要任一自己名下 Bot 的 token
+- 需要用户 token
 - 会删除该用户及其所有 Bot
 
 ## 8. 常见错误
@@ -501,3 +546,15 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
   身份证号重复
 - `413 Payload Too Large`
   上传文件过大
+
+常见错误码：
+
+- `user_token_required`
+- `bot_token_required`
+- `invalid_user_token`
+- `invalid_bot_token`
+- `id_number_conflict`
+- `phone_conflict`
+- `invalid_id_number`
+- `bot_ownership_mismatch`
+- `bot_not_in_group`
