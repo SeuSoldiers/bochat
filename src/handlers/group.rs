@@ -496,8 +496,18 @@ pub async fn delete_group(
 
 /// 获取群聊消息历史
 #[tracing::instrument(skip(pool))]
+/// 获取群聊消息历史（需要身份验证，只有群内的Bot可以查看）
+///
+/// 流程:
+/// 1. 从请求头提取 Bearer token
+/// 2. 解析 token 获取 bot_id
+/// 3. 查询 bot 信息并验证 token
+/// 4. 验证 bot 是否在该群聊中
+/// 5. 返回群聊的消息历史
+#[tracing::instrument(skip(pool))]
 pub async fn get_group_messages(
     pool: web::Data<DbPool>,
+    http_req: HttpRequest,
     group_id: web::Path<String>,
 ) -> AppResult<HttpResponse> {
     let group_id_str = group_id.into_inner();
@@ -505,7 +515,52 @@ pub async fn get_group_messages(
     tracing::info!("=== 获取群聊消息历史 ===");
     tracing::debug!("群聊 ID: {}", group_id_str);
 
+    // 从 Authorization 头提取 Bearer token
+    let token = http_req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| {
+            tracing::warn!("获取消息失败: 缺少 Authorization header");
+            AppError::Unauthorized
+        })?;
+
+    tracing::debug!("Token 提取成功");
+
+    // 解析 token 获取 bot_id
+    let parts: Vec<&str> = token.split(':').collect();
+    if parts.len() != 3 {
+        tracing::warn!("获取消息失败: Token 格式无效");
+        return Err(AppError::InvalidToken);
+    }
+    let bot_id = parts[0];
+    tracing::debug!("从 token 解析出 Bot ID: {}", bot_id);
+
+    // 查询 bot 信息
+    tracing::debug!("正在查询 Bot 信息...");
+    let bot: crate::models::Bot = sqlx::query_as(
+        "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+    )
+    .bind(bot_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("查询 Bot 时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?
+    .ok_or_else(|| {
+        tracing::warn!("Bot 不存在: {}", bot_id);
+        AppError::BotNotFound
+    })?;
+
+    // 验证 token
+    tracing::debug!("正在验证 token...");
+    let _token_payload = verify_token(token, &bot.secret, 86400)?;
+    tracing::debug!("Token 验证成功");
+
     // 验证群聊存在
+    tracing::debug!("正在验证群聊存在...");
     let group_exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE group_id = ?)")
             .bind(&group_id_str)
@@ -520,6 +575,27 @@ pub async fn get_group_messages(
         tracing::warn!("群聊不存在: {}", group_id_str);
         return Err(AppError::BadRequest("群聊不存在".to_string()));
     }
+
+    // 验证 Bot 是否在群内
+    tracing::debug!("正在验证 Bot 是否在群内...");
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)"
+    )
+    .bind(&group_id_str)
+    .bind(bot_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("检查群组成员时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    if !is_member {
+        tracing::warn!("Bot {} 不是群 {} 的成员，无权查看消息", bot_id, group_id_str);
+        return Err(AppError::Forbidden("只有群内的Bot才能查看消息".to_string()));
+    }
+
+    tracing::debug!("✅ Bot 是群内成员，继续获取消息");
 
     // 获取群聊的所有消息，按创建时间升序排列
     let messages: Vec<crate::models::Message> = sqlx::query_as(
