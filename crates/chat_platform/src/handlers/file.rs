@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    extract::{Host, Multipart, Path, State},
+    extract::{Multipart, Path, State},
     http::{header, HeaderMap, Response, StatusCode},
 };
 use serde_json::json;
@@ -20,7 +20,6 @@ const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 #[tracing::instrument(skip(state, payload))]
 pub async fn upload_file(
     State(state): State<AppState>,
-    Host(host): Host,
     headers: HeaderMap,
     mut payload: Multipart,
 ) -> AppResult<axum::response::Response> {
@@ -103,6 +102,11 @@ pub async fn upload_file(
         .get("x-forwarded-proto")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("http")
+        .to_string();
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("127.0.0.1:8080")
         .to_string();
 
     if let Some(existing_file) = existing_file {

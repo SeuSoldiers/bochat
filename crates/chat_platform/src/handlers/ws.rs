@@ -95,7 +95,7 @@ async fn handle_socket(
                 match maybe_event {
                     Some(event) => {
                         if let Ok(text) = serde_json::to_string(&event) {
-                            if socket.send(Message::Text(text)).await.is_err() {
+                            if socket.send(Message::Text(text.into())).await.is_err() {
                                 break;
                             }
                         }

@@ -37,7 +37,7 @@ pub fn app_router(state: AppState) -> Router {
             post(handlers::create_bot).get(handlers::list_bots),
         )
         .route(
-            "/api/v1/bots/:bot_id",
+            "/api/v1/bots/{bot_id}",
             get(handlers::get_bot)
                 .put(handlers::update_bot)
                 .delete(handlers::delete_bot),
@@ -47,30 +47,30 @@ pub fn app_router(state: AppState) -> Router {
             post(handlers::create_group).get(handlers::list_user_groups),
         )
         .route(
-            "/api/v1/groups/:group_id",
+            "/api/v1/groups/{group_id}",
             get(handlers::get_group).delete(handlers::delete_group),
         )
         .route(
-            "/api/v1/groups/:group_id/messages",
+            "/api/v1/groups/{group_id}/messages",
             get(handlers::get_group_messages),
         )
         .route("/api/v1/groups/join", post(handlers::join_group))
         .route(
-            "/api/v1/groups/:group_id/leave",
+            "/api/v1/groups/{group_id}/leave",
             delete(handlers::leave_group),
         )
         .route(
-            "/api/v1/groups/:group_id/members",
+            "/api/v1/groups/{group_id}/members",
             get(handlers::list_group_members),
         )
         .route(
-            "/api/v1/groups/:group_id/members/:bot_id",
+            "/api/v1/groups/{group_id}/members/{bot_id}",
             delete(handlers::remove_group_member),
         )
         .route("/api/v1/message/send", post(handlers::send_message))
         .route("/api/v1/file/upload", post(handlers::upload_file))
         .route(
-            "/api/v1/file/download/:file_id",
+            "/api/v1/file/download/{file_id}",
             get(handlers::download_file),
         )
         .route("/ws", get(handlers::ws_handler))

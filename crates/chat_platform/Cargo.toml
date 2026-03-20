@@ -5,18 +5,17 @@ edition = "2021"
 
 [dependencies]
 # Web Framework
-axum = { version = "0.7", features = ["multipart", "ws"] }
-tower-http = { version = "0.5", features = ["cors"] }
+axum = { version = "0.8", features = ["multipart", "ws"] }
+tower-http = { version = "0.6", features = ["cors"] }
 
 # Async Runtime
 tokio = { version = "1", features = ["full"] }
 
 # Database
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
-rusqlite = { version = "0.30", features = ["bundled"] }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
 
 # WebSocket
-tokio-tungstenite = "0.21"
+tokio-tungstenite = "0.29"
 futures = "0.3"
 futures-util = "0.3"
 
@@ -37,7 +36,7 @@ hex = "0.4"
 
 # Environment
 dotenv = "0.15"
-config = "0.13"
+config = "0.15"
 
 # Logging
 tracing = "0.1"
@@ -45,7 +44,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Error handling
 anyhow = "1"
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
 tokio-test = "0.4"
