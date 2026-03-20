@@ -20,6 +20,13 @@
 - 数据库: SQLite + SQLx
 - 异步运行时: Tokio
 
+## 仓库结构
+
+- Rust workspace 根目录：`./`
+- Rust 后端 crate：`./crates/chat_platform`
+- Vue 前端：`./ui-vue`
+- Python 脚本：`./scripts`
+
 ## 启动
 
 ```bash
@@ -239,7 +246,7 @@ cargo test
 
 关键测试：
 
-- [chat_flow_integration.rs](/home/harkerhand/codes/rust-bochat/tests/chat_flow_integration.rs)
+- [chat_flow_integration.rs](/home/harkerhand/codes/rust-bochat/crates/chat_platform/tests/chat_flow_integration.rs)
 
 如果只想监听实时消息，可以用：
 

@@ -49,7 +49,10 @@ pub async fn get_current_user(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::UserNotFound)?;
 
-    Ok(json_response(StatusCode::OK, json!(UserResponse::from(user))))
+    Ok(json_response(
+        StatusCode::OK,
+        json!(UserResponse::from(user)),
+    ))
 }
 
 #[tracing::instrument(skip(state, req))]
@@ -72,7 +75,7 @@ pub async fn update_current_user(
     .ok_or(AppError::UserNotFound)?;
 
     let next_name = match req.name.as_deref().map(str::trim) {
-        Some(name) if name.is_empty() => {
+        Some("") => {
             return Err(AppError::BadRequest("用户名不能为空".to_string()));
         }
         Some(name) => name.to_string(),
