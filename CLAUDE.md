@@ -1,3 +1,4 @@
+```markdown
 # CLAUDE.md
 
 本文件为 Claude Code (claude.ai/code) 在此代码库中工作时提供指导。
@@ -32,11 +33,14 @@ cargo test
 ```bash
 # 数据库文件：chat_platform.db (SQLite)
 # 迁移在启动时自动运行
-# 重置数据库：rm chat_platform.db && cargo run
+# 重置数据库：rm chat_platform.db && touch chat_platform.db
 ```
 
 ### 测试
 ```bash
+# 运行全部单元测试 + 集成测试
+cargo test
+
 # 运行综合测试脚本
 python3 scripts/test_chat.py
 
@@ -151,6 +155,16 @@ src/
 └── ws/                        # WebSocket 管理
     ├── manager.rs             # WebSocket 连接管理器
     └── mod.rs                 # WS 导出
+
+tests/                         # 集成测试
+├── api_auth_test.rs           # 认证流程集成测试
+├── api_bot_test.rs            # 机器人 CRUD 集成测试
+├── api_group_test.rs          # 群组管理集成测试
+├── api_message_test.rs        # 消息发送集成测试
+└── api_ws_test.rs             # WebSocket 集成测试
+
+scripts/
+└── test_chat.py               # 端到端综合测试脚本
 ```
 
 ## 🔑 关键技术模式
@@ -197,6 +211,95 @@ src/
 3. **速率限制**：当前配置为每秒 10 个请求
    - 未来可改为每个机器人单独限制
 
+## 🧪 测试策略
+
+### 开发工作流（必须遵守）
+
+每次修改代码后，按以下顺序执行：
+
+```
+1. cargo check          # 确保编译通过
+2. cargo clippy         # 代码质量检查，修复所有 warning
+3. cargo test           # 运行全部单元测试 + 集成测试
+4. cargo fmt            # 格式化代码
+5. 更新相关测试          # 新增/修改功能必须同步新增/修改测试
+6. 更新 UI              # 如果涉及 API 变更或新增端点，检查并更新前端调用
+```
+
+**核心原则：没有测试的代码不算完成。**
+
+### 单元测试
+
+- 每个 `models/` 和 `services/` 中的公共函数都应有对应的单元测试
+- 测试文件放在被测模块同目录下，遵循 Rust 惯例写在 `#[cfg(test)]` 模块中
+- 使用 `#[tokio::test]` 标注异步测试函数
+- 数据库相关测试使用独立的测试数据库或事务回滚，避免污染开发数据
+- 测试命名格式：`test_{函数名}_{场景}`，例如 `test_create_bot_with_duplicate_token_fails`
+
+示例结构：
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_create_group_success() {
+        // arrange: 准备测试数据
+        // act: 调用被测函数
+        // assert: 验证结果
+    }
+
+    #[tokio::test]
+    async fn test_create_group_with_invalid_bot_id_returns_error() {
+        // 测试错误路径
+    }
+}
+```
+
+### 集成测试
+
+- 集成测试放在项目根目录的 `tests/` 文件夹下
+- 覆盖完整的 HTTP 请求链路：请求 → 中间件 → 处理器 → 服务 → 数据库 → 响应
+- 重点测试场景：
+  - 认证流程（注册、登录、令牌过期）
+  - 机器人 CRUD 操作
+  - 群组创建与成员管理
+  - 消息发送与 WebSocket 广播
+  - 文件上传与下载
+  - 错误处理（无效输入、权限不足、资源不存在）
+
+示例结构：
+```rust
+// tests/api_bot_test.rs
+use actix_web::{test, App};
+
+#[actix_web::test]
+async fn test_create_and_list_bots() {
+    let app = test::init_service(
+        App::new().configure(configure_routes)
+    ).await;
+
+    // 1. 先注册用户并获取 token
+    // 2. 创建机器人
+    // 3. 列出机器人，验证创建成功
+    // 4. 删除机器人
+    // 5. 再次列出，验证已删除
+}
+```
+
+### Python 测试脚本
+
+- `scripts/test_chat.py` 是端到端的综合测试脚本
+- 新增 API 端点后，必须在该脚本中添加对应的测试用例
+- 运行方式：`python3 scripts/test_chat.py`
+- 测试脚本应覆盖：用户注册 → 机器人创建 → 群组创建 → 消息发送 → 验证数据库持久化
+
+### 测试覆盖率目标
+
+- `models/` 和 `services/` 层：目标 90%+ 覆盖率
+- `handlers/` 层：通过集成测试覆盖主要路径
+- 错误路径：每个可能的错误变体至少有一个测试用例
+
 ## 🔄 常见开发任务
 
 ### 添加新的 API 端点
@@ -204,17 +307,79 @@ src/
 2. 在适当的 `handlers/*.rs` 中添加处理器函数
 3. 在 `main.rs` 的 `App::new()` 中添加路由
 4. 如果使用数据库：在 `services/` 中创建服务或在处理器中内联
+5. 编写对应的单元测试和集成测试
+6. 在 `scripts/test_chat.py` 中添加端到端测试用例
+7. 检查前端 UI 是否需要更新
 
 ### 添加数据库操作
 1. 在 `models/` 中定义模型
 2. 使用 SQLx 查询（编译时检查）
 3. 如果创建新表：将 SQL 添加到 `db/schema.rs`
 4. 迁移自动运行；重启应用以应用模式更改
+5. 编写单元测试验证数据库操作的正确性
 
 ### 使用 WebSocket
 - 所有连接由 `src/ws/manager.rs` 中的 `WsManager` 跟踪
 - 升级端点：`/ws/{group_id}`
 - 管理器处理连接/断开连接/广播消息
+- 测试时使用多个模拟客户端验证广播行为
+
+### 修改现有功能的检查清单
+
+1. 修改 `models/` → 更新对应的单元测试
+2. 修改 `services/` → 更新对应的单元测试 + 集成测试
+3. 修改 `handlers/` → 更新集成测试 + 检查前端调用
+4. 修改数据库 schema → 确认迁移逻辑正确，重启后数据完整
+5. 修改 WebSocket 逻辑 → 手动测试多客户端连接场景
+6. 修改中间件 → 测试认证通过和失败两种路径
+
+### 新增功能的完整流程
+
+```
+1. 设计数据模型（models/）
+   └── 编写模型的单元测试
+
+2. 实现业务逻辑（services/）
+   └── 编写服务层的单元测试
+
+3. 添加 API 端点（handlers/ + main.rs 路由）
+   └── 编写集成测试覆盖该端点
+
+4. 更新 Python 测试脚本（scripts/test_chat.py）
+   └── 添加新端点的端到端测试用例
+
+5. 更新前端 UI
+   └── 添加对应的页面/组件/调用逻辑
+   └── 手动启动验证功能正常
+
+6. 最终验证
+   └── cargo test 全部通过
+   └── python3 scripts/test_chat.py 全部通过
+   └── cargo clippy 无 warning
+   └── cargo fmt 无变更
+```
+
+### UI 更新检查清单
+
+当后端发生以下变更时，必须检查并更新前端 UI：
+
+- [ ] 新增 API 端点 → 前端添加对应的调用函数和 UI 入口
+- [ ] 修改请求/响应结构 → 更新前端的类型定义和数据解析逻辑
+- [ ] 修改认证流程 → 更新前端的登录/令牌管理逻辑
+- [ ] 新增字段或枚举值 → 更新表单、列表展示、筛选条件
+- [ ] 修改错误码或错误格式 → 更新前端的错误提示展示
+
+**验证方式：**
+```bash
+# 启动完整环境进行手动验证
+./start.sh    # Linux/macOS
+./start.bat   # Windows
+
+# 然后在浏览器中操作，确认：
+# 1. 新功能可以正常使用
+# 2. 已有功能未被破坏
+# 3. 错误提示友好且准确
+```
 
 ## 📚 重要文件
 
@@ -225,15 +390,6 @@ src/
 - **PROJECT_COMPLETE.md**：项目完成状态和功能
 - **scripts/test_chat.py**：演示所有功能的综合测试脚本
 
-## 🧪 测试策略
-
-运行 `python3 scripts/test_chat.py` 来：
-- 创建两个测试用户（Alice, Bob）
-- 创建多个机器人
-- 创建测试群组
-- 在群组中的机器人之间发送消息
-- 验证数据库持久化
-
 ## 🎯 开发技巧
 
 1. **类型安全**：利用 Rust 的类型系统；为 ID 使用强类型（不仅仅是字符串）
@@ -241,3 +397,7 @@ src/
 3. **异步优先**：所有 I/O 都应该是异步的；只在测试中阻塞
 4. **错误处理**：使用 Result 类型；在 `error.rs` 中定义自定义错误变体
 5. **日志记录**：使用 `tracing::info!()`、`debug!()`、`error!()` 进行可观察性
+6. **测试先行**：修改 bug 时，先写一个能复现 bug 的测试，再修复代码，确认测试由红变绿
+7. **测试隔离**：每个测试应独立运行，不依赖其他测试的执行顺序或残留数据
+8. **Mock 策略**：外部依赖（如文件系统、网络）应使用 trait 抽象，便于测试时注入 mock 实现
+```
