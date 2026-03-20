@@ -8,6 +8,8 @@ import { login, logout, register } from '@/services/auth'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import type { User } from '@/types'
 
+type LoginResponse = User & { bot_token: string }
+
 export const useAuthStore = defineStore('auth', () => {
   // 状态
   const user = ref<User | null>(null)
@@ -37,24 +39,22 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const userId = computed(() => user.value?.id || '')
   const userPhone = computed(() => user.value?.phone || '')
+  const userName = computed(() => user.value?.name || '')
 
   // 方法：注册
-  const handleRegister = async (phone: string, idNumber: string) => {
+  const handleRegister = async (name: string, phone: string, idNumber: string) => {
     loading.value = true
     error.value = null
 
     try {
-      // 先注册用户
-      await register(phone, idNumber)
+      await register(name, phone, idNumber)
 
-      // 注册成功后自动登录
       const response = await login(phone, idNumber)
-      user.value = response
+      user.value = extractUser(response)
       token.value = response.bot_token
 
-      // 保存到 localStorage
       localStorage.setItem(STORAGE_KEYS.TOKEN, response.bot_token)
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response))
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user.value))
 
       return response
     } catch (err: any) {
@@ -72,12 +72,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await login(phone, idNumber)
-      user.value = response
+      user.value = extractUser(response)
       token.value = response.bot_token
 
-      // 保存到 localStorage
       localStorage.setItem(STORAGE_KEYS.TOKEN, response.bot_token)
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response))
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user.value))
 
       return response
     } catch (err: any) {
@@ -125,6 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     userId,
     userPhone,
+    userName,
 
     // 方法
     initializeAuth,
@@ -134,3 +134,13 @@ export const useAuthStore = defineStore('auth', () => {
     clearError,
   }
 })
+
+function extractUser(response: LoginResponse): User {
+  return {
+    id: response.id,
+    name: response.name,
+    phone: response.phone,
+    id_number: response.id_number,
+    created_at: response.created_at,
+  }
+}

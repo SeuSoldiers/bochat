@@ -1,6 +1,15 @@
 <template>
   <div class="message-input-container">
     <form @submit.prevent="handleSend" class="message-input-form">
+      <div class="input-toolbar">
+        <select v-model="selectedBotId" class="bot-select" :disabled="sending">
+          <option value="">选择发送 Bot</option>
+          <option v-for="bot in bots" :key="bot.bot_id" :value="bot.bot_id">
+            {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
+          </option>
+        </select>
+      </div>
+
       <div class="input-wrapper">
         <textarea
           v-model="messageText"
@@ -29,20 +38,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import type { Bot } from '@/types'
 
 const props = defineProps<{
   groupId: string
-  botId: string
+  bots: Bot[]
+  initialBotId?: string
 }>()
 
 const emit = defineEmits<{
-  send: [content: string]
+  send: [content: string, botId: string]
 }>()
 
 const messageText = ref('')
+const selectedBotId = ref(props.initialBotId || '')
 const sending = ref(false)
 const error = ref<string | null>(null)
+
+watch(
+  () => props.initialBotId,
+  (botId) => {
+    if (botId) {
+      selectedBotId.value = botId
+    }
+  },
+  { immediate: true }
+)
 
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Enter' && !event.shiftKey) {
@@ -58,7 +80,7 @@ const handleSend = async () => {
     return
   }
 
-  if (!props.groupId || !props.botId) {
+  if (!props.groupId || !selectedBotId.value) {
     error.value = '请选择 Bot 和群'
     return
   }
@@ -67,7 +89,7 @@ const handleSend = async () => {
   error.value = null
 
   try {
-    emit('send', content)
+    emit('send', content, selectedBotId.value)
     messageText.value = ''
   } catch (err: any) {
     error.value = err.message || '发送失败'
@@ -92,6 +114,20 @@ const handleSend = async () => {
   background-color: white;
   border-radius: 8px;
   border: 1px solid #d4cfc8;
+}
+
+.input-toolbar {
+  display: flex;
+}
+
+.bot-select {
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid #d4cfc8;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #4a4a4a;
+  background: white;
 }
 
 .input-wrapper {

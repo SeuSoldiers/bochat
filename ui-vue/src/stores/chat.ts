@@ -34,20 +34,20 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 方法：获取消息列表
-  const fetchMessages = async (groupId: string, limit: number = 50, offset: number = 0) => {
+  const fetchMessages = async (groupId: string, botId?: string, limit: number = 50, offset: number = 0) => {
     loading.value = true
     error.value = null
 
     try {
-      const newMessages = await getMessages(groupId, limit, offset)
+      const newMessages = await getMessages(groupId, botId, limit, offset)
 
       // 合并消息（避免重复）
-      const existingIds = new Set(messages.value.map((m: Message) => m.message_id))
-      const uniqueNewMessages = newMessages.filter((m: Message) => !existingIds.has(m.message_id))
+      const existingIds = new Set(messages.value.map((m: Message) => m.msg_id))
+      const uniqueNewMessages = newMessages.filter((m: Message) => !existingIds.has(m.msg_id))
 
-      // 按时间倒序排列（新消息在最后）
+      // 按时间升序排列，便于聊天窗口自然阅读
       messages.value = [...messages.value, ...uniqueNewMessages].sort(
-        (a: Message, b: Message) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )
 
       return newMessages
@@ -79,7 +79,7 @@ export const useChatStore = defineStore('chat', () => {
   // 方法：添加 WebSocket 接收的消息
   const addWebSocketMessage = (message: Message) => {
     // 检查消息是否已存在
-    const exists = messages.value.some((m) => m.message_id === message.message_id)
+    const exists = messages.value.some((m) => m.msg_id === message.msg_id)
     if (!exists) {
       messages.value.push(message)
     }

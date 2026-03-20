@@ -51,6 +51,7 @@ pub struct CreateMessageRequest {
     pub group_id: String, // 群聊ID
     pub content: Value,
     pub msg_type: Option<String>,
+    pub bot_id: Option<String>, // 指定以哪个 Bot 身份发送
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

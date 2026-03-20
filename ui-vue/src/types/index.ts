@@ -3,9 +3,9 @@
  */
 export interface User {
   id: string
+  name: string
   phone: string
   id_number: string
-  bot_token: string
   created_at: string
 }
 
@@ -14,10 +14,13 @@ export interface User {
  */
 export interface Bot {
   bot_id: string
+  owner_id: string
   name: string
   description?: string
+  status: string
+  token: string
   created_at: string
-  created_by: string
+  updated_at: string
 }
 
 export interface CreateBotRequest {
@@ -30,35 +33,59 @@ export interface CreateBotRequest {
  */
 export interface Group {
   group_id: string
-  group_name: string
-  group_number: string
+  group_code?: string
+  creator_id: string
+  name: string
+  description?: string
+  status: string
   created_at: string
-  created_by: string
-  member_count: number
+  updated_at: string
 }
 
 export interface CreateGroupRequest {
-  group_name: string
-  group_number: string
+  name: string
+  group_code?: string
+  description?: string
+  bot_id?: string
+}
+
+export interface GroupJoinResult {
+  message: string
+  group_id: string
+  bot_id: string
+}
+
+export interface GroupMember {
+  group_id: string
+  member_id: string
+  member_type: string
+  joined_at: string
+  bot_name?: string
+  owner_id?: string
 }
 
 /**
  * 消息相关类型定义
  */
 export interface Message {
-  message_id: string
+  msg_id: number
   group_id: string
   sender_id: string
-  sender_name: string
-  content: string
+  content: {
+    text?: string
+    [key: string]: unknown
+  } | string
   created_at: string
-  message_type: 'text' | 'image' | 'file'
+  msg_type: 'text' | 'file'
 }
 
 export interface SendMessageRequest {
   group_id: string
-  content: string
-  message_type?: 'text' | 'image' | 'file'
+  content: {
+    text: string
+  }
+  msg_type?: 'text' | 'file'
+  bot_id?: string
 }
 
 /**

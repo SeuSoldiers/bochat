@@ -27,7 +27,7 @@
       <!-- 用户菜单 -->
       <div class="nav-user">
         <div class="user-info">
-          <span class="user-phone">{{ authStore.userPhone }}</span>
+          <span class="user-phone">{{ authStore.userName || authStore.userPhone }}</span>
           <button class="logout-btn" @click="handleLogout">
             登出
           </button>

@@ -36,7 +36,7 @@
 import { ref } from 'vue'
 import type { Bot } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   bot: Bot
   selected?: boolean
 }>()
@@ -55,8 +55,7 @@ const formatDate = (dateStr: string) => {
 
 const copyToken = async () => {
   try {
-    // 在真实应用中，应该从 API 获取完整的 token
-    await navigator.clipboard.writeText(import.meta.env.VITE_API_BASE_URL || 'localhost')
+    await navigator.clipboard.writeText(props.bot.token)
     showCopyTip.value = true
     setTimeout(() => {
       showCopyTip.value = false

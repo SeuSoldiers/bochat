@@ -8,16 +8,31 @@
 
       <div class="modal-body">
         <div class="group-info">
-          <p class="group-name">{{ group.group_name }}</p>
-          <p class="group-number">群号: {{ group.group_number }}</p>
+          <p class="group-name">{{ group.name }}</p>
+          <p class="group-number">群号: {{ group.group_code || '未设置' }}</p>
+        </div>
+
+        <div class="toolbar">
+          <select v-model="selectedOwnedBotId" class="toolbar-select" :disabled="loading">
+            <option value="">请选择你的 Bot</option>
+            <option v-for="bot in ownedBots" :key="bot.bot_id" :value="bot.bot_id">
+              {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
+            </option>
+          </select>
+          <button class="toolbar-btn" :disabled="!canAddSelectedBot || loading" @click="handleAddBot">
+            {{ loading ? '处理中...' : '加群' }}
+          </button>
+          <button class="secondary-btn" :disabled="!canRemoveSelectedBot || loading" @click="handleRemoveBot">
+            {{ loading ? '处理中...' : '退群' }}
+          </button>
         </div>
 
         <div v-if="members.length > 0" class="members-list">
-          <div v-for="member in members" :key="member.id" class="member-item">
+          <div v-for="member in members" :key="member.member_id" class="member-item">
             <div class="member-avatar">🤖</div>
             <div class="member-info">
-              <p class="member-name">{{ member.name }}</p>
-              <p class="member-id">ID: {{ member.bot_id.substring(0, 8) }}...</p>
+              <p class="member-name">{{ member.bot_name || member.member_type }}</p>
+              <p class="member-id">ID: {{ member.member_id.substring(0, 8) }}...</p>
             </div>
             <p class="join-time">{{ formatDate(member.joined_at) }}</p>
           </div>
@@ -32,23 +47,55 @@
 </template>
 
 <script setup lang="ts">
-import type { Group } from '@/types'
+import { computed, ref } from 'vue'
+import type { Group, GroupMember, Bot } from '@/types'
 
-interface Member {
-  id: string
-  name: string
-  bot_id: string
-  joined_at: string
-}
-
-defineProps<{
+const props = defineProps<{
   group: Group
-  members: Member[]
+  members: GroupMember[]
+  ownedBots: Bot[]
+  loading?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
+  'add-bot': [botId: string]
+  'remove-bot': [botId: string]
   close: []
 }>()
+
+const selectedOwnedBotId = ref('')
+
+const canAddSelectedBot = computed(() => {
+  if (!selectedOwnedBotId.value) {
+    return false
+  }
+
+  return !props.members.some((member) => member.member_id === selectedOwnedBotId.value)
+})
+
+const canRemoveSelectedBot = computed(() => {
+  if (!selectedOwnedBotId.value) {
+    return false
+  }
+
+  return props.members.some((member) => member.member_id === selectedOwnedBotId.value)
+})
+
+const handleAddBot = () => {
+  if (!selectedOwnedBotId.value) {
+    return
+  }
+
+  emit('add-bot', selectedOwnedBotId.value)
+}
+
+const handleRemoveBot = () => {
+  if (!selectedOwnedBotId.value) {
+    return
+  }
+
+  emit('remove-bot', selectedOwnedBotId.value)
+}
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr)
@@ -80,7 +127,7 @@ const formatDate = (dateStr: string) => {
   background: white;
   border-radius: 8px;
   width: 100%;
-  max-width: 500px;
+  max-width: 560px;
   max-height: 70vh;
   overflow: hidden;
   display: flex;
@@ -135,6 +182,49 @@ const formatDate = (dateStr: string) => {
   color: #888888;
   margin: 0;
   font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.toolbar-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4cfc8;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #4a4a4a;
+  background: white;
+}
+
+.toolbar-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.toolbar-btn {
+  background-color: #8b9d83;
+  color: white;
+}
+
+.secondary-btn {
+  background-color: #f5e6e6;
+  color: #a88b7f;
+}
+
+.toolbar-btn:disabled,
+.secondary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .members-list {
@@ -195,5 +285,11 @@ const formatDate = (dateStr: string) => {
 .empty-members p {
   margin: 0;
   font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

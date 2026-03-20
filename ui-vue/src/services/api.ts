@@ -46,20 +46,26 @@ class ApiClient {
       (response) => {
         const data = response.data as ApiResponse
 
-        // 检查业务逻辑错误
-        if (data.code !== 0 && data.code !== 200) {
-          const error = new Error(data.message || '请求失败') as any
-          error.code = data.code
-          error.data = data
-          return Promise.reject(error)
+        // 仅在后端返回了标准 code 字段时，才按业务码判定成功/失败。
+        // 兼容当前后端直接返回业务数据（不带 code/data 包装）的接口。
+        if (typeof data.code === 'number') {
+          if (data.code !== 0 && data.code !== 200) {
+            const error = new Error(data.message || '请求失败') as any
+            error.code = data.code
+            error.data = data
+            return Promise.reject(error)
+          }
+
+          return data.data || data
         }
 
-        return data.data || data
+        return data
       },
       (error: AxiosError<ApiResponse>) => {
         // 处理 HTTP 错误
         const status = error.response?.status
-        const message = error.response?.data?.message || error.message
+        const responseData = error.response?.data as ApiResponse & { error?: string } | undefined
+        const message = responseData?.message || responseData?.error || error.message
 
         // 处理 401 未授权错误
         if (status === 401) {
@@ -103,7 +109,7 @@ class ApiClient {
    * 获取当前 token
    */
   getToken(): string | null {
-    return this.token
+    return localStorage.getItem(STORAGE_KEYS.TOKEN)
   }
 
   /**
@@ -144,5 +150,31 @@ class ApiClient {
 
 // 导出单例
 export const apiClient = new ApiClient()
+
+export function unwrapCollectionResponse<T>(
+  response: T[] | { bots?: T[]; groups?: T[]; messages?: T[]; members?: T[] }
+): T[] {
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  if (Array.isArray(response.bots)) {
+    return response.bots
+  }
+
+  if (Array.isArray(response.groups)) {
+    return response.groups
+  }
+
+  if (Array.isArray(response.messages)) {
+    return response.messages
+  }
+
+  if (Array.isArray(response.members)) {
+    return response.members
+  }
+
+  return []
+}
 
 export default apiClient

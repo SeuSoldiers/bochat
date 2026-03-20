@@ -2,37 +2,22 @@
  * 消息服务
  */
 
-import { apiClient } from './api'
+import { apiClient, unwrapCollectionResponse } from './api'
 import type { Message, SendMessageRequest } from '@/types'
 
 /**
  * 获取群消息列表
  */
-export async function getMessages(groupId: string, limit: number = 50, offset: number = 0) {
-  return apiClient.get<Message[]>(`/groups/${groupId}/messages`, {
-    params: { limit, offset },
+export async function getMessages(groupId: string, botId?: string, limit: number = 50, offset: number = 0) {
+  const response = await apiClient.get<Message[] | { messages: Message[] }>(`/groups/${groupId}/messages`, {
+    params: { limit, offset, bot_id: botId },
   })
+  return unwrapCollectionResponse(response)
 }
 
 /**
  * 发送消息
  */
 export async function sendMessage(data: SendMessageRequest) {
-  return apiClient.post<Message>('/messages', data)
-}
-
-/**
- * 删除消息
- */
-export async function deleteMessage(messageId: string) {
-  return apiClient.delete(`/messages/${messageId}`)
-}
-
-/**
- * 搜索消息
- */
-export async function searchMessages(groupId: string, keyword: string) {
-  return apiClient.get<Message[]>(`/groups/${groupId}/messages/search`, {
-    params: { keyword },
-  })
+  return apiClient.post<Message>('/message/send', data)
 }

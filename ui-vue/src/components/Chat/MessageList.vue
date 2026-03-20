@@ -5,7 +5,7 @@
     </div>
 
     <div v-else-if="messages.length > 0" class="messages">
-      <div v-for="message in messages" :key="message.message_id" class="message-group">
+      <div v-for="message in messages" :key="message.msg_id" class="message-group">
         <MessageItem :message="message" />
       </div>
     </div>

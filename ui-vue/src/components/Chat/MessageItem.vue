@@ -1,24 +1,41 @@
 <template>
   <div class="message-item">
     <div class="message-avatar">
-      {{ message.sender_name.charAt(0) }}
+      {{ senderLabel.charAt(0) }}
     </div>
     <div class="message-content">
       <div class="message-header">
-        <span class="message-sender">{{ message.sender_name }}</span>
+        <span class="message-sender">{{ senderLabel }}</span>
         <span class="message-time">{{ formatTime(message.created_at) }}</span>
       </div>
-      <div class="message-text">{{ message.content }}</div>
+      <div class="message-text">{{ messageText }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Message } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   message: Message
 }>()
+
+const senderLabel = computed(() => props.message.sender_id.slice(0, 8))
+
+const messageText = computed(() => {
+  const { content } = props.message
+
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (typeof content.text === 'string') {
+    return content.text
+  }
+
+  return JSON.stringify(content)
+})
 
 const formatTime = (dateStr: string) => {
   const date = new Date(dateStr)

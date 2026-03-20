@@ -34,15 +34,15 @@ pub async fn send_message(
         tracing::warn!("消息发送失败: Token 格式无效");
         return Err(AppError::InvalidToken);
     }
-    let sender_bot_id = parts[0];
-    tracing::debug!("从 token 解析出发送者 Bot ID: {}", sender_bot_id);
+    let requester_bot_id = parts[0];
+    tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
 
-    // 查询发送者 bot 并使用其 secret 验证 token
+    // 查询请求者 bot 并使用其 secret 验证 token
     tracing::debug!("正在查询发送者 Bot...");
-    let sender_bot: crate::models::Bot = sqlx::query_as(
+    let requester_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
-    .bind(sender_bot_id)
+    .bind(requester_bot_id)
     .fetch_optional(pool.get_ref())
     .await
     .map_err(|e| {
@@ -50,16 +50,46 @@ pub async fn send_message(
         AppError::DatabaseError(e.to_string())
     })?
     .ok_or_else(|| {
-        tracing::warn!("发送者 Bot 不存在: {}", sender_bot_id);
+        tracing::warn!("发送者 Bot 不存在: {}", requester_bot_id);
         AppError::BotNotFound
     })?;
 
-    tracing::debug!("发送者 Bot 查询成功，所有者: {}", sender_bot.owner_id);
+    tracing::debug!("发送者 Bot 查询成功，所有者: {}", requester_bot.owner_id);
 
     // 使用 bot 的 secret 验证 token
     tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(token, &sender_bot.secret, 86400)?;
+    let _token_payload = verify_token(token, &requester_bot.secret, 86400)?;
     tracing::debug!("Token 验证成功");
+
+    let sender_bot = if let Some(target_bot_id) = msg_req.bot_id.as_ref() {
+        let target_bot: crate::models::Bot = sqlx::query_as(
+            "SELECT bot_id, owner_id, name, description, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
+        )
+        .bind(target_bot_id)
+        .fetch_optional(pool.get_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("查询目标发送 Bot 时数据库错误: {}", e);
+            AppError::DatabaseError(e.to_string())
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("目标发送 Bot 不存在: {}", target_bot_id);
+            AppError::BotNotFound
+        })?;
+
+        if target_bot.owner_id != requester_bot.owner_id {
+            tracing::warn!(
+                "发送消息失败: 目标 Bot 不属于当前用户, owner_id={}, requester_owner={}",
+                target_bot.owner_id,
+                requester_bot.owner_id
+            );
+            return Err(AppError::BotPermissionDenied);
+        }
+
+        target_bot
+    } else {
+        requester_bot
+    };
 
     // 检查发送者 bot 是否活跃
     if sender_bot.status != "active" {
@@ -94,7 +124,7 @@ pub async fn send_message(
         "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)",
     )
     .bind(&msg_req.group_id)
-    .bind(sender_bot_id)
+    .bind(&sender_bot.bot_id)
     .fetch_one(pool.get_ref())
     .await
     .map_err(|e| {
@@ -103,7 +133,7 @@ pub async fn send_message(
     })?;
 
     if !is_member {
-        tracing::warn!("消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}", sender_bot_id, msg_req.group_id);
+        tracing::warn!("消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}", sender_bot.bot_id, msg_req.group_id);
         return Err(AppError::BotPermissionDenied);
     }
 
@@ -125,7 +155,7 @@ pub async fn send_message(
         "#,
     )
     .bind(&msg_req.group_id)
-    .bind(sender_bot_id)
+    .bind(&sender_bot.bot_id)
     .bind(&content)
     .bind(msg_type)
     .bind(&now)
@@ -140,13 +170,13 @@ pub async fn send_message(
         "✅ 消息发送成功 - 消息ID: {}, 群聊ID: {}, 发送者: {}",
         msg_id,
         msg_req.group_id,
-        sender_bot_id
+        sender_bot.bot_id
     );
 
     Ok(HttpResponse::Created().json(json!({
         "msg_id": msg_id,
         "group_id": msg_req.group_id,
-        "sender_id": sender_bot_id,
+        "sender_id": sender_bot.bot_id,
         "content": msg_req.content,
         "msg_type": msg_type,
         "created_at": now,

@@ -2,14 +2,15 @@
  * 群聊服务
  */
 
-import { apiClient } from './api'
-import type { Group, CreateGroupRequest } from '@/types'
+import { apiClient, unwrapCollectionResponse } from './api'
+import type { Group, CreateGroupRequest, GroupJoinResult, GroupMember } from '@/types'
 
 /**
  * 获取群列表
  */
 export async function getGroupList() {
-  return apiClient.get<Group[]>('/groups')
+  const response = await apiClient.get<Group[] | { groups: Group[] }>('/groups')
+  return unwrapCollectionResponse(response)
 }
 
 /**
@@ -27,13 +28,6 @@ export async function createGroup(data: CreateGroupRequest) {
 }
 
 /**
- * 更新群信息
- */
-export async function updateGroup(groupId: string, data: Partial<CreateGroupRequest>) {
-  return apiClient.put<Group>(`/groups/${groupId}`, data)
-}
-
-/**
  * 删除群
  */
 export async function deleteGroup(groupId: string) {
@@ -43,20 +37,29 @@ export async function deleteGroup(groupId: string) {
 /**
  * Bot 加入群
  */
-export async function joinGroup(groupId: string, botId: string) {
-  return apiClient.post(`/groups/${groupId}/join`, { bot_id: botId })
+export async function joinGroup(data: { groupId?: string; groupCode?: string; botId?: string }) {
+  return apiClient.post<GroupJoinResult>('/groups/join', {
+    group_id: data.groupId,
+    group_code: data.groupCode,
+    bot_id: data.botId,
+  })
 }
 
 /**
  * Bot 离开群
  */
-export async function leaveGroup(groupId: string, botId: string) {
-  return apiClient.post(`/groups/${groupId}/leave`, { bot_id: botId })
+export async function leaveGroup(groupId: string) {
+  return apiClient.delete(`/groups/${groupId}/leave`)
+}
+
+export async function removeGroupMember(groupId: string, botId: string) {
+  return apiClient.delete(`/groups/${groupId}/members/${botId}`)
 }
 
 /**
  * 获取群成员
  */
 export async function getGroupMembers(groupId: string) {
-  return apiClient.get(`/groups/${groupId}/members`)
+  const response = await apiClient.get<GroupMember[] | { members: GroupMember[] }>(`/groups/${groupId}/members`)
+  return unwrapCollectionResponse(response)
 }

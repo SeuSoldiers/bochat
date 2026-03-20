@@ -4,17 +4,9 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getGroupList, createGroup, deleteGroup, updateGroup, getGroupMembers, joinGroup } from '@/services/group'
+import { getGroupList, createGroup, deleteGroup, getGroupMembers, joinGroup, getGroup, removeGroupMember } from '@/services/group'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
-import { useBotStore } from './bots'
-import type { Group, CreateGroupRequest } from '@/types'
-
-interface GroupMember {
-  id: string
-  name: string
-  bot_id: string
-  joined_at: string
-}
+import type { Group, CreateGroupRequest, GroupMember } from '@/types'
 
 export const useGroupStore = defineStore('groups', () => {
   // 状态
@@ -113,27 +105,6 @@ export const useGroupStore = defineStore('groups', () => {
   }
 
   // 方法：更新群信息
-  const updateGroupInfo = async (groupId: string, data: Partial<CreateGroupRequest>) => {
-    loading.value = true
-    error.value = null
-
-    try {
-      const updated = await updateGroup(groupId, data)
-
-      const index = groups.value.findIndex((g: Group) => g.group_id === groupId)
-      if (index >= 0) {
-        groups.value[index] = updated
-      }
-
-      return updated
-    } catch (err: any) {
-      error.value = err.message || '更新群失败'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
   // 方法：获取群成员
   const fetchGroupMembers = async (groupId: string) => {
     loading.value = true
@@ -161,26 +132,53 @@ export const useGroupStore = defineStore('groups', () => {
   }
 
   // 方法：加入群
-  const joinGroupByNumber = async (groupNumber: string) => {
+  const joinGroupByNumber = async (groupNumber: string, botId: string) => {
     loading.value = true
     error.value = null
 
     try {
-      const botStore = useBotStore()
-      if (!botStore.selectedBot) {
-        throw new Error('请先选择一个 Bot')
+      const result = await joinGroup({ groupCode: groupNumber, botId })
+      const joinedGroup = await getGroup(result.group_id)
+
+      if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
+        groups.value.unshift(joinedGroup)
       }
 
-      const result = await joinGroup(groupNumber, botStore.selectedBot.bot_id)
-
-      // 从返回的群信息中获取 group_id，然后加入到列表中
-      if (result && typeof result === 'object' && 'group_id' in result) {
-        groups.value.push(result as Group)
-      }
-
-      return result
+      return joinedGroup
     } catch (err: any) {
       error.value = err.message || '加入群失败'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const addBotToGroup = async (groupId: string, botId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const result = await joinGroup({ groupId, botId })
+      const members = await getGroupMembers(groupId)
+      groupMembers.value[groupId] = members
+      return result
+    } catch (err: any) {
+      error.value = err.message || '添加 Bot 到群聊失败'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const removeBotFromGroup = async (groupId: string, botId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      await removeGroupMember(groupId, botId)
+      groupMembers.value[groupId] = (groupMembers.value[groupId] || []).filter((member) => member.member_id !== botId)
+    } catch (err: any) {
+      error.value = err.message || '移出群聊失败'
       throw err
     } finally {
       loading.value = false
@@ -210,10 +208,11 @@ export const useGroupStore = defineStore('groups', () => {
     fetchGroups,
     addGroup,
     removeGroupById,
-    updateGroupInfo,
     fetchGroupMembers,
     selectGroup,
     joinGroupByNumber,
+    addBotToGroup,
+    removeBotFromGroup,
     clearError,
   }
 })

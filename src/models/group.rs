@@ -17,6 +17,7 @@ pub struct CreateGroupRequest {
     pub name: String,
     pub description: Option<String>,
     pub group_code: Option<String>, // 可选，如果不提供则不设置
+    pub bot_id: Option<String>, // 可选，指定自动加入群聊的 Bot
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,12 +55,14 @@ pub struct GroupMember {
     pub joined_at: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct GroupMemberResponse {
     pub group_id: String,
     pub member_id: String,
     pub member_type: String,
     pub joined_at: String,
+    pub bot_name: Option<String>,
+    pub owner_id: Option<String>,
 }
 
 impl From<GroupMember> for GroupMemberResponse {
@@ -69,6 +72,8 @@ impl From<GroupMember> for GroupMemberResponse {
             member_id: member.member_id,
             member_type: member.member_type,
             joined_at: member.joined_at,
+            bot_name: None,
+            owner_id: None,
         }
     }
 }
@@ -82,4 +87,6 @@ pub struct JoinGroupRequest {
     pub group_id: Option<String>,
     /// 群号（group_code）- 如果没有 group_id，可以用这个
     pub group_code: Option<String>,
+    /// 要加入群聊的 Bot ID，必须属于当前认证用户
+    pub bot_id: Option<String>,
 }

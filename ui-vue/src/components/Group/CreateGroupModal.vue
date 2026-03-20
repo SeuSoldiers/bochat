@@ -8,6 +8,16 @@
 
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="form-group">
+          <label for="create-group-bot">加入群聊的 Bot</label>
+          <select id="create-group-bot" v-model="form.botId" :disabled="loading">
+            <option value="">请选择 Bot</option>
+            <option v-for="bot in bots" :key="bot.bot_id" :value="bot.bot_id">
+              {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label for="group-name">群名称</label>
           <input
             id="group-name"
@@ -53,13 +63,19 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { Bot } from '@/types'
+
+defineProps<{
+  bots: Bot[]
+}>()
 
 const emit = defineEmits<{
-  create: [groupName: string, groupNumber: string]
+  create: [groupName: string, groupNumber: string, botId: string]
   close: []
 }>()
 
 const form = ref({
+  botId: '',
   groupName: '',
   groupNumber: '',
 })
@@ -72,6 +88,11 @@ const handleSubmit = async () => {
     return
   }
 
+  if (!form.value.botId) {
+    error.value = '请选择一个 Bot'
+    return
+  }
+
   if (!form.value.groupNumber.trim()) {
     error.value = '请输入群号'
     return
@@ -81,7 +102,7 @@ const handleSubmit = async () => {
   error.value = null
 
   try {
-    emit('create', form.value.groupName, form.value.groupNumber)
+    emit('create', form.value.groupName, form.value.groupNumber, form.value.botId)
   } catch (err: any) {
     error.value = err.message || '创建失败'
   } finally {
@@ -167,7 +188,23 @@ const handleSubmit = async () => {
   transition: all 0.3s ease;
 }
 
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4cfc8;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #4a4a4a;
+  background: white;
+}
+
 .form-group input:focus {
+  outline: none;
+  border-color: #8b9d83;
+  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+}
+
+.form-group select:focus {
   outline: none;
   border-color: #8b9d83;
   box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);

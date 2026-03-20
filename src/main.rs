@@ -113,6 +113,10 @@ async fn main() -> std::io::Result<()> {
                 "/api/v1/groups/{group_id}/members",
                 web::get().to(handlers::list_group_members),
             )
+            .route(
+                "/api/v1/groups/{group_id}/members/{bot_id}",
+                web::delete().to(handlers::remove_group_member),
+            )
             // Message endpoints
             .route(
                 "/api/v1/message/send",

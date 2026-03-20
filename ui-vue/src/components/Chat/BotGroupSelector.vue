@@ -1,24 +1,6 @@
 <template>
   <div class="selector-container">
     <div class="selector-section">
-      <h3>选择 Bot</h3>
-      <div v-if="bots.length > 0" class="items-list">
-        <button
-          v-for="bot in bots"
-          :key="bot.bot_id"
-          :class="['item', { active: selectedBot?.bot_id === bot.bot_id }]"
-          @click="$emit('select-bot', bot.bot_id)"
-        >
-          <span class="item-icon">🤖</span>
-          <span class="item-name">{{ bot.name }}</span>
-        </button>
-      </div>
-      <p v-else class="empty-text">没有 Bot</p>
-    </div>
-
-    <div class="divider" />
-
-    <div class="selector-section">
       <h3>选择群</h3>
       <div v-if="groups.length > 0" class="items-list">
         <button
@@ -28,7 +10,7 @@
           @click="$emit('select-group', group.group_id)"
         >
           <span class="item-icon">💬</span>
-          <span class="item-name">{{ group.group_name }}</span>
+          <span class="item-name">{{ group.name }}</span>
         </button>
       </div>
       <p v-else class="empty-text">没有群</p>
@@ -37,26 +19,20 @@
 </template>
 
 <script setup lang="ts">
-import type { Bot, Group } from '@/types'
+import type { Group } from '@/types'
 
 defineProps<{
-  bots: Bot[]
   groups: Group[]
-  selectedBot: Bot | null
   selectedGroup: Group | null
 }>()
 
 defineEmits<{
-  'select-bot': [botId: string]
   'select-group': [groupId: string]
 }>()
 </script>
 
 <style scoped>
 .selector-container {
-  display: grid;
-  grid-template-columns: 1fr 1px 1fr;
-  gap: 20px;
   padding: 15px;
   background-color: white;
   border-radius: 8px;
@@ -113,25 +89,10 @@ defineEmits<{
   white-space: nowrap;
 }
 
-.divider {
-  background-color: #e8e3dd;
-  width: 1px;
-}
-
 .empty-text {
   font-size: 12px;
   color: #cccccc;
   margin: 0;
   padding: 10px 0;
-}
-
-@media (max-width: 768px) {
-  .selector-container {
-    grid-template-columns: 1fr;
-  }
-
-  .divider {
-    display: none;
-  }
 }
 </style>

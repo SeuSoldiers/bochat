@@ -2,14 +2,19 @@
   <div :class="['group-card', { selected }]" @click="$emit('select')">
     <div class="card-header">
       <div>
-        <h3 class="group-name">{{ group.group_name }}</h3>
-        <p class="group-number">群号: {{ group.group_number }}</p>
+        <h3 class="group-name">{{ group.name }}</h3>
+        <p class="group-number">群号: {{ group.group_code || '未设置' }}</p>
       </div>
       <div class="card-actions">
         <button class="action-btn view-btn" @click.stop="$emit('view-members')" title="查看成员">
           👥
         </button>
-        <button class="action-btn delete-btn" @click.stop="$emit('delete')" title="删除">
+        <button
+          v-if="canDelete"
+          class="action-btn delete-btn"
+          @click.stop="$emit('delete')"
+          title="删除"
+        >
           🗑️
         </button>
       </div>
@@ -17,8 +22,8 @@
 
     <div class="card-footer">
       <div class="stat">
-        <span class="stat-label">成员数</span>
-        <span class="stat-value">{{ group.member_count }}</span>
+        <span class="stat-label">状态</span>
+        <span class="stat-value">{{ group.status }}</span>
       </div>
       <div class="stat">
         <span class="stat-label">创建时间</span>
@@ -34,6 +39,7 @@ import type { Group } from '@/types'
 defineProps<{
   group: Group
   selected?: boolean
+  canDelete?: boolean
 }>()
 
 defineEmits<{

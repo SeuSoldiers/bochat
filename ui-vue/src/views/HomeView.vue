@@ -5,6 +5,21 @@
 
     <!-- 主内容区 -->
     <div class="home-content">
+      <div class="page-tabs">
+        <button
+          :class="['page-tab', { active: activeTab === 'bots' }]"
+          @click="activeTab = 'bots'"
+        >
+          Bot 管理
+        </button>
+        <button
+          :class="['page-tab', { active: activeTab === 'groups' }]"
+          @click="activeTab = 'groups'"
+        >
+          群聊管理
+        </button>
+      </div>
+
       <!-- Bot 管理标签页 -->
       <section v-if="activeTab === 'bots'" class="tab-content">
         <div class="section-header">
@@ -25,8 +40,6 @@
             v-for="bot in botStore.bots"
             :key="bot.bot_id"
             :bot="bot"
-            :selected="bot.bot_id === botStore.selectedBotId"
-            @select="botStore.selectBot(bot.bot_id)"
             @delete="handleDeleteBot(bot.bot_id)"
           />
         </div>
@@ -41,7 +54,10 @@
       <!-- 群聊管理标签页 -->
       <section v-if="activeTab === 'groups'" class="tab-content">
         <div class="section-header">
-          <h2>我的群</h2>
+          <div>
+            <h2>我的群</h2>
+            <p class="section-tip">先选群，再在弹窗里选择你的 Bot 来加群或退群</p>
+          </div>
           <div class="actions">
             <button class="btn btn-primary" @click="showCreateGroupModal = true">
               + 创建群
@@ -64,6 +80,7 @@
             :key="group.group_id"
             :group="group"
             :selected="group.group_id === groupStore.selectedGroupId"
+            :can-delete="group.creator_id === authStore.userId"
             @select="groupStore.selectGroup(group.group_id)"
             @delete="handleDeleteGroup(group.group_id)"
             @view-members="showGroupMembers(group.group_id)"
@@ -88,6 +105,7 @@
     <!-- 创建群模态框 -->
     <CreateGroupModal
       v-if="showCreateGroupModal"
+      :bots="botStore.bots"
       @create="handleCreateGroup"
       @close="showCreateGroupModal = false"
     />
@@ -95,6 +113,7 @@
     <!-- 加入群模态框 -->
     <JoinGroupModal
       v-if="showJoinGroupModal"
+      :bots="botStore.bots"
       @join="handleJoinGroup"
       @close="showJoinGroupModal = false"
     />
@@ -104,6 +123,10 @@
       v-if="showMembersModal && selectedGroupForMembers"
       :group="selectedGroupForMembers"
       :members="groupStore.groupMembers[selectedGroupForMembers.group_id] || []"
+      :owned-bots="botStore.bots"
+      :loading="groupStore.loading"
+      @add-bot="handleAddBotToGroup"
+      @remove-bot="handleRemoveBotFromGroup"
       @close="showMembersModal = false"
     />
   </div>
@@ -113,6 +136,7 @@
 import { ref, onMounted } from 'vue'
 import { useBotStore } from '@/stores/bots'
 import { useGroupStore } from '@/stores/groups'
+import { useAuthStore } from '@/stores/auth'
 import TopNav from '@/components/Common/TopNav.vue'
 import BotCard from '@/components/Bot/BotCard.vue'
 import GroupCard from '@/components/Group/GroupCard.vue'
@@ -120,20 +144,21 @@ import CreateBotModal from '@/components/Bot/CreateBotModal.vue'
 import CreateGroupModal from '@/components/Group/CreateGroupModal.vue'
 import JoinGroupModal from '@/components/Group/JoinGroupModal.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
+import type { Group } from '@/types'
 
 const botStore = useBotStore()
 const groupStore = useGroupStore()
+const authStore = useAuthStore()
 
 const activeTab = ref<'bots' | 'groups'>('bots')
 const showCreateBotModal = ref(false)
 const showCreateGroupModal = ref(false)
 const showJoinGroupModal = ref(false)
 const showMembersModal = ref(false)
-const selectedGroupForMembers = ref<any>(null)
+const selectedGroupForMembers = ref<Group | null>(null)
 
 // 初始化
 onMounted(() => {
-  botStore.initializeSelectedBot()
   groupStore.initializeSelectedGroup()
   botStore.fetchBots()
   groupStore.fetchGroups()
@@ -161,9 +186,9 @@ const handleDeleteBot = async (botId: string) => {
 }
 
 // 创建群
-const handleCreateGroup = async (groupName: string, groupNumber: string) => {
+const handleCreateGroup = async (groupName: string, groupNumber: string, botId: string) => {
   try {
-    await groupStore.addGroup({ group_name: groupName, group_number: groupNumber })
+    await groupStore.addGroup({ name: groupName, group_code: groupNumber, bot_id: botId })
     showCreateGroupModal.value = false
   } catch (error) {
     console.error('Failed to create group:', error)
@@ -182,9 +207,9 @@ const handleDeleteGroup = async (groupId: string) => {
 }
 
 // 加入群
-const handleJoinGroup = async (groupNumber: string) => {
+const handleJoinGroup = async (groupNumber: string, botId: string) => {
   try {
-    await groupStore.joinGroupByNumber(groupNumber)
+    await groupStore.joinGroupByNumber(groupNumber, botId)
     showJoinGroupModal.value = false
     await groupStore.fetchGroups()
   } catch (error) {
@@ -199,6 +224,30 @@ const showGroupMembers = async (groupId: string) => {
     selectedGroupForMembers.value = group
     await groupStore.fetchGroupMembers(groupId)
     showMembersModal.value = true
+  }
+}
+
+const handleAddBotToGroup = async (botId: string) => {
+  if (!selectedGroupForMembers.value) {
+    return
+  }
+
+  try {
+    await groupStore.addBotToGroup(selectedGroupForMembers.value.group_id, botId)
+  } catch (error) {
+    console.error('Failed to add bot to group:', error)
+  }
+}
+
+const handleRemoveBotFromGroup = async (botId: string) => {
+  if (!selectedGroupForMembers.value) {
+    return
+  }
+
+  try {
+    await groupStore.removeBotFromGroup(selectedGroupForMembers.value.group_id, botId)
+  } catch (error) {
+    console.error('Failed to remove bot from group:', error)
   }
 }
 </script>
@@ -216,6 +265,33 @@ const showGroupMembers = async (groupId: string) => {
   background-color: #f5f3f1;
 }
 
+.page-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  margin-bottom: 24px;
+  background: white;
+  border: 1px solid #d4cfc8;
+  border-radius: 10px;
+}
+
+.page-tab {
+  border: none;
+  background: transparent;
+  color: #888888;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-tab.active {
+  background-color: #8b9d83;
+  color: white;
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -227,6 +303,12 @@ const showGroupMembers = async (groupId: string) => {
   font-size: 24px;
   font-weight: 600;
   color: #4a4a4a;
+}
+
+.section-tip {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #888888;
 }
 
 .actions {
@@ -300,6 +382,15 @@ const showGroupMembers = async (groupId: string) => {
 @media (max-width: 768px) {
   .home-content {
     padding: 20px;
+  }
+
+  .page-tabs {
+    display: flex;
+    width: 100%;
+  }
+
+  .page-tab {
+    flex: 1;
   }
 
   .section-header {

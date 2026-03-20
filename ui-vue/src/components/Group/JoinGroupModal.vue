@@ -8,6 +8,16 @@
 
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="form-group">
+          <label for="join-group-bot">加入群聊的 Bot</label>
+          <select id="join-group-bot" v-model="botId" :disabled="loading">
+            <option value="">请选择 Bot</option>
+            <option v-for="bot in bots" :key="bot.bot_id" :value="bot.bot_id">
+              {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label for="group-number">群号</label>
           <input
             id="group-number"
@@ -38,17 +48,28 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { Bot } from '@/types'
+
+defineProps<{
+  bots: Bot[]
+}>()
 
 const emit = defineEmits<{
-  join: [groupNumber: string]
+  join: [groupNumber: string, botId: string]
   close: []
 }>()
 
 const groupNumber = ref('')
+const botId = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
 
 const handleSubmit = async () => {
+  if (!botId.value) {
+    error.value = '请选择一个 Bot'
+    return
+  }
+
   if (!groupNumber.value.trim()) {
     error.value = '请输入群号'
     return
@@ -58,7 +79,7 @@ const handleSubmit = async () => {
   error.value = null
 
   try {
-    emit('join', groupNumber.value)
+    emit('join', groupNumber.value, botId.value)
   } catch (err: any) {
     error.value = err.message || '加入失败'
   } finally {
@@ -138,7 +159,23 @@ const handleSubmit = async () => {
   color: #4a4a4a;
 }
 
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4cfc8;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #4a4a4a;
+  background: white;
+}
+
 .form-group input:focus {
+  outline: none;
+  border-color: #8b9d83;
+  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+}
+
+.form-group select:focus {
   outline: none;
   border-color: #8b9d83;
   box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);

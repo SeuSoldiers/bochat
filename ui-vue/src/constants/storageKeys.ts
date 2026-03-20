@@ -7,9 +7,6 @@ export const STORAGE_KEYS = {
   TOKEN: 'bot_token',
   USER: 'user',
 
-  // Bot 相关
-  SELECTED_BOT_ID: 'selectedBotId',
-
   // 群组相关
   SELECTED_GROUP_ID: 'selectedGroupId',
   CURRENT_GROUP_ID: 'currentGroupId',

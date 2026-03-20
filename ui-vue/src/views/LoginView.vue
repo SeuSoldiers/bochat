@@ -24,6 +24,19 @@
         </div>
 
         <!-- 手机号输入 -->
+        <div v-if="!isLogin" class="form-group">
+          <label for="name">姓名</label>
+          <input
+            id="name"
+            v-model="form.name"
+            type="text"
+            placeholder="请输入真实姓名"
+            required
+            :disabled="loading"
+          />
+        </div>
+
+        <!-- 手机号输入 -->
         <div class="form-group">
           <label for="phone">手机号</label>
           <input
@@ -75,6 +88,7 @@ const authStore = useAuthStore()
 const isLogin = ref(true)
 const loading = ref(false)
 const form = ref({
+  name: '',
   phone: '',
   idNumber: '',
 })
@@ -88,13 +102,14 @@ const handleSubmit = async () => {
     if (isLogin.value) {
       await authStore.handleLogin(form.value.phone, form.value.idNumber)
     } else {
-      await authStore.handleRegister(form.value.phone, form.value.idNumber)
+      await authStore.handleRegister(form.value.name, form.value.phone, form.value.idNumber)
     }
 
     // 等待 router 导航完成
     await router.push('/home')
 
     // 导航成功后，清空表单
+    form.value.name = ''
     form.value.phone = ''
     form.value.idNumber = ''
   } catch (err: any) {
