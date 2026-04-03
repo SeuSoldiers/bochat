@@ -1,6 +1,6 @@
 pub mod authz;
-pub mod bot;
 pub mod bootstrap;
+pub mod bot;
 pub mod file;
 pub mod message;
 

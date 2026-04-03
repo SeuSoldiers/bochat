@@ -1,8 +1,14 @@
 use crate::models::ApiErrorResponse;
 use thiserror::Error;
 
+/// Common result type used by the SDK.
+///
+/// SDK 使用的统一结果类型。
 pub type SdkResult<T> = Result<T, SdkError>;
 
+/// Error type returned by the SDK.
+///
+/// SDK 返回的错误类型。
 #[derive(Debug, Error)]
 pub enum SdkError {
     #[error("请求构建失败: {0}")]
@@ -39,6 +45,9 @@ pub enum SdkError {
 }
 
 impl SdkError {
+    /// Convert a structured backend API error into an SDK error.
+    ///
+    /// 将后端结构化 API 错误转换为 SDK 错误。
     pub fn from_api(value: ApiErrorResponse) -> Self {
         Self::Api {
             code: value.code,

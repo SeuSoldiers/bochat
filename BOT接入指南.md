@@ -40,6 +40,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
 - `password` 必填，长度 `8-64`，必须包含字母和数字，仅支持可见 ASCII 字符
 - `name` 为可选昵称，不填会默认生成随机昵称
 - 认证与用户资料接口不再返回用户内部 `id`
+- 注册成功时会自动创建一个默认 Bot
 
 登录响应里的关键字段：
 
@@ -157,6 +158,11 @@ curl -X POST "$BASE_URL/api/v1/groups/join" \
   }'
 ```
 
+补充：
+
+- `group_id` 和 `group_code` 二选一即可
+- `bot_id` 可省略；省略时后端会自动选择当前用户最早创建的活跃 Bot
+
 ### 退群
 
 管理接口下建议传 user token，并显式指定 bot_id：
@@ -193,7 +199,8 @@ curl -X POST "$BASE_URL/api/v1/message/send" \
 
 - 必须传 `idempotency_key`（幂等键）
 - 发送 Bot 由请求头里的 `BOT_TOKEN` 决定
-- 最终发送 Bot 必须已经在群里
+- 请求体中不要再传 `bot_id`
+- 最终发送 Bot 必须已经在群里，除非该 Bot 有全局群访问权限
 
 ## 7. 拉取历史消息
 
@@ -243,6 +250,12 @@ curl -X POST "$BASE_URL/api/v1/file/upload" \
 
 响应中的 `url` 可以直接写回 Bot 的 `avatar_url`。
 
+文件下载地址格式为：
+
+```text
+http://127.0.0.1:8080/api/v1/file/download/{file_id}/{filename}
+```
+
 ## 10. Python 示例
 
 ```python
@@ -257,14 +270,13 @@ headers = {
     "Content-Type": "application/json",
 }
 
-def send_group_message(group_id: str, text: str, bot_id: str | None = None) -> dict:
+def send_group_message(group_id: str, text: str) -> dict:
     payload = {
         "group_id": group_id,
         "content": {"text": text},
         "msg_type": "text",
+        "idempotency_key": f"py-demo-{group_id}",
     }
-    if bot_id:
-        payload["bot_id"] = bot_id
 
     response = requests.post(
         f"{BASE_URL}/api/v1/message/send",
@@ -275,6 +287,12 @@ def send_group_message(group_id: str, text: str, bot_id: str | None = None) -> d
     response.raise_for_status()
     return response.json()
 ```
+
+说明：
+
+- 当前发送消息接口不接受请求体里的 `bot_id`
+- 实际发送身份完全由 `Authorization: Bearer {BOT_TOKEN}` 决定
+- `idempotency_key` 为必填，生产环境应使用真正唯一的业务键
 
 ## 11. 安全建议
 

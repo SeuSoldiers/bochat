@@ -1,5 +1,12 @@
 use std::time::Duration;
 
+/// Retry policy for retryable HTTP requests.
+///
+/// 可重试 HTTP 请求使用的重试策略。
+///
+/// The SDK currently retries only safe/idempotent methods such as `GET`.
+///
+/// 目前 SDK 只会对 `GET` 等安全/幂等方法执行自动重试。
 #[derive(Debug, Clone)]
 pub struct RetryPolicy {
     pub max_attempts: usize,
@@ -18,12 +25,18 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
+    /// Compute the next exponential backoff delay.
+    ///
+    /// 计算下一次指数退避等待时间。
     pub fn next_delay(&self, attempt: usize) -> Duration {
         let exp = 1u64 << attempt.min(8);
         let delay = self.base_delay.saturating_mul(exp as u32);
         delay.min(self.max_delay)
     }
 
+    /// Whether the HTTP method is safe to retry automatically.
+    ///
+    /// 当前 HTTP 方法是否适合自动重试。
     pub fn should_retry_method(method: &reqwest::Method) -> bool {
         matches!(
             *method,
@@ -31,6 +44,9 @@ impl RetryPolicy {
         )
     }
 
+    /// Whether the response status should trigger a retry.
+    ///
+    /// 当前响应状态码是否应该触发重试。
     pub fn should_retry_status(status: reqwest::StatusCode) -> bool {
         status.is_server_error() || status.as_u16() == 429
     }

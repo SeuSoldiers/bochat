@@ -5,6 +5,9 @@ use crate::client::{AuthKind, BochatClient};
 use crate::error::{SdkError, SdkResult};
 use crate::models::UploadedFile;
 
+/// File upload and file URL helper API facade.
+///
+/// 文件上传与文件 URL 辅助 API 门面。
 #[derive(Clone)]
 pub struct FilesApi {
     client: BochatClient,
@@ -15,6 +18,9 @@ impl FilesApi {
         Self { client }
     }
 
+    /// Upload in-memory bytes as a file.
+    ///
+    /// 上传内存中的字节数据为文件。
     pub async fn upload_bytes(
         &self,
         filename: impl Into<String>,
@@ -35,6 +41,9 @@ impl FilesApi {
             .await
     }
 
+    /// Upload a local file from disk.
+    ///
+    /// 从本地磁盘路径上传文件。
     pub async fn upload_path(
         &self,
         path: impl AsRef<std::path::Path>,
@@ -53,6 +62,13 @@ impl FilesApi {
         self.upload_bytes(filename, bytes, mime).await
     }
 
+    /// Build the public download URL for a file.
+    ///
+    /// 构造文件的公开下载 URL。
+    ///
+    /// The current backend requires both `file_id` and `filename` in the path.
+    ///
+    /// 当前后端要求下载路径中同时带上 `file_id` 和 `filename`。
     pub fn download_url(&self, file_id: &str, filename: &str) -> String {
         format!(
             "{}/api/v1/file/download/{}/{}",
@@ -62,6 +78,9 @@ impl FilesApi {
         )
     }
 
+    /// Delete a file uploaded by the current bot.
+    ///
+    /// 删除当前 Bot 上传过的文件。
     pub async fn delete(&self, file_id: &str) -> SdkResult<()> {
         self.client
             .request_empty(

@@ -17,6 +17,14 @@ use crate::retry::RetryPolicy;
 #[cfg(feature = "ws")]
 use crate::ws::WsSessionBuilder;
 
+/// Shared BoChat client for HTTP APIs and optional WebSocket sessions.
+///
+/// 用于访问 HTTP API 和可选 WebSocket 会话的共享客户端。
+///
+/// The client stores user and bot tokens internally so that different API
+/// modules can reuse the same authenticated context.
+///
+/// 客户端会在内部保存用户 token 与 Bot token，方便不同 API 模块共享同一认证上下文。
 #[derive(Clone)]
 pub struct BochatClient {
     inner: Arc<ClientInner>,
@@ -37,6 +45,9 @@ pub(crate) enum AuthKind {
     Bot,
 }
 
+/// Builder for [`BochatClient`].
+///
+/// [`BochatClient`] 的构建器。
 pub struct BochatClientBuilder {
     base_url: String,
     timeout_secs: u64,
@@ -47,6 +58,11 @@ pub struct BochatClientBuilder {
 }
 
 impl BochatClientBuilder {
+    /// Create a builder from the BoChat server base URL.
+    ///
+    /// 以 BoChat 服务基础地址创建构建器。
+    ///
+    /// Example / 示例: `http://127.0.0.1:8080`
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into(),
@@ -58,31 +74,49 @@ impl BochatClientBuilder {
         }
     }
 
+    /// Set the HTTP timeout in seconds.
+    ///
+    /// 设置 HTTP 请求超时时间，单位为秒。
     pub fn timeout_secs(mut self, timeout_secs: u64) -> Self {
         self.timeout_secs = timeout_secs;
         self
     }
 
+    /// Override the `User-Agent` header used by outgoing HTTP requests.
+    ///
+    /// 覆盖 SDK 发起 HTTP 请求时使用的 `User-Agent`。
     pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
         self.user_agent = user_agent.into();
         self
     }
 
+    /// Preload a user token.
+    ///
+    /// 预先写入用户 token。
     pub fn user_token(mut self, token: impl Into<String>) -> Self {
         self.user_token = Some(token.into());
         self
     }
 
+    /// Preload a bot token.
+    ///
+    /// 预先写入 Bot token。
     pub fn bot_token(mut self, token: impl Into<String>) -> Self {
         self.bot_token = Some(token.into());
         self
     }
 
+    /// Configure retry behavior for retryable requests.
+    ///
+    /// 配置可重试请求的重试策略。
     pub fn retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
         self.retry_policy = retry_policy;
         self
     }
 
+    /// Build the client and validate the base URL format.
+    ///
+    /// 构建客户端，并校验基础 URL 格式。
     pub fn build(self) -> SdkResult<BochatClient> {
         let base_url = self.base_url.trim_end_matches('/').to_string();
         let http = reqwest::Client::builder()
@@ -104,51 +138,87 @@ impl BochatClientBuilder {
 }
 
 impl BochatClient {
+    /// Start building a client from the BoChat server base URL.
+    ///
+    /// 从 BoChat 服务基础地址开始构建客户端。
     pub fn builder(base_url: impl Into<String>) -> BochatClientBuilder {
         BochatClientBuilder::new(base_url)
     }
 
+    /// Access authentication and user-profile APIs.
+    ///
+    /// 访问认证与用户资料 API。
     pub fn auth(&self) -> AuthApi {
         AuthApi::new(self.clone())
     }
 
+    /// Access Bot management APIs.
+    ///
+    /// 访问 Bot 管理 API。
     pub fn bots(&self) -> BotsApi {
         BotsApi::new(self.clone())
     }
 
+    /// Access message sending and history APIs.
+    ///
+    /// 访问消息发送与历史查询 API。
     pub fn messages(&self) -> MessagesApi {
         MessagesApi::new(self.clone())
     }
 
+    /// Access group management APIs.
+    ///
+    /// 访问群管理 API。
     pub fn groups(&self) -> GroupsApi {
         GroupsApi::new(self.clone())
     }
 
+    /// Access file upload/download helper APIs.
+    ///
+    /// 访问文件上传与下载辅助 API。
     pub fn files(&self) -> FilesApi {
         FilesApi::new(self.clone())
     }
 
     #[cfg(feature = "ws")]
+    /// Create a WebSocket session builder.
+    ///
+    /// 创建 WebSocket 会话构建器。
     pub fn ws(&self) -> WsSessionBuilder {
         WsSessionBuilder::new(self.clone())
     }
 
+    /// Replace the stored user token.
+    ///
+    /// 替换当前保存的用户 token。
     pub async fn set_user_token(&self, token: Option<String>) {
         *self.inner.user_token.write().await = token;
     }
 
+    /// Replace the stored bot token.
+    ///
+    /// 替换当前保存的 Bot token。
     pub async fn set_bot_token(&self, token: Option<String>) {
         *self.inner.bot_token.write().await = token;
     }
 
+    /// Read the currently stored user token.
+    ///
+    /// 读取当前保存的用户 token。
     pub async fn user_token(&self) -> Option<String> {
         self.inner.user_token.read().await.clone()
     }
 
+    /// Read the currently stored bot token.
+    ///
+    /// 读取当前保存的 Bot token。
     pub async fn bot_token(&self) -> Option<String> {
         self.inner.bot_token.read().await.clone()
     }
 
+    /// Return the configured base URL.
+    ///
+    /// 返回当前配置的基础 URL。
     pub fn base_url(&self) -> &str {
         &self.inner.base_url
     }

@@ -12,6 +12,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+/// Builder for an advanced WebSocket session.
+///
+/// 高级 WebSocket 会话构建器。
+///
+/// It supports automatic reconnect, heartbeat pings, and buffered event
+/// delivery.
+///
+/// 支持自动重连、心跳 ping，以及带缓冲的事件投递。
 pub struct WsSessionBuilder {
     client: BochatClient,
     bot_token: Option<String>,
@@ -37,36 +45,57 @@ impl WsSessionBuilder {
         }
     }
 
+    /// Override the bot token used for the WebSocket connection.
+    ///
+    /// 覆盖 WebSocket 连接使用的 Bot token。
     pub fn bot_token(mut self, token: impl Into<String>) -> Self {
         self.bot_token = Some(token.into());
         self
     }
 
+    /// Enable or disable automatic reconnect.
+    ///
+    /// 启用或关闭自动重连。
     pub fn auto_reconnect(mut self, auto_reconnect: bool) -> Self {
         self.auto_reconnect = auto_reconnect;
         self
     }
 
+    /// Set the maximum reconnect attempts.
+    ///
+    /// 设置最大重连次数。
     pub fn reconnect_max_attempts(mut self, reconnect_max_attempts: usize) -> Self {
         self.reconnect_max_attempts = reconnect_max_attempts;
         self
     }
 
+    /// Set the ping heartbeat interval.
+    ///
+    /// 设置 ping 心跳发送间隔。
     pub fn heartbeat_interval(mut self, heartbeat_interval: Duration) -> Self {
         self.heartbeat_interval = heartbeat_interval;
         self
     }
 
+    /// Set the timeout used to detect stale connections.
+    ///
+    /// 设置判定连接失活的超时时间。
     pub fn heartbeat_timeout(mut self, heartbeat_timeout: Duration) -> Self {
         self.heartbeat_timeout = heartbeat_timeout;
         self
     }
 
+    /// Set the event channel buffer size.
+    ///
+    /// 设置事件通道缓冲区大小。
     pub fn event_buffer(mut self, event_buffer: usize) -> Self {
         self.event_buffer = event_buffer.max(1);
         self
     }
 
+    /// Finalize the session configuration.
+    ///
+    /// 完成会话配置并构建会话对象。
     pub async fn build(self) -> SdkResult<WsSession> {
         let token = if let Some(token) = self.bot_token {
             token
@@ -90,6 +119,9 @@ impl WsSessionBuilder {
     }
 }
 
+/// Configured WebSocket session that can be spawned into a background task.
+///
+/// 已配置的 WebSocket 会话，可启动为后台任务。
 pub struct WsSession {
     client: BochatClient,
     bot_token: String,
@@ -101,6 +133,9 @@ pub struct WsSession {
     event_buffer: usize,
 }
 
+/// Handle returned after spawning a WebSocket session.
+///
+/// 启动 WebSocket 会话后返回的控制句柄。
 pub struct WsSessionHandle {
     pub events: mpsc::Receiver<WsEvent>,
     shutdown_tx: watch::Sender<bool>,
@@ -108,10 +143,16 @@ pub struct WsSessionHandle {
 }
 
 impl WsSessionHandle {
+    /// Signal the background task to stop.
+    ///
+    /// 通知后台任务停止。
     pub fn shutdown(&self) {
         let _ = self.shutdown_tx.send(true);
     }
 
+    /// Return the latest known group list from the connection payload.
+    ///
+    /// 返回最近一次连接事件中携带的群列表。
     pub fn available_groups(&self) -> Vec<String> {
         self.connection_rx
             .borrow()
@@ -120,6 +161,9 @@ impl WsSessionHandle {
             .unwrap_or_default()
     }
 
+    /// Wait until the initial `connection` payload is received.
+    ///
+    /// 等待收到初始 `connection` 事件载荷。
     pub async fn wait_connection_payload(&mut self) -> SdkResult<WsConnectionPayload> {
         if let Some(v) = self.connection_rx.borrow().clone() {
             return Ok(v);
@@ -137,6 +181,9 @@ impl WsSessionHandle {
         }
     }
 
+    /// Receive the next message event for a specific group.
+    ///
+    /// 接收指定群的下一条消息事件。
     pub async fn recv_message_for_group(&mut self, group_id: &str) -> Option<WsEvent> {
         while let Some(event) = self.events.recv().await {
             if event.event_type == "message" && event.group_id() == Some(group_id) {
@@ -146,11 +193,17 @@ impl WsSessionHandle {
         None
     }
 
+    /// Convert the raw handle into a dispatcher with subscription helpers.
+    ///
+    /// 将原始句柄转换为带订阅辅助能力的分发器。
     pub fn into_dispatcher(self) -> WsDispatcher {
         WsDispatcher::new(self)
     }
 }
 
+/// Message dispatcher built on top of [`WsSessionHandle`].
+///
+/// 构建在 [`WsSessionHandle`] 之上的消息分发器。
 pub struct WsDispatcher {
     group_subscribers: Arc<Mutex<HashMap<String, Vec<mpsc::Sender<WsEvent>>>>>,
     fallback_subscribers: Arc<Mutex<Vec<mpsc::Sender<WsEvent>>>>,
@@ -235,6 +288,10 @@ impl WsDispatcher {
         }
     }
 
+    /// Register a default callback for messages that are not consumed by a
+    /// group-specific handler or subscriber.
+    ///
+    /// 注册默认回调，用于处理未被群级处理器或订阅器消费的消息。
     pub async fn default_handler<F>(&self, handler: F) -> &Self
     where
         F: Fn(&WsEvent) + Send + Sync + 'static,
@@ -244,6 +301,9 @@ impl WsDispatcher {
         self
     }
 
+    /// Register a callback for a specific group.
+    ///
+    /// 为指定群注册回调函数。
     pub async fn group_handler<F>(&self, group_id: impl Into<String>, handler: F) -> &Self
     where
         F: Fn(&WsEvent) + Send + Sync + 'static,
@@ -253,10 +313,16 @@ impl WsDispatcher {
         self
     }
 
+    /// Signal the dispatcher and its underlying session to stop.
+    ///
+    /// 通知分发器及其底层会话停止。
     pub fn shutdown(&self) {
         let _ = self.shutdown_tx.send(true);
     }
 
+    /// Return the latest known group list.
+    ///
+    /// 返回最近一次连接事件中的群列表。
     pub fn available_groups(&self) -> Vec<String> {
         self.connection_rx
             .borrow()
@@ -265,6 +331,9 @@ impl WsDispatcher {
             .unwrap_or_default()
     }
 
+    /// Wait for the initial connection payload.
+    ///
+    /// 等待初始连接事件载荷。
     pub async fn wait_connection_payload(&mut self) -> SdkResult<WsConnectionPayload> {
         if let Some(v) = self.connection_rx.borrow().clone() {
             return Ok(v);
@@ -282,6 +351,9 @@ impl WsDispatcher {
         }
     }
 
+    /// Subscribe to messages for one specific group.
+    ///
+    /// 订阅某个指定群的消息。
     pub async fn subscribe_group(
         &self,
         group_id: impl Into<String>,
@@ -293,6 +365,9 @@ impl WsDispatcher {
         rx
     }
 
+    /// Subscribe to unmatched message events.
+    ///
+    /// 订阅未命中任何群专属通道的消息事件。
     pub async fn subscribe_fallback(&self, buffer: usize) -> mpsc::Receiver<WsEvent> {
         let (tx, rx) = mpsc::channel(buffer.max(1));
         let mut fallback = self.fallback_subscribers.lock().await;
@@ -300,6 +375,9 @@ impl WsDispatcher {
         rx
     }
 
+    /// Subscribe to every message event before group routing.
+    ///
+    /// 在群路由前订阅全部消息事件。
     pub async fn subscribe_all_messages(&self, buffer: usize) -> mpsc::Receiver<WsEvent> {
         let (tx, rx) = mpsc::channel(buffer.max(1));
         let mut list = self.all_message_subscribers.lock().await;
@@ -309,6 +387,10 @@ impl WsDispatcher {
 }
 
 impl WsSession {
+    /// Build the concrete WebSocket URL from the configured base URL and bot
+    /// token.
+    ///
+    /// 基于当前基础 URL 和 Bot token 构造具体的 WebSocket 连接地址。
     pub fn websocket_url(&self) -> SdkResult<String> {
         let base = self.client.base_url();
         let ws_base = if let Some(rest) = base.strip_prefix("https://") {
@@ -322,6 +404,9 @@ impl WsSession {
         Ok(format!("{}/ws?token={}", ws_base, self.bot_token))
     }
 
+    /// Spawn the WebSocket session into a background task and return a handle.
+    ///
+    /// 将 WebSocket 会话启动为后台任务并返回控制句柄。
     pub async fn spawn(self) -> SdkResult<WsSessionHandle> {
         let url = self.websocket_url()?;
         let (events_tx, events_rx) = mpsc::channel(self.event_buffer);

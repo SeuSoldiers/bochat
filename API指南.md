@@ -1,15 +1,15 @@
 # 聊天平台 API 指南
 
-本文档以当前后端实现为准。
+本文档已按当前后端代码实现同步更新，基于仓库内路由与处理器行为整理。
 
 ## 基础信息
 
 - Base URL: `http://127.0.0.1:8080`
 - WebSocket: `ws://127.0.0.1:8080/ws?token={bot_token}`
-- 管理接口鉴权：`Authorization: Bearer {user_token}`
-- 聊天与消息流鉴权：`Authorization: Bearer {bot_token}`
+- 用户管理类接口鉴权：`Authorization: Bearer {user_token}`
+- Bot 消息类接口鉴权：`Authorization: Bearer {bot_token}`
 
-错误响应统一格式：
+统一错误响应：
 
 ```json
 {
@@ -19,7 +19,7 @@
 }
 ```
 
-## 1. 认证
+## 1. 认证与用户
 
 ### 1.1 注册
 
@@ -35,13 +35,13 @@
 }
 ```
 
-说明：
+规则：
 
 - `account` 必填，长度 `4-32`，仅支持字母、数字、下划线
 - `password` 必填，长度 `8-64`，必须包含字母和数字，仅支持可见 ASCII 字符
-- `name` 为可选昵称，可省略；后端会回退生成 `用户-xxxxxxxx` 形式的默认昵称
-- 注册成功时会自动创建一个默认 Bot
-- 接口会直接返回用户级 `token`
+- `name` 可选；为空或省略时，后端自动生成 `用户-xxxxxxxx`
+- 注册成功后会自动创建一个默认 Bot
+- 返回用户级 token，不返回内部 `user_id`
 
 响应：
 
@@ -81,9 +81,8 @@
 
 说明：
 
-- 这里返回的是用户级临时 token
-- Bot token 需要后续通过 `GET /api/v1/bots` 获取
-- 认证与用户资料接口不会返回用户内部 `user_id`
+- 返回的是用户级 token
+- Bot token 需要后续调用 `GET /api/v1/bots` 获取
 
 ### 1.3 获取当前用户信息
 
@@ -110,16 +109,47 @@
 ```json
 {
   "name": "新的昵称",
-  "password": "NewPassw0rd!"
+  "password": "NewPassw0rd!",
+  "phone": "",
+  "avatar_url": ""
 }
 ```
 
+规则：
+
+- `name` 可选，但如果传入则不能为空字符串
+- `password` 可选；若传入，需满足与注册相同的密码规则
+- `phone` / `avatar_url` 可选；传空字符串会清空该值
+
+响应：
+
+```json
+{
+  "message": "用户信息更新成功",
+  "name": "新的昵称",
+  "phone": null,
+  "avatar_url": null,
+  "created_at": "2026-03-20T10:00:00Z",
+  "updated_at": "2026-03-20T12:30:00Z"
+}
+```
+
+### 1.5 删除当前用户
+
+`DELETE /api/v1/users/delete`
+
 说明：
 
-- `name` 可修改，但不能为空字符串
-- `password` 可选；传入时会更新密码哈希，需满足注册同等密码规则
-- `phone` 与 `avatar_url` 仍可选传（兼容字段）
-- 当前前端个人信息页默认仅修改昵称与密码
+- 需要 user token
+- 会删除当前用户及其名下全部 Bot
+
+响应：
+
+```json
+{
+  "message": "用户账户已删除"
+}
+```
 
 ## 2. Bot 接口
 
@@ -154,9 +184,14 @@
 }
 ```
 
-### 2.2 列出当前用户的 Bot
+### 2.2 列出 Bot
 
 `GET /api/v1/bots`
+
+说明：
+
+- 普通用户仅看到自己名下 Bot
+- 超级管理员可看到所有 Bot
 
 响应：
 
@@ -184,8 +219,8 @@
 
 说明：
 
-- 这是公开接口
-- 可用于聊天页点击头像查看 Bot 简要信息
+- 公开接口
+- 返回单个 Bot 信息
 
 ### 2.4 更新 Bot
 
@@ -203,7 +238,8 @@
 
 权限：
 
-- 只能更新自己名下的 Bot
+- 仅 Bot 所有者可更新
+- 超级管理员可跨用户管理
 
 ### 2.5 删除 Bot
 
@@ -211,7 +247,17 @@
 
 权限：
 
-- 只能删除自己名下的 Bot
+- 仅 Bot 所有者可删除
+- 超级管理员可跨用户管理
+
+响应：
+
+```json
+{
+  "message": "Bot 删除成功",
+  "bot_id": "b_xxx"
+}
+```
 
 ## 3. 群聊接口
 
@@ -230,12 +276,28 @@
 }
 ```
 
-说明：
+规则：
 
+- `name` 必填
 - `bot_id` 可选
-- 若传入，则创建群后自动把这个 Bot 拉入群
-- 若不传，则后端会选择当前用户最早创建的可用 Bot 自动入群
-- `bot_id` 必须属于当前用户
+- 如果传入 `bot_id`，该 Bot 会在建群后自动入群
+- 如果省略 `bot_id`，后端会自动选择当前用户最早创建的活跃 Bot 入群
+- `bot_id` 必须属于当前用户；超级管理员可代管
+
+响应：
+
+```json
+{
+  "group_id": "g_xxx",
+  "group_code": "TECH001",
+  "creator_id": "u_xxx",
+  "name": "技术讨论组",
+  "description": "讨论技术问题",
+  "status": "active",
+  "created_at": "2026-03-20T10:00:00Z",
+  "updated_at": "2026-03-20T10:00:00Z"
+}
+```
 
 ### 3.2 查询当前用户可见的群
 
@@ -245,6 +307,7 @@
 
 - 自己创建的群
 - 或自己名下任意 Bot 已加入的群
+- 超级管理员可见全部群
 
 响应：
 
@@ -269,11 +332,16 @@
 
 `GET /api/v1/groups/:group_id`
 
+说明：
+
+- 当前实现为公开读取接口
+- 群不存在时返回 `400`，消息文本为 `Group not found`
+
 ### 3.4 加群
 
 `POST /api/v1/groups/join`
 
-请求可以二选一：
+请求支持两种方式，且 `bot_id` 可选：
 
 ```json
 {
@@ -282,7 +350,7 @@
 }
 ```
 
-或
+或：
 
 ```json
 {
@@ -291,27 +359,60 @@
 }
 ```
 
-权限：
+规则：
 
-- 只能操作自己名下的 Bot
+- `group_id` 与 `group_code` 至少提供一个
+- `bot_id` 可选；省略时后端会选择当前用户最早创建的活跃 Bot
+- 只能操作自己名下的 Bot；超级管理员可代管
+
+响应：
+
+```json
+{
+  "message": "成功加入群聊",
+  "group_id": "g_xxx",
+  "bot_id": "b_xxx"
+}
+```
 
 ### 3.5 退群
 
-`DELETE /api/v1/groups/:group_id/leave`
+`DELETE /api/v1/groups/:group_id/leave?bot_id=b_xxx`
 
-说明：
+规则：
 
-- 需要用户 token
-- 通过查询参数显式指定要退群的 Bot，例如 `?bot_id=b_xxx`
-- 只能让自己名下的 Bot 退群
+- 必须使用 user token
+- 查询参数 `bot_id` 为必填
+- 只能让自己名下的 Bot 退群；超级管理员可代管
+
+响应：
+
+```json
+{
+  "message": "Successfully left group",
+  "group_id": "g_xxx",
+  "bot_id": "b_xxx"
+}
+```
 
 ### 3.6 移除指定 Bot
 
 `DELETE /api/v1/groups/:group_id/members/:bot_id`
 
-权限：
+规则：
 
-- 只能移除自己名下的 Bot
+- 必须使用 user token
+- 只能移除自己名下的 Bot；超级管理员可代管
+
+响应：
+
+```json
+{
+  "message": "Bot removed from group successfully",
+  "group_id": "g_xxx",
+  "bot_id": "b_xxx"
+}
+```
 
 ### 3.7 查询群成员
 
@@ -319,7 +420,9 @@
 
 权限：
 
-- 仅群创建者，或自己名下已有 Bot 在群内时可查看
+- 群创建者可查看
+- 自己名下已有 Bot 在群内时可查看
+- 超级管理员可查看
 
 响应：
 
@@ -342,9 +445,20 @@
 
 `DELETE /api/v1/groups/:group_id`
 
-权限：
+规则：
 
-- 只能删除自己创建的群
+- 仅群创建者可删除
+- 超级管理员可删除任意群
+- 删除时会先清理消息与成员，再删除群记录
+
+响应：
+
+```json
+{
+  "message": "Group deleted successfully",
+  "group_id": "g_xxx"
+}
+```
 
 ## 4. 消息接口
 
@@ -365,11 +479,13 @@
 }
 ```
 
-说明：
+规则：
 
-- 必须使用 Bot token 发送
-- `idempotency_key` 必填，用于幂等去重
-- 发送 Bot 以请求头里的 token 对应 Bot 为准，且该 Bot 必须已经在群里
+- 必须使用 Bot token
+- `idempotency_key` 必填，不能为空
+- 发送 Bot 由请求头 token 决定，请求体中不接受 `bot_id`
+- Bot 必须在群里，除非该 Bot 具备全局群访问权限
+- 同一个 Bot 在同一群里使用相同 `idempotency_key` 重试时，会直接返回已存在消息
 
 响应：
 
@@ -394,8 +510,8 @@
 
 查询参数：
 
-- `base_id`
-- `limit`
+- `base_id`：排他游标，返回 `msg_id < base_id` 的消息
+- `limit`：单次条数，后端强制截断到 `1..=100`，默认 `50`
 
 示例：
 
@@ -406,9 +522,10 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 
 规则：
 
-- 只允许群内 Bot 拉取
-- `base_id` 可选，默认从最新消息向前拉取
-- 单次 `limit` 会被后端强制限制在 `100` 以内
+- 必须使用 Bot token
+- 只有群内 Bot 才能拉取，除非该 Bot 具备全局群访问权限
+- 如果不传 `base_id`，会从最新消息往前取
+- 返回的 `messages` 已按 `msg_id` 升序排列
 
 响应：
 
@@ -420,7 +537,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
   "next_base_id": 951,
   "messages": [
     {
-      "msg_id": 1,
+      "msg_id": 952,
       "group_id": "g_xxx",
       "sender_id": "b_xxx",
       "sender_name": "客服 Bot",
@@ -441,31 +558,52 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 
 `POST /api/v1/file/upload`
 
-说明：
+规则：
 
-- multipart 上传
-- 需要 Bot token
-- 文件保存到 `FILE_STORAGE_PATH`
-- 后端会记录哈希并复用相同内容文件
+- 使用 multipart，字段名为 `file`
+- 必须使用 Bot token
+- 文件大小受 `max_file_size_mb` 配置限制
+- 后端按内容哈希去重，重复上传相同内容会复用已有文件
 
 响应：
 
 ```json
 {
   "file_id": "f_xxx",
-  "url": "http://127.0.0.1:8080/api/v1/file/download/f_xxx",
+  "filename": "avatar.png",
+  "url": "http://127.0.0.1:8080/api/v1/file/download/f_xxx/avatar.png",
   "created_at": "2026-03-20T10:00:00Z"
 }
 ```
 
 ### 5.2 下载文件
 
-`GET /api/v1/file/download/:file_id`
+`GET /api/v1/file/download/:file_id/:filename`
 
 说明：
 
-- 公开可访问
-- 常用于 Bot 头像展示
+- 公开接口
+- `filename` 必须与服务端记录一致，否则返回错误
+
+### 5.3 删除文件
+
+`DELETE /api/v1/file/:file_id`
+
+规则：
+
+- 必须使用 Bot token
+- 仅允许删除“当前 Bot 上传过”的文件关联
+- 如果最后一个上传者关系被移除，会同时物理删除文件
+
+响应：
+
+```json
+{
+  "file_id": "f_xxx",
+  "uploader_removed": true,
+  "physical_deleted": true
+}
+```
 
 ## 6. WebSocket
 
@@ -473,15 +611,16 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 
 `GET /ws?token={bot_token}`
 
-说明：
+规则：
 
-- 使用一个有效的 `bot_token` 建立连接
-- 一个连接只代表这个 Bot 自己
-- 连接后只会收到“这个 Bot 当前所在群”的消息通知
+- 使用有效的 Bot token 建立连接
+- 一个连接只代表一个 Bot
+- 连接后会收到该 Bot 当前可访问群的消息
+- 具备全局群访问权限的 Bot 会收到全部群的消息
 
-### 6.2 事件格式
+### 6.2 连接事件
 
-连接建立后，先收到：
+连接建立后首先收到：
 
 ```json
 {
@@ -494,6 +633,8 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
   "timestamp": "2026-03-20T10:00:00Z"
 }
 ```
+
+### 6.3 消息事件
 
 新消息到达时收到：
 
@@ -515,17 +656,6 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
   "timestamp": "2026-03-20T10:00:00Z"
 }
 ```
-
-## 7. 用户接口
-
-### 删除用户
-
-`DELETE /api/v1/users/delete`
-
-说明：
-
-- 需要用户 token
-- 会删除该用户及其所有 Bot
 
 ## 8. 常见错误
 
