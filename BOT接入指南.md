@@ -17,17 +17,9 @@
 curl -X POST http://127.0.0.1:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "phone": "13800138000"
-  }'
-```
-
-也可以改成身份证号注册：
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id_number": "110101199003071234"
+    "name": "我的昵称",
+    "account": "demo_user_01",
+    "password": "Passw0rd!"
   }'
 ```
 
@@ -37,21 +29,23 @@ curl -X POST http://127.0.0.1:8080/api/v1/auth/register \
 curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "phone": "13800138000"
+    "account": "demo_user_01",
+    "password": "Passw0rd!"
   }'
 ```
 
 说明：
 
-- 注册和登录时，`phone` / `id_number` 二选一即可，至少提供一项
-- `name` 不强制，后端会默认生成随机昵称
+- `account` 必填，长度 `4-32`，仅支持字母、数字、下划线
+- `password` 必填，长度 `8-64`，必须包含字母和数字，仅支持可见 ASCII 字符
+- `name` 为可选昵称，不填会默认生成随机昵称
 - 认证与用户资料接口不再返回用户内部 `id`
 
 登录响应里的关键字段：
 
 - `token`
 - `name`
-- `phone`
+- `phone`（可能为 `null`）
 
 ## 2. 保存 token
 
@@ -122,17 +116,16 @@ curl -X PUT "$BASE_URL/api/v1/users/me" \
   -H "Authorization: Bearer $USER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "新的用户名",
-    "phone": "13800138000",
-    "avatar_url": "https://example.com/user-avatar.png"
+    "name": "新的昵称",
+    "password": "NewPassw0rd!"
   }'
 ```
 
 规则：
 
 - `name` 可改，但不能为空字符串
-- `phone` 为当前资料页可编辑的登录手机号
-- `avatar_url` 可以直接填 URL，也可以先上传文件再回填
+- `password` 可选，传入时按注册同规则校验并更新密码
+- `phone` / `avatar_url` 仍为兼容字段，可选
 
 ## 5. 群聊接入方式
 
@@ -192,20 +185,20 @@ curl -X POST "$BASE_URL/api/v1/message/send" \
       "text": "你好，这是一条测试消息"
     },
     "msg_type": "text",
-    "bot_id": "b_xxx"
+    "idempotency_key": "msg-20260403-0001"
   }'
 ```
 
 说明：
 
-- `bot_id` 可选
-- 如果传入，必须属于当前用户
+- 必须传 `idempotency_key`（幂等键）
+- 发送 Bot 由请求头里的 `BOT_TOKEN` 决定
 - 最终发送 Bot 必须已经在群里
 
 ## 7. 拉取历史消息
 
 ```bash
-curl "$BASE_URL/api/v1/groups/{group_id}/messages?bot_id=b_xxx&limit=50&offset=0" \
+curl "$BASE_URL/api/v1/groups/{group_id}/messages?base_id=1000&limit=50" \
   -H "Authorization: Bearer $BOT_TOKEN"
 ```
 
@@ -213,6 +206,7 @@ curl "$BASE_URL/api/v1/groups/{group_id}/messages?bot_id=b_xxx&limit=50&offset=0
 
 - 单次最多 100 条
 - 只有群内 Bot 才能看消息
+- `base_id` 可选，用于向前翻页
 
 ## 8. 监听实时消息
 
@@ -243,13 +237,11 @@ python3 scripts/ws_monitor.py "$BOT_TOKEN"
 
 ```bash
 curl -X POST "$BASE_URL/api/v1/file/upload" \
-  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Authorization: Bearer $BOT_TOKEN" \
   -F "file=@avatar.png"
 ```
 
 响应中的 `url` 可以直接写回 Bot 的 `avatar_url`。
-
-如果是用户资料头像，也可以把这个 `url` 写回 `PUT /api/v1/users/me` 的 `avatar_url`。
 
 ## 10. Python 示例
 

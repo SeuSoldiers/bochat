@@ -15,7 +15,6 @@
 {
   "code": "bad_request",
   "message": "错误信息",
-  "error": "错误信息",
   "status": 400
 }
 ```
@@ -30,7 +29,7 @@
 
 ```json
 {
-  "name": "张三",
+  "name": "我的昵称",
   "account": "zhangsan_01",
   "password": "Passw0rd!"
 }
@@ -40,7 +39,7 @@
 
 - `account` 必填，长度 `4-32`，仅支持字母、数字、下划线
 - `password` 必填，长度 `8-64`，必须包含字母和数字，仅支持可见 ASCII 字符
-- `name` 可省略，后端会回退生成 `用户-xxxxxxxx` 形式的默认昵称
+- `name` 为可选昵称，可省略；后端会回退生成 `用户-xxxxxxxx` 形式的默认昵称
 - 注册成功时会自动创建一个默认 Bot
 - 接口会直接返回用户级 `token`
 
@@ -75,7 +74,7 @@
 {
   "message": "登录成功",
   "name": "张三",
-  "phone": "13800138000",
+  "phone": null,
   "token": "u:u_xxx:1710000000:signature"
 }
 ```
@@ -95,8 +94,8 @@
 ```json
 {
   "name": "张三",
-  "phone": "13800138000",
-  "avatar_url": "https://example.com/avatar.png",
+  "phone": null,
+  "avatar_url": null,
   "created_at": "2026-03-20T10:00:00Z",
   "updated_at": "2026-03-20T12:00:00Z"
 }
@@ -111,17 +110,16 @@
 ```json
 {
   "name": "新的昵称",
-  "phone": "13800138000",
-  "avatar_url": "https://example.com/avatar.png"
+  "password": "NewPassw0rd!"
 }
 ```
 
 说明：
 
 - `name` 可修改，但不能为空字符串
-- `phone` 为当前资料页可编辑的登录手机号
-- `avatar_url` 可直接传 URL，也可先调用文件上传接口再回填
-- 前端个人信息页对应这一组接口
+- `password` 可选；传入时会更新密码哈希，需满足注册同等密码规则
+- `phone` 与 `avatar_url` 仍可选传（兼容字段）
+- 当前前端个人信息页默认仅修改昵称与密码
 
 ## 2. Bot 接口
 
@@ -363,15 +361,15 @@
     "text": "你好，这是一条群消息"
   },
   "msg_type": "text",
-  "bot_id": "b_xxx"
+  "idempotency_key": "msg-20260403-0001"
 }
 ```
 
 说明：
 
-- `bot_id` 可选
-- 若传入，必须属于当前用户
-- 最终用于发送的 Bot 必须已经在群里
+- 必须使用 Bot token 发送
+- `idempotency_key` 必填，用于幂等去重
+- 发送 Bot 以请求头里的 token 对应 Bot 为准，且该 Bot 必须已经在群里
 
 响应：
 
@@ -396,21 +394,20 @@
 
 查询参数：
 
-- `bot_id`
+- `base_id`
 - `limit`
-- `offset`
 
 示例：
 
 ```bash
-curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&offset=0" \
+curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" \
   -H "Authorization: Bearer {bot_token}"
 ```
 
 规则：
 
 - 只允许群内 Bot 拉取
-- `bot_id` 如果传入，必须属于当前用户
+- `base_id` 可选，默认从最新消息向前拉取
 - 单次 `limit` 会被后端强制限制在 `100` 以内
 
 响应：
@@ -418,8 +415,9 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
 ```json
 {
   "group_id": "g_xxx",
+  "base_id": 1000,
   "limit": 50,
-  "offset": 0,
+  "next_base_id": 951,
   "messages": [
     {
       "msg_id": 1,
@@ -538,7 +536,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
 - `404 Not Found`
   用户、Bot、文件等资源不存在
 - `409 Conflict`
-  身份证号重复
+  账号或手机号冲突
 - `413 Payload Too Large`
   上传文件过大
 
@@ -548,8 +546,10 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
 - `bot_token_required`
 - `invalid_user_token`
 - `invalid_bot_token`
-- `id_number_conflict`
+- `account_conflict`
 - `phone_conflict`
-- `invalid_id_number`
+- `invalid_credentials`
+- `bot_inactive`
+- `file_too_large`
 - `bot_ownership_mismatch`
 - `bot_not_in_group`
