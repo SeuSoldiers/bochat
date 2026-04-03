@@ -1,4 +1,4 @@
 [workspace]
-members = ["crates/chat_platform"]
+members = ["crates/chat_platform", "crates/bochat_sdk"]
 default-members = ["crates/chat_platform"]
 resolver = "2"
