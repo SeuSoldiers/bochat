@@ -70,7 +70,7 @@ pub fn app_router(state: AppState) -> Router {
         .route("/api/v1/message/send", post(handlers::send_message))
         .route("/api/v1/file/upload", post(handlers::upload_file))
         .route(
-            "/api/v1/file/download/{file_id}",
+            "/api/v1/file/download/{file_id}/{filename}",
             get(handlers::download_file),
         )
         .route("/api/v1/file/{file_id}", delete(handlers::delete_file))

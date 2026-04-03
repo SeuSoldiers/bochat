@@ -32,7 +32,7 @@ pub struct FileResponse {
 
 impl From<File> for FileResponse {
     fn from(file: File) -> Self {
-        let url = format!("/api/v1/file/download/{}", file.file_id);
+        let url = format!("/api/v1/file/download/{}/{}", file.file_id, file.filename);
         FileResponse {
             file_id: file.file_id,
             filename: file.filename,

@@ -130,8 +130,8 @@ pub async fn upload_file(
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let file_url = format!(
-            "{}://{}/api/v1/file/download/{}",
-            scheme, host, existing_file.file_id
+            "{}://{}/api/v1/file/download/{}/{}",
+            scheme, host, existing_file.file_id, existing_file.filename
         );
 
         tracing::info!(
@@ -145,6 +145,7 @@ pub async fn upload_file(
             StatusCode::CREATED,
             json!({
                 "file_id": existing_file.file_id,
+                "filename": existing_file.filename,
                 "url": file_url,
                 "created_at": existing_file.created_at,
             }),
@@ -152,7 +153,11 @@ pub async fn upload_file(
     }
 
     let file_id = crate::utils::generate_file_id();
-    let storage_path = upload_dir.join(&file_id);
+    let file_dir = upload_dir.join(&file_id);
+    tokio::fs::create_dir_all(&file_dir)
+        .await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+    let storage_path = file_dir.join(&filename);
     let mut file = tokio::fs::File::create(&storage_path)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
@@ -188,7 +193,10 @@ pub async fn upload_file(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let file_url = format!("{}://{}/api/v1/file/download/{}", scheme, host, file_id);
+    let file_url = format!(
+        "{}://{}/api/v1/file/download/{}/{}",
+        scheme, host, file_id, filename
+    );
 
     tracing::info!(
         "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
@@ -202,6 +210,7 @@ pub async fn upload_file(
         StatusCode::CREATED,
         json!({
             "file_id": file_id,
+            "filename": filename,
             "url": file_url,
             "created_at": now,
         }),
@@ -211,7 +220,7 @@ pub async fn upload_file(
 #[tracing::instrument(skip(state))]
 pub async fn download_file(
     State(state): State<AppState>,
-    Path(file_id): Path<String>,
+    Path((file_id, requested_filename)): Path<(String, String)>,
 ) -> AppResult<Response<Body>> {
     let file: crate::models::File = sqlx::query_as(
         "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = ?"
@@ -225,6 +234,10 @@ pub async fn download_file(
     let bytes = tokio::fs::read(&file.storage_path)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    if requested_filename != file.filename {
+        return Err(AppError::BadRequest("文件名不匹配".to_string()));
+    }
 
     Response::builder()
         .status(StatusCode::OK)
@@ -309,6 +322,17 @@ pub async fn delete_file(
                 return Err(AppError::InternalError(err.to_string()));
             }
         }
+
+        if let Some(parent_dir) = std::path::Path::new(&file.1).parent() {
+            if let Err(err) = tokio::fs::remove_dir(parent_dir).await {
+                if err.kind() != std::io::ErrorKind::NotFound
+                    && err.kind() != std::io::ErrorKind::DirectoryNotEmpty
+                {
+                    return Err(AppError::InternalError(err.to_string()));
+                }
+            }
+        }
+
         physical_deleted = true;
     }
 

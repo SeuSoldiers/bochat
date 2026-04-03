@@ -111,6 +111,7 @@ pub struct GroupHistoryResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadedFile {
     pub file_id: String,
+    pub filename: String,
     pub url: String,
     pub created_at: String,
 }

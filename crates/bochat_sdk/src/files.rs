@@ -1,5 +1,5 @@
-use reqwest::multipart::{Form, Part};
 use reqwest::Method;
+use reqwest::multipart::{Form, Part};
 
 use crate::client::{AuthKind, BochatClient};
 use crate::error::{SdkError, SdkResult};
@@ -53,11 +53,12 @@ impl FilesApi {
         self.upload_bytes(filename, bytes, mime).await
     }
 
-    pub fn download_url(&self, file_id: &str) -> String {
+    pub fn download_url(&self, file_id: &str, filename: &str) -> String {
         format!(
-            "{}/api/v1/file/download/{}",
+            "{}/api/v1/file/download/{}/{}",
             self.client.base_url(),
-            file_id
+            file_id,
+            filename
         )
     }
 
