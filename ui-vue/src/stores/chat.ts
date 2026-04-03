@@ -37,16 +37,15 @@ export const useChatStore = defineStore('chat', () => {
   // 方法：获取消息列表
   const fetchMessages = async (
     groupId: string,
-    botId?: string,
+    baseId?: number | null,
     limit: number = 50,
-    offset: number = 0,
     botToken?: string
   ) => {
     loading.value = true
     error.value = null
 
     try {
-      const newMessages = await getMessages(groupId, botId, limit, offset, botToken)
+      const newMessages = await getMessages(groupId, baseId, limit, botToken)
 
       // 合并消息（避免重复）
       const existingIds = new Set(messages.value.map((m: Message) => m.msg_id))
@@ -87,6 +86,9 @@ export const useChatStore = defineStore('chat', () => {
     const exists = messages.value.some((m) => m.msg_id === message.msg_id)
     if (!exists) {
       messages.value.push(message)
+      messages.value.sort(
+        (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
     }
   }
 

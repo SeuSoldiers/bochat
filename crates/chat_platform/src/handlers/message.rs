@@ -68,36 +68,7 @@ pub async fn send_message(
     tracing::debug!("正在验证 token...");
     let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
     tracing::debug!("Token 验证成功");
-
-    let sender_bot = if let Some(target_bot_id) = msg_req.bot_id.as_ref() {
-        let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-        )
-        .bind(target_bot_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询目标发送 Bot 时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            tracing::warn!("目标发送 Bot 不存在: {}", target_bot_id);
-            AppError::BotNotFound
-        })?;
-
-        if target_bot.owner_id != requester_bot.owner_id {
-            tracing::warn!(
-                "发送消息失败: 目标 Bot 不属于当前用户, owner_id={}, requester_owner={}",
-                target_bot.owner_id,
-                requester_bot.owner_id
-            );
-            return Err(AppError::BotOwnershipMismatch);
-        }
-
-        target_bot
-    } else {
-        requester_bot
-    };
+    let sender_bot = requester_bot;
 
     // 检查发送者 bot 是否活跃
     if sender_bot.status != "active" {
@@ -152,25 +123,97 @@ pub async fn send_message(
     tracing::debug!("群聊成员检查通过");
 
     let msg_type = msg_req.msg_type.as_deref().unwrap_or("text");
+    let idempotency_key = msg_req.idempotency_key.trim();
+    if idempotency_key.is_empty() {
+        return Err(AppError::BadRequest("idempotency_key 不能为空".to_string()));
+    }
     let content = msg_req.content.to_string();
+
+    #[derive(sqlx::FromRow)]
+    struct MessageRow {
+        msg_id: i64,
+        group_id: String,
+        sender_id: String,
+        sender_name: Option<String>,
+        sender_avatar_url: Option<String>,
+        content: String,
+        msg_type: String,
+        created_at: String,
+    }
+
+    let existing_message: Option<MessageRow> = sqlx::query_as(
+        r#"
+        SELECT
+            m.msg_id,
+            m.group_id,
+            m.sender_id,
+            b.name as sender_name,
+            b.avatar_url as sender_avatar_url,
+            m.content,
+            m.msg_type,
+            m.created_at
+        FROM messages m
+        LEFT JOIN bots b ON b.bot_id = m.sender_id
+        WHERE m.sender_id = ? AND m.group_id = ? AND m.idempotency_key = ?
+        "#,
+    )
+    .bind(&sender_bot.bot_id)
+    .bind(&msg_req.group_id)
+    .bind(idempotency_key)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("查询幂等消息时数据库错误: {}", e);
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    if let Some(existing_message) = existing_message {
+        let existing_content = serde_json::from_str(&existing_message.content)
+            .unwrap_or_else(|_| serde_json::Value::String(existing_message.content.clone()));
+
+        return Ok(json_response(
+            StatusCode::OK,
+            json!({
+                "msg_id": existing_message.msg_id,
+                "group_id": existing_message.group_id,
+                "sender_id": existing_message.sender_id,
+                "sender_name": existing_message.sender_name,
+                "sender_avatar_url": existing_message.sender_avatar_url,
+                "content": existing_content,
+                "msg_type": existing_message.msg_type,
+                "created_at": existing_message.created_at,
+            }),
+        ));
+    }
+
     let now = chrono::Utc::now().to_rfc3339();
 
     tracing::info!("所有验证通过，正在保存消息到数据库");
     tracing::debug!("消息类型: {}, 时间戳: {}", msg_type, now);
 
-    // 将消息插入数据库
-    let msg_id: i64 = sqlx::query_scalar::<_, i64>(
+    let inserted_message: MessageRow = sqlx::query_as(
         r#"
-        INSERT INTO messages (group_id, sender_id, content, msg_type, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        RETURNING msg_id
+        INSERT INTO messages (group_id, sender_id, content, msg_type, idempotency_key, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING
+            msg_id,
+            group_id,
+            sender_id,
+            ? as sender_name,
+            ? as sender_avatar_url,
+            content,
+            msg_type,
+            created_at
         "#,
     )
     .bind(&msg_req.group_id)
     .bind(&sender_bot.bot_id)
     .bind(&content)
     .bind(msg_type)
+    .bind(idempotency_key)
     .bind(&now)
+    .bind(&sender_bot.name)
+    .bind(&sender_bot.avatar_url)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| {
@@ -178,15 +221,17 @@ pub async fn send_message(
         AppError::DatabaseError(e.to_string())
     })?;
 
+    let response_content = serde_json::from_str(&inserted_message.content)
+        .unwrap_or_else(|_| serde_json::Value::String(inserted_message.content.clone()));
     let response_payload = json!({
-        "msg_id": msg_id,
-        "group_id": msg_req.group_id,
-        "sender_id": sender_bot.bot_id,
-        "sender_name": sender_bot.name,
-        "sender_avatar_url": sender_bot.avatar_url,
-        "content": msg_req.content,
-        "msg_type": msg_type,
-        "created_at": now,
+        "msg_id": inserted_message.msg_id,
+        "group_id": inserted_message.group_id,
+        "sender_id": inserted_message.sender_id,
+        "sender_name": inserted_message.sender_name,
+        "sender_avatar_url": inserted_message.sender_avatar_url,
+        "content": response_content,
+        "msg_type": inserted_message.msg_type,
+        "created_at": inserted_message.created_at,
     });
 
     let member_bot_ids: Vec<String> =
@@ -211,7 +256,7 @@ pub async fn send_message(
 
     tracing::info!(
         "✅ 消息发送成功 - 消息ID: {}, 群聊ID: {}, 发送者: {}",
-        msg_id,
+        inserted_message.msg_id,
         msg_req.group_id,
         sender_bot.bot_id
     );

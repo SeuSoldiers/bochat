@@ -122,9 +122,8 @@ onMounted(async () => {
     chatStore.setCurrentGroup(groupStore.selectedGroup.group_id)
     await chatStore.fetchMessages(
       groupStore.selectedGroup.group_id,
-      activeBotId.value,
+      null,
       50,
-      0,
       getBotToken(activeBotId.value)
     )
   }
@@ -136,7 +135,7 @@ watch(
   async ([newGroupId, newBotId]) => {
     if (newGroupId) {
       chatStore.setCurrentGroup(newGroupId)
-      await chatStore.fetchMessages(newGroupId, newBotId, 50, 0, getBotToken(newBotId))
+      await chatStore.fetchMessages(newGroupId, null, 50, getBotToken(newBotId))
     }
   }
 )
@@ -164,7 +163,7 @@ const handleSendMessage = async (content: string, botId: string) => {
       group_id: groupStore.selectedGroup.group_id,
       content: { text: content },
       msg_type: 'text',
-      bot_id: botId,
+      idempotency_key: createIdempotencyKey(),
     }, botToken)
   } catch (error: any) {
     messageError.value = getErrorMessage(error, '发送消息失败')
@@ -178,6 +177,14 @@ const getBotToken = (botId?: string) => {
   }
 
   return botStore.bots.find((bot) => bot.bot_id === botId)?.token || ''
+}
+
+const createIdempotencyKey = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 const handleAddBotToGroup = async (botId: string) => {

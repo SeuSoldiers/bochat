@@ -10,14 +10,13 @@ import type { Message, SendMessageRequest } from '@/types'
  */
 export async function getMessages(
   groupId: string,
-  botId?: string,
+  baseId?: number | null,
   limit: number = 50,
-  offset: number = 0,
   botToken?: string
 ) {
   const response = await apiClient.get<Message[] | { messages: Message[] }>(`/groups/${groupId}/messages`, {
     headers: botToken ? { Authorization: `Bearer ${botToken}` } : undefined,
-    params: { limit, offset, bot_id: botId },
+    params: { limit, base_id: baseId ?? undefined },
   })
   return unwrapCollectionResponse(response)
 }

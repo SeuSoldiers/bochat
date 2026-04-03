@@ -17,9 +17,8 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct GroupMessagesQuery {
-    pub bot_id: Option<String>,
+    pub base_id: Option<i64>,
     pub limit: Option<i64>,
-    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -638,43 +637,11 @@ pub async fn get_group_messages(
         return Err(AppError::BadRequest("群聊不存在".to_string()));
     }
 
-    // 验证 Bot 是否在群内
-    tracing::debug!("正在验证 Bot 是否在群内...");
-    let access_bot_id = if let Some(target_bot_id) = query.bot_id.as_ref() {
-        let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-        )
-        .bind(target_bot_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询目标 Bot 时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            tracing::warn!("目标 Bot 不存在: {}", target_bot_id);
-            AppError::BotNotFound
-        })?;
-
-        if target_bot.owner_id != bot.owner_id {
-            tracing::warn!(
-                "拉取消息失败: 目标 Bot 不属于当前用户, owner_id={}, requester_owner={}",
-                target_bot.owner_id,
-                bot.owner_id
-            );
-            return Err(AppError::BotOwnershipMismatch);
-        }
-
-        target_bot.bot_id
-    } else {
-        bot.bot_id.clone()
-    };
-
     let is_member: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)",
     )
     .bind(&group_id_str)
-    .bind(&access_bot_id)
+    .bind(&bot.bot_id)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| {
@@ -685,7 +652,7 @@ pub async fn get_group_messages(
     if !is_member {
         tracing::warn!(
             "Bot {} 不是群 {} 的成员，无权查看消息",
-            access_bot_id,
+            bot.bot_id,
             group_id_str
         );
         return Err(AppError::BotNotInGroup);
@@ -694,7 +661,7 @@ pub async fn get_group_messages(
     tracing::debug!("✅ Bot 是群内成员，继续获取消息");
 
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
-    let offset = query.offset.unwrap_or(0).max(0);
+    let base_id = query.base_id.unwrap_or(i64::MAX);
 
     #[derive(sqlx::FromRow)]
     struct MessageRow {
@@ -711,24 +678,28 @@ pub async fn get_group_messages(
     let messages: Vec<MessageRow> = sqlx::query_as(
         r#"
         SELECT
-            m.msg_id,
-            m.group_id,
-            m.sender_id,
+            recent.msg_id,
+            recent.group_id,
+            recent.sender_id,
             b.name as sender_name,
             b.avatar_url as sender_avatar_url,
-            m.content,
-            m.msg_type,
-            m.created_at
-        FROM messages m
-        LEFT JOIN bots b ON b.bot_id = m.sender_id
-        WHERE m.group_id = ?
-        ORDER BY m.created_at ASC
-        LIMIT ? OFFSET ?
+            recent.content,
+            recent.msg_type,
+            recent.created_at
+        FROM (
+            SELECT msg_id, group_id, sender_id, content, msg_type, created_at
+            FROM messages
+            WHERE group_id = ? AND msg_id < ?
+            ORDER BY msg_id DESC
+            LIMIT ?
+        ) recent
+        LEFT JOIN bots b ON b.bot_id = recent.sender_id
+        ORDER BY recent.msg_id ASC
         "#,
     )
     .bind(&group_id_str)
+    .bind(base_id)
     .bind(limit)
-    .bind(offset)
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
@@ -761,8 +732,9 @@ pub async fn get_group_messages(
         StatusCode::OK,
         json!({
             "group_id": group_id_str,
+            "base_id": if query.base_id.is_some() { Some(base_id) } else { None::<i64> },
             "limit": limit,
-            "offset": offset,
+            "next_base_id": responses.first().map(|message| message.msg_id),
             "messages": responses,
         }),
     ))

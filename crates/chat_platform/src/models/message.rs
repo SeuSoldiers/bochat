@@ -37,6 +37,7 @@ pub struct Message {
     pub sender_id: String, // 发送者Bot ID
     pub content: String,
     pub msg_type: String,
+    pub idempotency_key: Option<String>,
     pub created_at: String,
 }
 
@@ -51,7 +52,7 @@ pub struct CreateMessageRequest {
     pub group_id: String, // 群聊ID
     pub content: Value,
     pub msg_type: Option<String>,
-    pub bot_id: Option<String>, // 指定以哪个 Bot 身份发送
+    pub idempotency_key: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

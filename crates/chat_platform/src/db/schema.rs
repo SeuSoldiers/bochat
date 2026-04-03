@@ -171,6 +171,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             sender_id TEXT NOT NULL,
             content TEXT NOT NULL,
             msg_type TEXT DEFAULT 'text',
+            idempotency_key TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (group_id) REFERENCES groups(group_id),
             FOREIGN KEY (sender_id) REFERENCES bots(bot_id)
@@ -181,12 +182,32 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
+    if let Err(e) = sqlx::query("ALTER TABLE messages ADD COLUMN idempotency_key TEXT")
+        .execute(pool)
+        .await
+    {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(crate::error::AppError::DatabaseError(e.to_string()));
+        }
+    }
+
     // Create index on messages table for faster queries
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_messages_group_id_created_at
         ON messages(group_id, created_at DESC)
         "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_sender_group_idempotency
+        ON messages(sender_id, group_id, idempotency_key)
+        WHERE idempotency_key IS NOT NULL
+        "#
     )
     .execute(pool)
     .await

@@ -241,7 +241,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     .await;
     assert_eq!(second_bot_join_status, StatusCode::OK);
 
-    for (token, payload) in [
+    for (index, (token, payload)) in [
         (
             alice_default_bot_token.as_str(),
             json!({
@@ -330,22 +330,63 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
                 "msg_type": "text"
             }),
         ),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let payload_with_idempotency = match payload {
+            serde_json::Value::Object(mut map) => {
+                map.insert(
+                    "idempotency_key".to_string(),
+                    serde_json::Value::String(format!("msg-{index}")),
+                );
+                serde_json::Value::Object(map)
+            }
+            other => other,
+        };
+
         let (status, _) = send_json(
             &app,
             "POST",
             "/api/v1/message/send",
             Some(token),
-            Some(payload),
+            Some(payload_with_idempotency),
         )
         .await;
         assert_eq!(status, StatusCode::CREATED);
     }
 
+    let duplicate_payload = json!({
+        "group_id": tech_group_id,
+        "content": { "text": "幂等测试消息" },
+        "msg_type": "text",
+        "idempotency_key": "dedupe-tech-1"
+    });
+    let (first_duplicate_status, first_duplicate_body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/message/send",
+        Some(&alice_default_bot_token),
+        Some(duplicate_payload.clone()),
+    )
+    .await;
+    assert_eq!(first_duplicate_status, StatusCode::CREATED);
+
+    let (second_duplicate_status, second_duplicate_body) = send_json(
+        &app,
+        "POST",
+        "/api/v1/message/send",
+        Some(&alice_default_bot_token),
+        Some(duplicate_payload),
+    )
+    .await;
+    assert_eq!(second_duplicate_status, StatusCode::OK);
+    assert_eq!(first_duplicate_body["msg_id"], second_duplicate_body["msg_id"]);
+
     let (tech_messages_status, tech_messages_body) = send_json(
         &app,
         "GET",
-        &format!("/api/v1/groups/{tech_group_id}/messages?limit=100&offset=0"),
+        &format!("/api/v1/groups/{tech_group_id}/messages?limit=100"),
         Some(&bob_default_bot_token),
         None,
     )
@@ -355,8 +396,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         .as_array()
         .expect("messages should be an array");
     assert_eq!(tech_messages_body["limit"], 100);
-    assert_eq!(tech_messages_body["offset"], 0);
-    assert_eq!(tech_messages.len(), 7);
+    assert_eq!(tech_messages.len(), 8);
     assert_eq!(tech_messages[0]["sender_id"], alice_default_bot_id);
     assert_eq!(tech_messages[1]["sender_id"], bob_default_bot_id);
     assert_eq!(tech_messages[3]["sender_id"], alice_second_bot_id);
@@ -364,7 +404,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     let (product_messages_status, product_messages_body) = send_json(
         &app,
         "GET",
-        &format!("/api/v1/groups/{product_group_id}/messages?limit=100&offset=0"),
+        &format!("/api/v1/groups/{product_group_id}/messages?limit=100"),
         Some(&alice_default_bot_token),
         None,
     )

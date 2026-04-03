@@ -95,7 +95,7 @@ export interface SendMessageRequest {
     text: string
   }
   msg_type?: 'text' | 'file'
-  bot_id?: string
+  idempotency_key: string
 }
 
 /**
