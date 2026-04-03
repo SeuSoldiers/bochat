@@ -74,5 +74,12 @@ async fn main() -> SdkResult<()> {
         .await?;
 
     println!("文件上传成功: {}", uploaded.url);
+
+    client.files().delete(&uploaded.file_id).await?;
+    println!("文件资源清理完成: {}", uploaded.file_id);
+
+    client.groups().delete(&group.group_id).await?;
+    println!("群聊资源清理完成: {}", group.group_id);
+
     Ok(())
 }

@@ -119,6 +119,16 @@ pub async fn upload_file(
         .to_string();
 
     if let Some(existing_file) = existing_file {
+        sqlx::query(
+            "INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)",
+        )
+        .bind(&existing_file.file_id)
+        .bind(&bot_id)
+        .bind(&now)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
         let file_url = format!(
             "{}://{}/api/v1/file/download/{}",
             scheme, host, existing_file.file_id
@@ -163,6 +173,16 @@ pub async fn upload_file(
     .bind(total_size as i64)
     .bind(&mime_type)
     .bind(storage_path.to_string_lossy().to_string())
+    .bind(&now)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)",
+    )
+    .bind(&file_id)
+    .bind(&bot_id)
     .bind(&now)
     .execute(&state.pool)
     .await
@@ -215,6 +235,91 @@ pub async fn download_file(
         )
         .body(Body::from(bytes))
         .map_err(|e| AppError::InternalError(e.to_string()))
+}
+
+#[tracing::instrument(skip(state, headers))]
+pub async fn delete_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(file_id): Path<String>,
+) -> AppResult<axum::response::Response> {
+    let token = require_bot_bearer_token(&headers)?;
+    let bot_id = token_bot_id(&token)?.to_string();
+
+    let (bot_secret, bot_status): (String, String) =
+        sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
+            .bind(&bot_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or(AppError::BotNotFound)?;
+
+    if bot_status != "active" {
+        return Err(AppError::BotInactive);
+    }
+
+    let _token_payload =
+        verify_token(&token, &bot_secret, state.config.security.token_expiry_secs)?;
+
+    let file: (String, String) =
+        sqlx::query_as("SELECT file_id, storage_path FROM files WHERE file_id = ?")
+            .bind(&file_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or(AppError::FileNotFound)?;
+
+    let relation_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM file_uploaders WHERE file_id = ? AND uploader_id = ?)",
+    )
+    .bind(&file_id)
+    .bind(&bot_id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    if !relation_exists {
+        return Err(AppError::Forbidden("只能删除自己上传过的文件".to_string()));
+    }
+
+    sqlx::query("DELETE FROM file_uploaders WHERE file_id = ? AND uploader_id = ?")
+        .bind(&file_id)
+        .bind(&bot_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let uploader_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(1) FROM file_uploaders WHERE file_id = ?")
+            .bind(&file_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let mut physical_deleted = false;
+    if uploader_count == 0 {
+        sqlx::query("DELETE FROM files WHERE file_id = ?")
+            .bind(&file_id)
+            .execute(&state.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if let Err(err) = tokio::fs::remove_file(&file.1).await {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                return Err(AppError::InternalError(err.to_string()));
+            }
+        }
+        physical_deleted = true;
+    }
+
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "file_id": file.0,
+            "uploader_removed": true,
+            "physical_deleted": physical_deleted,
+        }),
+    ))
 }
 
 fn sanitize_filename(name: &str) -> String {

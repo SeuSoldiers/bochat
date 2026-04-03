@@ -1,4 +1,5 @@
 use reqwest::multipart::{Form, Part};
+use reqwest::Method;
 
 use crate::client::{AuthKind, BochatClient};
 use crate::error::{SdkError, SdkResult};
@@ -58,5 +59,15 @@ impl FilesApi {
             self.client.base_url(),
             file_id
         )
+    }
+
+    pub async fn delete(&self, file_id: &str) -> SdkResult<()> {
+        self.client
+            .request_empty(
+                Method::DELETE,
+                &format!("/api/v1/file/{}", file_id),
+                AuthKind::Bot,
+            )
+            .await
     }
 }

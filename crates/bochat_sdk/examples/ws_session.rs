@@ -141,5 +141,10 @@ async fn main() -> SdkResult<()> {
 
     dispatcher.shutdown();
 
+    for group_id in &group_ids {
+        client.groups().delete(group_id).await?;
+        println!("群聊资源清理完成: {}", group_id);
+    }
+
     Ok(())
 }

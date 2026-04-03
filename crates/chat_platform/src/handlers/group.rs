@@ -8,7 +8,9 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
-use crate::services::authz::{bot_has_global_group_access, can_manage_target_user, user_is_super_admin};
+use crate::services::authz::{
+    bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
+};
 use crate::utils::{generate_group_id, verify_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -554,6 +556,13 @@ pub async fn delete_group(
     if !can_manage_target_user(&state.pool, &requester_user_id, &group.creator_id).await? {
         return Err(AppError::Forbidden("只有群创建者才能删除该群".to_string()));
     }
+
+    // 先删除群消息，避免 groups 删除时触发 messages 的外键约束错误。
+    sqlx::query("DELETE FROM messages WHERE group_id = ?")
+        .bind(&group_id_str)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     // Delete group members
     sqlx::query("DELETE FROM group_members WHERE group_id = ?")

@@ -19,4 +19,14 @@ impl GroupsApi {
             .request_json(Method::POST, "/api/v1/groups", AuthKind::User, &req)
             .await
     }
+
+    pub async fn delete(&self, group_id: &str) -> SdkResult<()> {
+        self.client
+            .request_empty(
+                Method::DELETE,
+                &format!("/api/v1/groups/{}", group_id),
+                AuthKind::User,
+            )
+            .await
+    }
 }

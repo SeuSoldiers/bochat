@@ -284,6 +284,44 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
+    // Create file_uploaders table to track all uploaders for deduplicated files
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS file_uploaders (
+            file_id TEXT NOT NULL,
+            uploader_id TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (file_id, uploader_id),
+            FOREIGN KEY (file_id) REFERENCES files(file_id),
+            FOREIGN KEY (uploader_id) REFERENCES bots(bot_id)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_file_uploaders_uploader_id
+        ON file_uploaders(uploader_id)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    // Backfill: existing files.owner_id is treated as the initial uploader
+    sqlx::query(
+        r#"
+        INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at)
+        SELECT file_id, owner_id, created_at FROM files
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
     tracing::info!("Database migrations completed successfully");
     Ok(())
 }

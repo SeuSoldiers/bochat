@@ -73,6 +73,7 @@ pub fn app_router(state: AppState) -> Router {
             "/api/v1/file/download/{file_id}",
             get(handlers::download_file),
         )
+        .route("/api/v1/file/{file_id}", delete(handlers::delete_file))
         .route("/ws", get(handlers::ws_handler))
         .layer(CorsLayer::permissive())
         .with_state(state)
