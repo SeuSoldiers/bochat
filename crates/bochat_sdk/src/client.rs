@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
 use serde::de::DeserializeOwned;
 use tokio::sync::RwLock;

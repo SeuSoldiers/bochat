@@ -1,5 +1,8 @@
 use bochat_sdk::prelude::*;
-use std::time::Duration;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::time::sleep;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> SdkResult<()> {
@@ -17,18 +20,97 @@ async fn main() -> SdkResult<()> {
     let first_bot = bots.first().expect("需要至少一个 Bot");
     client.set_bot_token(Some(first_bot.token.clone())).await;
 
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let mut group_ids = Vec::new();
+    for i in 0..3 {
+        let group = client
+            .groups()
+            .create(CreateGroupRequest {
+                name: format!("SDK-WS-Group-{}-{}", ts % 10000, i),
+                description: Some("用于 ws 分发示例".to_string()),
+                group_code: Some(format!("WS{}{}", ts % 10000, i)),
+                bot_id: Some(first_bot.bot_id.clone()),
+            })
+            .await?;
+        group_ids.push(group.group_id);
+    }
+
     let session = client
         .ws()
         .heartbeat_interval(Duration::from_secs(15))
+        .heartbeat_timeout(Duration::from_secs(45))
         .reconnect_max_attempts(20)
         .build()
         .await?;
 
-    let mut handle = session.spawn().await?;
+    let handle = session.spawn().await?;
+    let mut dispatcher = handle.into_dispatcher();
 
-    while let Some(event) = handle.events.recv().await {
-        println!("[{}] {}", event.event_type, event.timestamp);
+    let conn = dispatcher.wait_connection_payload().await?;
+    println!(
+        "连接成功: bot={} 可用群={}",
+        conn.bot_name,
+        conn.group_ids.join(",")
+    );
+
+    let handled = Arc::new(AtomicUsize::new(0));
+    let handled_a = Arc::clone(&handled);
+    let handled_b = Arc::clone(&handled);
+    let handled_default = Arc::clone(&handled);
+
+    dispatcher
+        .default_handler(move |event| {
+            println!(
+                "[Handler-Default] group={} msg={}",
+                event.group_id().unwrap_or("?"),
+                event.payload
+            );
+            handled_default.fetch_add(1, Ordering::Relaxed);
+        })
+        .await
+        .group_handler(group_ids[0].clone(), move |event| {
+            println!(
+                "[Handler-A] group={} msg={}",
+                event.group_id().unwrap_or("?"),
+                event.payload
+            );
+            handled_a.fetch_add(1, Ordering::Relaxed);
+        })
+        .await
+        .group_handler(group_ids[1].clone(), move |event| {
+            println!(
+                "[Handler-B] group={} msg={}",
+                event.group_id().unwrap_or("?"),
+                event.payload
+            );
+            handled_b.fetch_add(1, Ordering::Relaxed);
+        })
+        .await;
+
+    for (idx, gid) in group_ids.iter().enumerate() {
+        let _ = client
+            .messages()
+            .send_text(
+                gid,
+                format!("来自 ws 分发示例的消息 {}", idx + 1),
+                format!("ws-session-{}-{}", ts, idx),
+            )
+            .await?;
     }
+
+    let target = group_ids.len();
+    for _ in 0..20 {
+        if handled.load(Ordering::Relaxed) >= target {
+            break;
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    dispatcher.shutdown();
 
     Ok(())
 }

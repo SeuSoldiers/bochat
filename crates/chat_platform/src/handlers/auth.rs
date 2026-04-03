@@ -97,12 +97,10 @@ pub async fn register(
         .filter(|v| !v.is_empty())
         .map(ToOwned::to_owned)
         .unwrap_or_else(default_user_name);
-    let account = sanitize_optional(&req.account).ok_or_else(|| {
-        AppError::BadRequest("账号不能为空".to_string())
-    })?;
-    let password = sanitize_optional(&req.password).ok_or_else(|| {
-        AppError::BadRequest("密码不能为空".to_string())
-    })?;
+    let account = sanitize_optional(&req.account)
+        .ok_or_else(|| AppError::BadRequest("账号不能为空".to_string()))?;
+    let password = sanitize_optional(&req.password)
+        .ok_or_else(|| AppError::BadRequest("密码不能为空".to_string()))?;
 
     if !validate_account(&account) {
         return Err(AppError::BadRequest(format!(
@@ -287,18 +285,14 @@ pub async fn login(
         )));
     }
 
-    tracing::debug!(
-        "请求数据: 账号={}, 密码长度={}",
-        account,
-        password.len()
-    );
+    tracing::debug!("请求数据: 账号={}, 密码长度={}", account, password.len());
 
     tracing::debug!("输入验证通过");
 
     // 查询用户
     tracing::info!("正在查询用户...");
     let user = sqlx::query_as::<_, UserLoginRow>(
-        "SELECT user_id, name, phone, password_hash FROM users WHERE account = ?"
+        "SELECT user_id, name, phone, password_hash FROM users WHERE account = ?",
     )
     .bind(&account)
     .fetch_optional(&state.pool)

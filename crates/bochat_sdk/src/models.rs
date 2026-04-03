@@ -144,3 +144,25 @@ pub struct WsEvent {
     pub payload: Value,
     pub timestamp: String,
 }
+
+#[cfg(feature = "ws")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WsConnectionPayload {
+    pub bot_id: String,
+    pub bot_name: String,
+    pub group_ids: Vec<String>,
+}
+
+#[cfg(feature = "ws")]
+impl WsEvent {
+    pub fn group_id(&self) -> Option<&str> {
+        self.payload.get("group_id")?.as_str()
+    }
+
+    pub fn as_connection_payload(&self) -> Option<WsConnectionPayload> {
+        if self.event_type != "connection" {
+            return None;
+        }
+        serde_json::from_value::<WsConnectionPayload>(self.payload.clone()).ok()
+    }
+}

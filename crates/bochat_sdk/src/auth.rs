@@ -2,7 +2,9 @@ use reqwest::Method;
 
 use crate::client::{AuthKind, BochatClient};
 use crate::error::SdkResult;
-use crate::models::{AuthResponse, LoginRequest, RegisterRequest, UpdateProfileRequest, UserProfile};
+use crate::models::{
+    AuthResponse, LoginRequest, RegisterRequest, UpdateProfileRequest, UserProfile,
+};
 
 #[derive(Clone)]
 pub struct AuthApi {

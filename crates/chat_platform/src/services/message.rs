@@ -29,7 +29,7 @@ impl MessageService {
             WHERE group_id = ? AND msg_id < ?
             ORDER BY msg_id DESC
             LIMIT ?
-            "#
+            "#,
         )
         .bind(group_id)
         .bind(base_id)

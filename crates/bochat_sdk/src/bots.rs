@@ -15,10 +15,7 @@ impl BotsApi {
     }
 
     pub async fn list(&self) -> SdkResult<Vec<BotInfo>> {
-        let resp: BotListResponse = self
-            .client
-            .get_json("/api/v1/bots", AuthKind::User)
-            .await?;
+        let resp: BotListResponse = self.client.get_json("/api/v1/bots", AuthKind::User).await?;
         Ok(resp.bots)
     }
 
@@ -47,7 +44,11 @@ impl BotsApi {
 
     pub async fn delete(&self, bot_id: &str) -> SdkResult<()> {
         self.client
-            .request_empty(Method::DELETE, &format!("/api/v1/bots/{}", bot_id), AuthKind::User)
+            .request_empty(
+                Method::DELETE,
+                &format!("/api/v1/bots/{}", bot_id),
+                AuthKind::User,
+            )
             .await
     }
 

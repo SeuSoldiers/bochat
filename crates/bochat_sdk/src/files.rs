@@ -53,6 +53,10 @@ impl FilesApi {
     }
 
     pub fn download_url(&self, file_id: &str) -> String {
-        format!("{}/api/v1/file/download/{}", self.client.base_url(), file_id)
+        format!(
+            "{}/api/v1/file/download/{}",
+            self.client.base_url(),
+            file_id
+        )
     }
 }

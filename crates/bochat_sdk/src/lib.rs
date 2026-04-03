@@ -17,5 +17,5 @@ pub mod prelude {
     pub use crate::models::*;
     pub use crate::retry::RetryPolicy;
     #[cfg(feature = "ws")]
-    pub use crate::ws::{WsSession, WsSessionBuilder};
+    pub use crate::ws::{WsDispatcher, WsSession, WsSessionBuilder};
 }
