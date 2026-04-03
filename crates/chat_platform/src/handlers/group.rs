@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
+use crate::services::authz::bot_has_global_group_access;
 use crate::utils::{generate_group_id, verify_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -649,7 +650,7 @@ pub async fn get_group_messages(
         AppError::DatabaseError(e.to_string())
     })?;
 
-    if !is_member {
+    if !is_member && !bot_has_global_group_access(&state.pool, &bot.bot_id).await? {
         tracing::warn!(
             "Bot {} 不是群 {} 的成员，无权查看消息",
             bot.bot_id,

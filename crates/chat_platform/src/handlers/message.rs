@@ -7,6 +7,7 @@ use axum::{
 use serde_json::json;
 
 use crate::models::CreateMessageRequest;
+use crate::services::authz::bot_has_global_group_access;
 use crate::utils::verify_token;
 use crate::ws::WsEvent;
 use crate::{
@@ -111,7 +112,7 @@ pub async fn send_message(
         AppError::DatabaseError(e.to_string())
     })?;
 
-    if !is_member {
+    if !is_member && !bot_has_global_group_access(&state.pool, &sender_bot.bot_id).await? {
         tracing::warn!(
             "消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}",
             sender_bot.bot_id,

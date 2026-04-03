@@ -1,4 +1,6 @@
+pub mod authz;
 pub mod bot;
+pub mod bootstrap;
 pub mod file;
 pub mod message;
 
