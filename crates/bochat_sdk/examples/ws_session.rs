@@ -146,5 +146,14 @@ async fn main() -> SdkResult<()> {
         println!("群聊资源清理完成: {}", group_id);
     }
 
+    let bots = client.bots().list().await?;
+    for bot in bots {
+        client.bots().delete(&bot.bot_id).await?;
+        println!("Bot资源清理完成: {}", bot.bot_id);
+    }
+
+    client.auth().delete_account().await?;
+    println!("用户账号清理完成");
+
     Ok(())
 }

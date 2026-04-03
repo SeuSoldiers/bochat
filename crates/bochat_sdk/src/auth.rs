@@ -44,6 +44,12 @@ impl AuthApi {
             .request_json(Method::PUT, "/api/v1/users/me", AuthKind::User, &req)
             .await
     }
+
+    pub async fn delete_account(&self) -> SdkResult<()> {
+        self.client
+            .request_empty(Method::DELETE, "/api/v1/users/delete", AuthKind::User)
+            .await
+    }
 }
 
 pub struct RegisterBuilder {
