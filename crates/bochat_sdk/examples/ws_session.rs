@@ -8,13 +8,42 @@ use tokio::time::sleep;
 async fn main() -> SdkResult<()> {
     let client = BochatClient::builder("http://127.0.0.1:8080").build()?;
 
-    let _login = client
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let account = format!("sdk_user_{}", ts);
+    let password = "Passw0rd";
+    let nickname = format!("SDK用户{}", ts % 10000);
+
+    match client
         .auth()
-        .login()
-        .account("demo_user_01")
-        .password("Passw0rd")
+        .register()
+        .account(account.clone())
+        .password(password)
+        .nickname(nickname)
         .send()
-        .await?;
+        .await
+    {
+        Ok(resp) => {
+            println!(
+                "注册成功: token={}",
+                &resp.token[..20.min(resp.token.len())]
+            );
+        }
+        Err(SdkError::Api { code, .. }) if code == "account_conflict" => {
+            println!("账号已存在，回退到登录流程");
+            let _ = client
+                .auth()
+                .login()
+                .account(account.clone())
+                .password(password)
+                .send()
+                .await?;
+        }
+        Err(err) => return Err(err),
+    }
 
     let bots = client.bots().list().await?;
     let first_bot = bots.first().expect("需要至少一个 Bot");

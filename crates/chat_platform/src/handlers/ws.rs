@@ -9,6 +9,7 @@ use futures_util::StreamExt;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
+use crate::services::authz::bot_has_global_group_access;
 use crate::utils::verify_token;
 use crate::ws::{WsEvent, WsManager};
 use crate::{
@@ -51,13 +52,20 @@ pub async fn ws_handler(
         state.config.security.token_expiry_secs,
     )?;
 
-    let group_ids: Vec<String> = sqlx::query_scalar(
-        "SELECT group_id FROM group_members WHERE member_id = ? ORDER BY joined_at ASC",
-    )
-    .bind(&requester_bot.bot_id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let group_ids: Vec<String> = if bot_has_global_group_access(&state.pool, &requester_bot.bot_id).await? {
+        sqlx::query_scalar("SELECT group_id FROM groups ORDER BY created_at ASC")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    } else {
+        sqlx::query_scalar(
+            "SELECT group_id FROM group_members WHERE member_id = ? ORDER BY joined_at ASC",
+        )
+        .bind(&requester_bot.bot_id)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    };
 
     let ws_manager = state.ws_manager.clone();
     let bot_id = requester_bot.bot_id.clone();

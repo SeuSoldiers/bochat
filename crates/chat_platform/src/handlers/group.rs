@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
-use crate::services::authz::bot_has_global_group_access;
+use crate::services::authz::{bot_has_global_group_access, can_manage_target_user, user_is_super_admin};
 use crate::utils::{generate_group_id, verify_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -82,7 +82,7 @@ pub async fn create_group(
             AppError::BotNotFound
         })?;
 
-        if target_bot.owner_id != user_id {
+        if !can_manage_target_user(&state.pool, &user_id, &target_bot.owner_id).await? {
             tracing::warn!(
                 "创建群聊失败: 目标 Bot 不属于当前用户, owner_id={}, user_id={}",
                 target_bot.owner_id,
@@ -216,27 +216,45 @@ pub async fn list_user_groups(
     tracing::debug!("从 token 解析出用户 ID: {}", user_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
-    // 查询当前用户创建或其 Bot 已加入的群聊
-    tracing::info!("正在查询当前用户可管理/已加入的群聊");
+    let is_super_admin = user_is_super_admin(&state.pool, &user_id).await?;
 
-    let groups: Vec<crate::models::Group> = sqlx::query_as(
-        r#"
-        SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
-        FROM groups g
-        LEFT JOIN group_members gm ON gm.group_id = g.group_id
-        LEFT JOIN bots b ON b.bot_id = gm.member_id
-        WHERE g.creator_id = ? OR b.owner_id = ?
-        ORDER BY g.created_at DESC
-        "#
-    )
-    .bind(&user_id)
-    .bind(&user_id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询群聊列表时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?;
+    // 超级管理员可查看所有群；普通用户仅可查看自己创建或自己 Bot 加入的群。
+    tracing::info!("正在查询群聊列表，is_super_admin={}", is_super_admin);
+
+    let groups: Vec<crate::models::Group> = if is_super_admin {
+        sqlx::query_as(
+            r#"
+            SELECT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
+            FROM groups g
+            ORDER BY g.created_at DESC
+            "#,
+        )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询全部群聊时数据库错误: {}", e);
+            AppError::DatabaseError(e.to_string())
+        })?
+    } else {
+        sqlx::query_as(
+            r#"
+            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
+            FROM groups g
+            LEFT JOIN group_members gm ON gm.group_id = g.group_id
+            LEFT JOIN bots b ON b.bot_id = gm.member_id
+            WHERE g.creator_id = ? OR b.owner_id = ?
+            ORDER BY g.created_at DESC
+            "#,
+        )
+        .bind(&user_id)
+        .bind(&user_id)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询群聊列表时数据库错误: {}", e);
+            AppError::DatabaseError(e.to_string())
+        })?
+    };
 
     tracing::info!("✅ 查询成功，共找到 {} 个群聊", groups.len());
     tracing::debug!(
@@ -327,7 +345,7 @@ pub async fn join_group(
             AppError::BotNotFound
         })?;
 
-        if target_bot.owner_id != requester_user_id {
+        if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
             tracing::warn!(
                 "加入群聊失败: 目标 Bot 不属于当前用户, owner_id={}, requester_owner={}",
                 target_bot.owner_id,
@@ -447,7 +465,7 @@ pub async fn leave_group(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    if bot.owner_id != requester_user_id {
+    if !can_manage_target_user(&state.pool, &requester_user_id, &bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
     }
 
@@ -490,7 +508,7 @@ pub async fn remove_group_member(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    if target_bot.owner_id != requester_user_id {
+    if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
     }
 
@@ -532,8 +550,8 @@ pub async fn delete_group(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BadRequest("Group not found".to_string()))?;
 
-    // Check if requester is the creator
-    if group.creator_id != requester_user_id {
+    // 超级管理员可删除任意群。
+    if !can_manage_target_user(&state.pool, &requester_user_id, &group.creator_id).await? {
         return Err(AppError::Forbidden("只有群创建者才能删除该群".to_string()));
     }
 
@@ -770,7 +788,7 @@ pub async fn list_group_members(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    if !can_view {
+    if !can_view && !user_is_super_admin(&state.pool, &requester_user_id).await? {
         return Err(AppError::Forbidden(
             "只有群创建者或群内 Bot 的拥有者可以查看成员".to_string(),
         ));

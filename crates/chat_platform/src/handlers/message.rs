@@ -7,7 +7,7 @@ use axum::{
 use serde_json::json;
 
 use crate::models::CreateMessageRequest;
-use crate::services::authz::bot_has_global_group_access;
+use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
 use crate::utils::verify_token;
 use crate::ws::WsEvent;
 use crate::{
@@ -242,6 +242,8 @@ pub async fn send_message(
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+    let super_admin_bot_ids = list_super_admin_bot_ids(&state.pool).await?;
+
     let ws_event = WsEvent {
         event_type: "message".to_string(),
         payload: response_payload.clone(),
@@ -249,6 +251,13 @@ pub async fn send_message(
     };
 
     for bot_id in member_bot_ids {
+        state
+            .ws_manager
+            .broadcast_message(&bot_id, ws_event.clone())
+            .await;
+    }
+
+    for bot_id in super_admin_bot_ids {
         state
             .ws_manager
             .broadcast_message(&bot_id, ws_event.clone())

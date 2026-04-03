@@ -8,6 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
+use crate::services::authz::{can_manage_target_user, user_is_super_admin};
 use crate::utils::{generate_bot_id, generate_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -146,19 +147,37 @@ pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> App
     tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
-    // 查询该用户的所有 bot
-    tracing::info!("正在查询用户所有 Bot: {}", owner_id);
+    let is_super_admin = user_is_super_admin(&state.pool, &owner_id).await?;
 
-    let bots: Vec<crate::models::Bot> = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at DESC"
-    )
-    .bind(&owner_id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 列表时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?;
+    // 超级管理员可查看全量 Bot；普通用户仅查看自己名下 Bot。
+    tracing::info!(
+        "正在查询 Bot 列表，owner_id={}, is_super_admin={}",
+        owner_id,
+        is_super_admin
+    );
+
+    let bots: Vec<crate::models::Bot> = if is_super_admin {
+        sqlx::query_as(
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots ORDER BY created_at DESC"
+        )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询全量 Bot 列表时数据库错误: {}", e);
+            AppError::DatabaseError(e.to_string())
+        })?
+    } else {
+        sqlx::query_as(
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at DESC"
+        )
+        .bind(&owner_id)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询 Bot 列表时数据库错误: {}", e);
+            AppError::DatabaseError(e.to_string())
+        })?
+    };
 
     tracing::info!("✅ 查询成功，共找到 {} 个 Bot", bots.len());
     tracing::debug!(
@@ -264,8 +283,8 @@ pub async fn delete_bot(
 
     tracing::debug!("目标 Bot 查询成功，所有者: {}", target_bot.owner_id);
 
-    // 检查请求者是否是目标 bot 的所有者
-    if requester_user_id != target_bot.owner_id {
+    // 超级管理员可管理任意 Bot。
+    if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
         tracing::warn!(
             "删除 Bot 权限检查失败: 请求者所有者={}, 目标所有者={}",
             requester_user_id,
@@ -321,7 +340,7 @@ pub async fn update_bot(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
     .ok_or(AppError::BotNotFound)?;
 
-    if requester_user_id != target_bot.owner_id {
+    if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
     }
 
