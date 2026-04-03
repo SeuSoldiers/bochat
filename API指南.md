@@ -31,13 +31,15 @@
 ```json
 {
   "name": "张三",
-  "phone": "13800138000"
+  "account": "zhangsan_01",
+  "password": "Passw0rd!"
 }
 ```
 
 说明：
 
-- `phone` 和 `id_number` 二选一，至少填写一项
+- `account` 必填，长度 `4-32`，仅支持字母、数字、下划线
+- `password` 必填，长度 `8-64`，必须包含字母和数字，仅支持可见 ASCII 字符
 - `name` 可省略，后端会回退生成 `用户-xxxxxxxx` 形式的默认昵称
 - 注册成功时会自动创建一个默认 Bot
 - 接口会直接返回用户级 `token`
@@ -48,7 +50,7 @@
 {
   "message": "注册成功",
   "name": "用户-1a2b3c4d",
-  "phone": "13800138000",
+  "account": "zhangsan_01",
   "token": "u:u_xxx:1710000000:signature",
   "created_at": "2026-03-20T10:00:00Z"
 }
@@ -62,15 +64,8 @@
 
 ```json
 {
-  "phone": "13800138000"
-}
-```
-
-或
-
-```json
-{
-  "id_number": "110101199003071234"
+  "account": "zhangsan_01",
+  "password": "Passw0rd!"
 }
 ```
 
@@ -115,7 +110,7 @@
 
 ```json
 {
-  "name": "新的用户名",
+  "name": "新的昵称",
   "phone": "13800138000",
   "avatar_url": "https://example.com/avatar.png"
 }
@@ -451,7 +446,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?bot_id=b_xxx&limit=50&o
 说明：
 
 - multipart 上传
-- 需要用户 token
+- 需要 Bot token
 - 文件保存到 `FILE_STORAGE_PATH`
 - 后端会记录哈希并复用相同内容文件
 

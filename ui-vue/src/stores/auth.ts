@@ -10,7 +10,7 @@ import {
   logout,
   register,
   updateCurrentUser,
-  type AuthIdentityPayload,
+  type AuthCredentialsPayload,
   type LoginResponse,
   type RegisterPayload,
 } from '@/services/auth'
@@ -72,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 方法：登录
-  const handleLogin = async (payload: AuthIdentityPayload) => {
+  const handleLogin = async (payload: AuthCredentialsPayload) => {
     loading.value = true
     error.value = null
 
@@ -119,6 +119,7 @@ export const useAuthStore = defineStore('auth', () => {
     name?: string
     phone?: string
     avatar_url?: string
+    password?: string
   }) => {
     loading.value = true
     error.value = null

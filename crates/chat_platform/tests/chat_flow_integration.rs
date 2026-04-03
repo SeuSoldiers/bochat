@@ -102,8 +102,8 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         None,
         Some(json!({
             "name": "Alice",
-            "id_number": "110101199003071234",
-            "phone": "13800138001"
+            "account": "alice_1001",
+            "password": "Alice2026!"
         })),
     )
     .await;
@@ -116,8 +116,8 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         None,
         Some(json!({
             "name": "Bob",
-            "id_number": "110101199003071235",
-            "phone": "13800138002"
+            "account": "bob_1002",
+            "password": "Bob2026!"
         })),
     )
     .await;
@@ -129,8 +129,8 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "/api/v1/auth/login",
         None,
         Some(json!({
-            "id_number": "110101199003071234",
-            "phone": "13800138001"
+            "account": "alice_1001",
+            "password": "Alice2026!"
         })),
     )
     .await;
@@ -143,8 +143,8 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "/api/v1/auth/login",
         None,
         Some(json!({
-            "id_number": "110101199003071235",
-            "phone": "13800138002"
+            "account": "bob_1002",
+            "password": "Bob2026!"
         })),
     )
     .await;
@@ -381,7 +381,10 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     )
     .await;
     assert_eq!(second_duplicate_status, StatusCode::OK);
-    assert_eq!(first_duplicate_body["msg_id"], second_duplicate_body["msg_id"]);
+    assert_eq!(
+        first_duplicate_body["msg_id"],
+        second_duplicate_body["msg_id"]
+    );
 
     let (tech_messages_status, tech_messages_body) = send_json(
         &app,

@@ -6,6 +6,7 @@ use axum::{
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
+use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -44,6 +45,12 @@ pub enum AppError {
 
     #[error("Phone already exists")]
     PhoneConflict,
+
+    #[error("Account already exists")]
+    AccountConflict,
+
+    #[error("Invalid credentials")]
+    InvalidCredentials,
 
     #[error("Message not found")]
     MessageNotFound,
@@ -102,13 +109,16 @@ impl AppError {
             | AppError::BotInactive
             | AppError::NoAvailableBot
             | AppError::BotNotInGroup => StatusCode::BAD_REQUEST,
+            AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
             AppError::Unauthorized
             | AppError::UserTokenRequired
             | AppError::BotTokenRequired
             | AppError::BotPermissionDenied
             | AppError::BotOwnershipMismatch
             | AppError::Forbidden(_) => StatusCode::FORBIDDEN,
-            AppError::IdNumberConflict | AppError::PhoneConflict => StatusCode::CONFLICT,
+            AppError::IdNumberConflict | AppError::PhoneConflict | AppError::AccountConflict => {
+                StatusCode::CONFLICT
+            }
             AppError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             AppError::BadRequest(_) | AppError::InvalidFileFormat => StatusCode::BAD_REQUEST,
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
@@ -130,6 +140,8 @@ impl AppError {
             AppError::InvalidBotToken => "invalid_bot_token",
             AppError::IdNumberConflict => "id_number_conflict",
             AppError::PhoneConflict => "phone_conflict",
+            AppError::AccountConflict => "account_conflict",
+            AppError::InvalidCredentials => "invalid_credentials",
             AppError::MessageNotFound => "message_not_found",
             AppError::FileNotFound => "file_not_found",
             AppError::InvalidFileFormat => "invalid_file_format",
@@ -149,7 +161,10 @@ impl AppError {
 
     fn user_message(&self) -> String {
         match self {
-            AppError::DatabaseError(_) => "数据库操作失败，请稍后重试".to_string(),
+            AppError::DatabaseError(e) => {
+                error!("Database error: {}", e);
+                "数据库操作失败，请稍后重试".to_string()
+            }
             AppError::UserNotFound => "用户不存在或登录信息不正确".to_string(),
             AppError::BotNotFound => "Bot 不存在".to_string(),
             AppError::InvalidIdNumber => "身份证号格式不正确".to_string(),
@@ -161,6 +176,8 @@ impl AppError {
             AppError::InvalidBotToken => "Bot 凭证已失效，请重新选择 Bot".to_string(),
             AppError::IdNumberConflict => "该身份证号已注册".to_string(),
             AppError::PhoneConflict => "该手机号已注册".to_string(),
+            AppError::AccountConflict => "该账号已注册".to_string(),
+            AppError::InvalidCredentials => "账号或密码错误".to_string(),
             AppError::MessageNotFound => "消息不存在".to_string(),
             AppError::FileNotFound => "文件不存在".to_string(),
             AppError::InvalidFileFormat => "文件格式不支持".to_string(),
@@ -188,7 +205,6 @@ impl IntoResponse for AppError {
             status,
             Json(json!({
                 "code": code,
-                "error": message,
                 "message": message,
                 "status": status.as_u16(),
             })),
@@ -205,7 +221,7 @@ pub fn error_response(status: StatusCode, message: impl Into<String>) -> Respons
     (
         status,
         Json(json!({
-            "error": message.into(),
+            "message": message.into(),
             "status": status.as_u16(),
         })),
     )

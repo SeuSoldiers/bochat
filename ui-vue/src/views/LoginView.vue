@@ -23,69 +23,36 @@
           </button>
         </div>
 
-        <!-- 用户名输入（注册可选） -->
+        <!-- 昵称输入（注册可选） -->
         <div v-if="!isLogin" class="form-group">
-          <label for="name">姓名</label>
+          <label for="name">昵称</label>
           <input
             id="name"
             v-model="form.name"
             type="text"
-            placeholder="可选，不填则自动生成"
+            placeholder="可选，不填则自动生成默认昵称"
             :disabled="loading"
           />
         </div>
 
         <div class="form-group">
-          <label>登录方式</label>
-          <div class="identity-switch">
-            <button
-              type="button"
-              :class="['switch-btn', { active: identityType === 'phone' }]"
-              :disabled="loading"
-              @click="identityType = 'phone'"
-            >
-              手机号
-            </button>
-            <button
-              type="button"
-              :class="['switch-btn', { active: identityType === 'id_number' }]"
-              :disabled="loading"
-              @click="identityType = 'id_number'"
-            >
-              身份证号
-            </button>
-          </div>
-        </div>
-
-        <!-- 手机号输入 -->
-        <div v-if="identityType === 'phone'" class="form-group">
-          <label for="phone">手机号</label>
+          <label for="account">账号</label>
           <input
-            id="phone"
-            v-model="form.phone"
-            type="tel"
-            placeholder="请输入手机号"
+            id="account"
+            v-model="form.account"
+            type="text"
+            placeholder="4-32位，仅支持字母、数字、下划线"
             :disabled="loading"
           />
         </div>
 
-        <!-- 身份证号输入 -->
         <div class="form-group">
-          <label for="idNumber">身份证号</label>
+          <label for="password">密码</label>
           <input
-            id="idNumber"
-            v-model="form.idNumber"
-            type="text"
-            placeholder="请输入身份证号"
-            :disabled="loading"
-            v-if="identityType === 'id_number'"
-          />
-          <input
-            v-else
-            id="idNumberReadonly"
-            v-model="form.idNumber"
-            type="text"
-            placeholder="已切换为手机号登录，身份证号可留空"
+            id="password"
+            v-model="form.password"
+            type="password"
+            placeholder="8-64位，需包含字母和数字"
             :disabled="loading"
           />
         </div>
@@ -115,29 +82,49 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const isLogin = ref(true)
-const identityType = ref<'phone' | 'id_number'>('phone')
 const loading = ref(false)
 const form = ref({
   name: '',
-  phone: '',
-  idNumber: '',
+  account: '',
+  password: '',
 })
 const error = ref<string | null>(null)
+
+function validateCredentials(account: string, password: string): string | null {
+  const accountPattern = /^[A-Za-z0-9_]{4,32}$/
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,64}$/
+
+  if (!accountPattern.test(account)) {
+    return '账号格式不正确：长度需为4-32位，仅支持字母、数字、下划线'
+  }
+
+  if (!passwordPattern.test(password)) {
+    return '密码格式不正确：长度需为8-64位，且必须包含字母和数字'
+  }
+
+  return null
+}
 
 const handleSubmit = async () => {
   error.value = null
   loading.value = true
 
   try {
-    const payload = identityType.value === 'phone'
-      ? { phone: form.value.phone.trim() }
-      : { id_number: form.value.idNumber.trim() }
+    const account = form.value.account.trim()
+    const password = form.value.password.trim()
 
-    const identityValue = identityType.value === 'phone' ? payload.phone : payload.id_number
-    if (!identityValue) {
-      error.value = identityType.value === 'phone' ? '请输入手机号' : '请输入身份证号'
+    if (!account || !password) {
+      error.value = '请输入账号和密码'
       return
     }
+
+    const validationError = validateCredentials(account, password)
+    if (validationError) {
+      error.value = validationError
+      return
+    }
+
+    const payload = { account, password }
 
     if (isLogin.value) {
       await authStore.handleLogin(payload)
@@ -153,8 +140,8 @@ const handleSubmit = async () => {
 
     // 导航成功后，清空表单
     form.value.name = ''
-    form.value.phone = ''
-    form.value.idNumber = ''
+    form.value.account = ''
+    form.value.password = ''
   } catch (err: any) {
     error.value = getErrorMessage(err, isLogin.value ? '登录失败' : '注册失败')
     console.error('登录/注册错误:', err)
@@ -265,28 +252,6 @@ const handleSubmit = async () => {
   background-color: #fafaf8;
   color: #cccccc;
   cursor: not-allowed;
-}
-
-.identity-switch {
-  display: flex;
-  gap: 8px;
-}
-
-.switch-btn {
-  flex: 1;
-  border: 1px solid #d4cfc8;
-  background: #fff;
-  color: #666;
-  border-radius: 6px;
-  padding: 9px 10px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.switch-btn.active {
-  border-color: #8b9d83;
-  color: #8b9d83;
-  background: #f3f7f1;
 }
 
 .error-message {

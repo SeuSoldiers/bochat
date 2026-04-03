@@ -105,7 +105,7 @@ const handleFileChange = async (event: Event) => {
   error.value = null
 
   try {
-    const uploaded = await uploadFile(file)
+    const uploaded = await uploadFile(file, props.bot.token)
     form.value.avatarUrl = uploaded.url
   } catch (err: any) {
     error.value = getErrorMessage(err, '头像上传失败')

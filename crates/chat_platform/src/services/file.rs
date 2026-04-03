@@ -23,7 +23,7 @@ impl FileService {
         offset: i64,
     ) -> AppResult<Vec<File>> {
         sqlx::query_as::<_, File>(
-            "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE owner_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            "SELECT f.file_id, f.owner_id, f.content_hash, f.filename, f.size, f.mime_type, f.storage_path, f.created_at\n             FROM files f\n             INNER JOIN bots b ON b.bot_id = f.owner_id\n             WHERE b.owner_id = ?\n             ORDER BY f.created_at DESC\n             LIMIT ? OFFSET ?"
         )
         .bind(user_id)
         .bind(limit)

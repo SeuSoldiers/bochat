@@ -7,7 +7,7 @@
         <header class="card-header">
           <div>
             <h2>个人信息</h2>
-            <p>管理你的用户名、手机号和头像</p>
+            <p>管理你的昵称和密码</p>
           </div>
         </header>
 
@@ -15,34 +15,30 @@
 
         <form class="profile-form" @submit.prevent="handleSave">
           <div class="form-group">
-            <label for="name">用户名</label>
-            <input id="name" v-model="form.name" type="text" placeholder="请输入用户名" :disabled="saving || loading" />
+            <label for="name">昵称</label>
+            <input id="name" v-model="form.name" type="text" placeholder="请输入昵称" :disabled="saving || loading" />
           </div>
 
           <div class="form-group">
-            <label for="phone">手机号</label>
+            <label for="password">新密码</label>
             <input
-              id="phone"
-              v-model="form.phone"
-              type="tel"
-              placeholder="留空表示不使用手机号登录"
+              id="password"
+              v-model="form.password"
+              type="password"
+              placeholder="留空表示不修改密码"
               :disabled="saving || loading"
             />
           </div>
 
           <div class="form-group">
-            <label for="avatarUrl">头像 URL</label>
+            <label for="confirmPassword">确认新密码</label>
             <input
-              id="avatarUrl"
-              v-model="form.avatarUrl"
-              type="url"
-              placeholder="https://example.com/avatar.png"
+              id="confirmPassword"
+              v-model="form.confirmPassword"
+              type="password"
+              placeholder="再次输入新密码"
               :disabled="saving || loading"
             />
-          </div>
-
-          <div v-if="form.avatarUrl" class="avatar-preview">
-            <img :src="form.avatarUrl" alt="头像预览" @error="handleAvatarError" />
           </div>
 
           <div v-if="saveError" class="error-box">{{ saveError }}</div>
@@ -78,14 +74,14 @@ const saveSuccess = ref<string | null>(null)
 
 const form = reactive({
   name: '',
-  phone: '',
-  avatarUrl: '',
+  password: '',
+  confirmPassword: '',
 })
 
 const fillForm = () => {
   form.name = authStore.user?.name || ''
-  form.phone = authStore.user?.phone || ''
-  form.avatarUrl = authStore.user?.avatar_url || ''
+  form.password = ''
+  form.confirmPassword = ''
 }
 
 const fetchProfile = async () => {
@@ -108,20 +104,25 @@ const resetForm = () => {
   fillForm()
 }
 
-const handleAvatarError = () => {
-  saveError.value = '头像地址不可访问，请检查 URL 是否正确'
-}
-
 const handleSave = async () => {
   saveError.value = null
   saveSuccess.value = null
   saving.value = true
 
   try {
+    const password = form.password.trim()
+    const confirmPassword = form.confirmPassword.trim()
+
+    if (password || confirmPassword) {
+      if (password !== confirmPassword) {
+        saveError.value = '两次输入的密码不一致'
+        return
+      }
+    }
+
     await authStore.updateProfile({
       name: form.name.trim() || undefined,
-      phone: form.phone.trim(),
-      avatar_url: form.avatarUrl.trim(),
+      password: password || undefined,
     })
     saveSuccess.value = '保存成功'
     fillForm()
@@ -198,21 +199,6 @@ onMounted(fetchProfile)
   outline: none;
   border-color: #8b9d83;
   box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.15);
-}
-
-.avatar-preview {
-  margin-bottom: 18px;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 2px solid #e0d8cf;
-}
-
-.avatar-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .error-box,

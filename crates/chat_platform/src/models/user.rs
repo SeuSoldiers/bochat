@@ -16,20 +16,20 @@ pub struct RegisterRequest {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    pub id_number: Option<String>,
+    pub account: Option<String>,
     #[serde(default)]
-    pub phone: Option<String>,
+    pub password: Option<String>,
 }
 
 /// 登录请求
 ///
-/// 使用身份证号和手机号进行身份验证
+/// 使用账号和密码进行身份验证
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LoginRequest {
     #[serde(default)]
-    pub id_number: Option<String>,
+    pub account: Option<String>,
     #[serde(default)]
-    pub phone: Option<String>,
+    pub password: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -40,6 +40,8 @@ pub struct UpdateUserRequest {
     pub phone: Option<String>,
     #[serde(default)]
     pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

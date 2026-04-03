@@ -7,10 +7,10 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
-use crate::utils::verify_user_token;
+use crate::utils::verify_token;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_user_bearer_token, token_user_id},
+    http::{require_bot_bearer_token, token_bot_id},
     AppState,
 };
 
@@ -24,13 +24,22 @@ pub async fn upload_file(
     mut payload: Multipart,
 ) -> AppResult<axum::response::Response> {
     // Extract and verify token
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(
-        &token,
-        &state.config.security.jwt_secret,
-        state.config.security.token_expiry_secs,
-    )?;
+    let token = require_bot_bearer_token(&headers)?;
+    let bot_id = token_bot_id(&token)?.to_string();
+    let (bot_secret, bot_status): (String, String) =
+        sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
+            .bind(&bot_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or(AppError::BotNotFound)?;
+
+    if bot_status != "active" {
+        return Err(AppError::BotInactive);
+    }
+
+    let _token_payload =
+        verify_token(&token, &bot_secret, state.config.security.token_expiry_secs)?;
 
     let mut uploaded_filename: Option<String> = None;
     let mut uploaded_mime: Option<String> = None;
@@ -67,7 +76,7 @@ pub async fn upload_file(
         if total_size > state.config.security.max_file_size_mb * 1024 * 1024 {
             tracing::warn!(
                 "文件上传被拒绝: 超出大小限制, bot_id={}, size={}",
-                user_id,
+                bot_id,
                 total_size
             );
             return Err(AppError::FileTooLarge);
@@ -83,7 +92,7 @@ pub async fn upload_file(
 
     tracing::info!(
         "开始处理文件上传: bot_id={}, filename={}, size={}, mime_type={}, sha256={}",
-        user_id,
+        bot_id,
         filename,
         total_size,
         mime_type,
@@ -117,7 +126,7 @@ pub async fn upload_file(
 
         tracing::info!(
             "文件复用命中: bot_id={}, existing_file_id={}, sha256={}",
-            user_id,
+            bot_id,
             existing_file.file_id,
             content_hash
         );
@@ -148,7 +157,7 @@ pub async fn upload_file(
         "#
     )
     .bind(&file_id)
-    .bind(&user_id)
+    .bind(&bot_id)
     .bind(&content_hash)
     .bind(&filename)
     .bind(total_size as i64)
@@ -163,7 +172,7 @@ pub async fn upload_file(
 
     tracing::info!(
         "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
-        user_id,
+        bot_id,
         file_id,
         content_hash,
         storage_path.to_string_lossy()

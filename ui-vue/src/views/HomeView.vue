@@ -103,6 +103,7 @@
     <!-- 创建 Bot 模态框 -->
     <CreateBotModal
       v-if="showCreateBotModal"
+      :upload-token="botStore.bots[0]?.token"
       @create="handleCreateBot"
       @close="showCreateBotModal = false"
     />

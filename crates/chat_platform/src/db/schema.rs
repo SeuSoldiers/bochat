@@ -8,6 +8,8 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
+            account TEXT UNIQUE,
+            password_hash TEXT,
             id_number TEXT NOT NULL UNIQUE,
             phone TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -38,6 +40,35 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             return Err(crate::error::AppError::DatabaseError(e.to_string()));
         }
     }
+
+    if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN account TEXT")
+        .execute(pool)
+        .await
+    {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(crate::error::AppError::DatabaseError(e.to_string()));
+        }
+    }
+
+    if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        .execute(pool)
+        .await
+    {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(crate::error::AppError::DatabaseError(e.to_string()));
+        }
+    }
+
+    sqlx::query(
+        r#"
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_unique
+        ON users(account)
+        WHERE account IS NOT NULL
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
     sqlx::query(
         r#"
@@ -207,7 +238,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_sender_group_idempotency
         ON messages(sender_id, group_id, idempotency_key)
         WHERE idempotency_key IS NOT NULL
-        "#
+        "#,
     )
     .execute(pool)
     .await

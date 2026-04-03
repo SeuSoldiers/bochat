@@ -48,7 +48,7 @@
           </div>
           <div class="upload-row">
             <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="handleFileChange" />
-            <button type="button" class="btn-upload" :disabled="loading || uploading" @click="triggerUpload">
+            <button type="button" class="btn-upload" :disabled="loading || uploading || !uploadToken" @click="triggerUpload">
               {{ uploading ? '上传中...' : '上传头像' }}
             </button>
           </div>
@@ -76,6 +76,10 @@
 import { ref } from 'vue'
 import { uploadFile } from '@/services/file'
 import { getErrorMessage } from '@/utils/error'
+
+const props = defineProps<{
+  uploadToken?: string
+}>()
 
 const emit = defineEmits<{
   create: [name: string, description: string, avatarUrl: string]
@@ -111,6 +115,10 @@ const handleSubmit = async () => {
 }
 
 const triggerUpload = () => {
+  if (!props.uploadToken) {
+    error.value = '暂无可用 Bot Token，请先创建或选择一个 Bot 后再上传'
+    return
+  }
   fileInput.value?.click()
 }
 
@@ -125,7 +133,12 @@ const handleFileChange = async (event: Event) => {
   error.value = null
 
   try {
-    const uploaded = await uploadFile(file)
+    if (!props.uploadToken) {
+      error.value = '暂无可用 Bot Token，请先创建或选择一个 Bot 后再上传'
+      return
+    }
+
+    const uploaded = await uploadFile(file, props.uploadToken)
     form.value.avatarUrl = uploaded.url
   } catch (err: any) {
     error.value = getErrorMessage(err, '头像上传失败')

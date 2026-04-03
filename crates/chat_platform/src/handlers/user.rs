@@ -5,6 +5,8 @@ use axum::{
     response::Response,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::utils::verify_user_token;
 use crate::{
@@ -15,6 +17,8 @@ use crate::{
 };
 
 const NONE_PREFIX: &str = "_none_";
+const PASSWORD_MIN_LEN: usize = 8;
+const PASSWORD_MAX_LEN: usize = 64;
 
 fn normalize_optional_field(value: &str) -> Option<String> {
     if value.is_empty() || value.starts_with(NONE_PREFIX) {
@@ -29,6 +33,29 @@ fn to_db_identifier(field: &str, value: Option<&str>, user_id: &str) -> String {
         Some(v) => v.to_string(),
         None => format!("{NONE_PREFIX}{field}_{user_id}"),
     }
+}
+
+fn validate_password(password: &str) -> bool {
+    let len = password.len();
+    if !(PASSWORD_MIN_LEN..=PASSWORD_MAX_LEN).contains(&len) {
+        return false;
+    }
+
+    let has_letter = password.chars().any(|c| c.is_ascii_alphabetic());
+    let has_digit = password.chars().any(|c| c.is_ascii_digit());
+    let all_printable_ascii = password.chars().all(|c| c.is_ascii_graphic());
+
+    has_letter && has_digit && all_printable_ascii
+}
+
+fn hash_password(password: &str, pepper: &str) -> String {
+    let salt = Uuid::new_v4().simple().to_string();
+    let mut hasher = Sha256::new();
+    hasher.update(salt.as_bytes());
+    hasher.update(password.as_bytes());
+    hasher.update(pepper.as_bytes());
+    let digest = hasher.finalize();
+    format!("{}${}", salt, hex::encode(digest))
 }
 
 #[tracing::instrument(skip(state))]
@@ -76,7 +103,7 @@ pub async fn update_current_user(
 
     let next_name = match req.name.as_deref().map(str::trim) {
         Some("") => {
-            return Err(AppError::BadRequest("用户名不能为空".to_string()));
+            return Err(AppError::BadRequest("昵称不能为空".to_string()));
         }
         Some(name) => name.to_string(),
         None => current_user.name.clone(),
@@ -88,16 +115,24 @@ pub async fn update_current_user(
         None => normalize_optional_field(&current_user.phone),
     };
 
-    if next_phone.is_none() && normalize_optional_field(&current_user.id_number).is_none() {
-        return Err(AppError::BadRequest(
-            "手机号和身份证号至少填写一项".to_string(),
-        ));
-    }
-
     let next_avatar_url = match req.avatar_url.as_deref().map(str::trim) {
         Some("") => None,
         Some(url) => Some(url.to_string()),
         None => current_user.avatar_url.clone(),
+    };
+
+    let next_password_hash = match req.password.as_deref().map(str::trim) {
+        Some("") => None,
+        Some(password) => {
+            if !validate_password(password) {
+                return Err(AppError::BadRequest(format!(
+                    "密码格式不正确：长度需为{}-{}位，且必须包含字母和数字，仅支持可见 ASCII 字符",
+                    PASSWORD_MIN_LEN, PASSWORD_MAX_LEN
+                )));
+            }
+            Some(hash_password(password, &state.config.security.jwt_secret))
+        }
+        None => None,
     };
 
     let db_phone = to_db_identifier("phone", next_phone.as_deref(), &user_id);
@@ -106,13 +141,14 @@ pub async fn update_current_user(
     sqlx::query(
         r#"
         UPDATE users
-        SET name = ?, phone = ?, avatar_url = ?, updated_at = ?
+        SET name = ?, phone = ?, avatar_url = ?, password_hash = COALESCE(?, password_hash), updated_at = ?
         WHERE user_id = ?
         "#,
     )
     .bind(&next_name)
     .bind(&db_phone)
     .bind(&next_avatar_url)
+    .bind(&next_password_hash)
     .bind(&now)
     .bind(&user_id)
     .execute(&state.pool)

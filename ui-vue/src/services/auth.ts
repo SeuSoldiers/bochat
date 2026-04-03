@@ -5,12 +5,12 @@
 import { apiClient } from './api'
 import type { User } from '@/types'
 
-export interface AuthIdentityPayload {
-  phone?: string
-  id_number?: string
+export interface AuthCredentialsPayload {
+  account?: string
+  password?: string
 }
 
-export interface RegisterPayload extends AuthIdentityPayload {
+export interface RegisterPayload extends AuthCredentialsPayload {
   name?: string
 }
 
@@ -26,7 +26,7 @@ export async function register(payload: RegisterPayload) {
 /**
  * 用户登录
  */
-export async function login(payload: AuthIdentityPayload) {
+export async function login(payload: AuthCredentialsPayload) {
   const response = await apiClient.post<LoginResponse>('/auth/login', payload)
 
   // 保存 token
@@ -46,6 +46,7 @@ export async function updateCurrentUser(payload: {
   name?: string
   phone?: string
   avatar_url?: string
+  password?: string
 }) {
   return apiClient.put<User>('/users/me', payload)
 }
