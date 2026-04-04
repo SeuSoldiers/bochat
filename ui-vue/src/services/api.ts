@@ -138,18 +138,37 @@ class ApiClient {
       return false
     }
 
-    if (status === 401) {
+    const normalizedCode = (code || '').toLowerCase()
+    const userAuthCodes = ['invalid_user_token', 'user_token_required', 'invalid_token', 'unauthorized']
+    if (userAuthCodes.includes(normalizedCode)) {
       return true
     }
 
-    return [
-      'invalid_user_token',
-      'user_token_required',
-      'invalid_bot_token',
-      'bot_token_required',
-      'invalid_token',
-      'unauthorized',
-    ].includes(code || '')
+    const botAuthCodes = ['invalid_bot_token', 'bot_token_required']
+    if (botAuthCodes.includes(normalizedCode)) {
+      return false
+    }
+
+    // 后端若仅返回 401 但未携带业务 code，则按路径判断是否属于用户身份接口。
+    if (status === 401) {
+      return this.isUserAuthScope(normalizedUrl)
+    }
+
+    return false
+  }
+
+  private isUserAuthScope(normalizedUrl: string): boolean {
+    if (
+      normalizedUrl.includes('/users/') ||
+      normalizedUrl.includes('/bots') ||
+      normalizedUrl === '/groups' ||
+      normalizedUrl.startsWith('/groups?') ||
+      normalizedUrl.includes('/groups/join') ||
+      (normalizedUrl.includes('/groups/') && !normalizedUrl.includes('/messages'))
+    ) {
+      return true
+    }
+    return false
   }
 
   /**

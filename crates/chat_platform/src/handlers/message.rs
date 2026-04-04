@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use std::collections::HashSet;
 
 use crate::models::CreateMessageRequest;
 use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
@@ -250,14 +251,10 @@ pub async fn send_message(
         timestamp: now.clone(),
     };
 
-    for bot_id in member_bot_ids {
-        state
-            .ws_manager
-            .broadcast_message(&bot_id, ws_event.clone())
-            .await;
-    }
+    let mut recipients: HashSet<String> = member_bot_ids.into_iter().collect();
+    recipients.extend(super_admin_bot_ids);
 
-    for bot_id in super_admin_bot_ids {
+    for bot_id in recipients {
         state
             .ws_manager
             .broadcast_message(&bot_id, ws_event.clone())
