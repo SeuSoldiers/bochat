@@ -113,9 +113,7 @@ impl AppError {
             | AppError::BotPermissionDenied
             | AppError::BotOwnershipMismatch
             | AppError::Forbidden(_) => StatusCode::FORBIDDEN,
-            AppError::IdNumberConflict | AppError::AccountConflict => {
-                StatusCode::CONFLICT
-            }
+            AppError::IdNumberConflict | AppError::AccountConflict => StatusCode::CONFLICT,
             AppError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             AppError::BadRequest(_) | AppError::InvalidFileFormat => StatusCode::BAD_REQUEST,
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,

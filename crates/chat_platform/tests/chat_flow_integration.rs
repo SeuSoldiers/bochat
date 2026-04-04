@@ -84,7 +84,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let config = test_config(&temp_dir);
     let pool = db::init_pool(&config.database).await.expect("init db pool");
-    db::run_migrations(&pool).await.expect("run migrations");
+    db::init_schema(&pool).await.expect("init schema");
 
     let app = app_router(AppState {
         config,

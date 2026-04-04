@@ -29,11 +29,11 @@ async fn main() -> std::io::Result<()> {
         .expect("❌ 创建数据库连接池失败");
     tracing::info!("✅ 数据库连接池创建成功");
 
-    tracing::info!("🔄 正在运行数据库迁移...");
-    db::run_migrations(&db_pool)
+    tracing::info!("🔧 正在初始化数据库表结构...");
+    db::init_schema(&db_pool)
         .await
-        .expect("❌ 数据库迁移失败");
-    tracing::info!("✅ 数据库迁移完成");
+        .expect("❌ 初始化数据库表结构失败");
+    tracing::info!("✅ 数据库表结构初始化完成");
 
     tracing::info!("🛡️ 正在初始化超级管理员账号与Bot...");
     let seed_result = chat_platform::services::bootstrap::ensure_super_admin_account(

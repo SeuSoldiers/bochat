@@ -1,8 +1,7 @@
 use crate::error::AppResult;
 use sqlx::sqlite::SqlitePool;
 
-pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
-    // Create users table
+pub async fn init_schema(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS users (
@@ -11,6 +10,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             account TEXT UNIQUE,
             password_hash TEXT,
             id_number TEXT NOT NULL UNIQUE,
+            avatar_url TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -20,7 +20,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create index on id_number for faster lookups
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_users_id_number
@@ -30,91 +29,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .execute(pool)
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-    if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN avatar_url TEXT")
-        .execute(pool)
-        .await
-    {
-        if !e.to_string().contains("duplicate column name") {
-            return Err(crate::error::AppError::DatabaseError(e.to_string()));
-        }
-    }
-
-    if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN account TEXT")
-        .execute(pool)
-        .await
-    {
-        if !e.to_string().contains("duplicate column name") {
-            return Err(crate::error::AppError::DatabaseError(e.to_string()));
-        }
-    }
-
-    if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN password_hash TEXT")
-        .execute(pool)
-        .await
-    {
-        if !e.to_string().contains("duplicate column name") {
-            return Err(crate::error::AppError::DatabaseError(e.to_string()));
-        }
-    }
-
-    let has_phone_column: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name = 'phone')",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-    if has_phone_column {
-        sqlx::query("PRAGMA foreign_keys = OFF")
-            .execute(pool)
-            .await
-            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS users_new (
-                user_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                account TEXT UNIQUE,
-                password_hash TEXT,
-                id_number TEXT NOT NULL UNIQUE,
-                avatar_url TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-        sqlx::query(
-            r#"
-            INSERT INTO users_new (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
-            SELECT user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at
-            FROM users
-            "#,
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-        sqlx::query("DROP TABLE users")
-            .execute(pool)
-            .await
-            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-        sqlx::query("ALTER TABLE users_new RENAME TO users")
-            .execute(pool)
-            .await
-            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-        sqlx::query("PRAGMA foreign_keys = ON")
-            .execute(pool)
-            .await
-            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-    }
 
     sqlx::query(
         r#"
@@ -127,12 +41,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    sqlx::query("DROP INDEX IF EXISTS idx_users_phone_unique")
-        .execute(pool)
-        .await
-        .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-    // Create bots table
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS bots (
@@ -140,6 +48,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             owner_id TEXT NOT NULL,
             name TEXT NOT NULL,
             description TEXT,
+            avatar_url TEXT,
             status TEXT NOT NULL DEFAULT 'active',
             token TEXT NOT NULL UNIQUE,
             secret TEXT NOT NULL,
@@ -153,16 +62,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    if let Err(e) = sqlx::query("ALTER TABLE bots ADD COLUMN avatar_url TEXT")
-        .execute(pool)
-        .await
-    {
-        if !e.to_string().contains("duplicate column name") {
-            return Err(crate::error::AppError::DatabaseError(e.to_string()));
-        }
-    }
-
-    // Create index on owner_id for faster bot lookups by user
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_bots_owner_id
@@ -173,7 +72,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create groups table
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS groups (
@@ -193,7 +91,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create index on creator_id for faster group lookups
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_groups_creator_id
@@ -204,7 +101,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create index on group_code for faster lookups by group code
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_groups_group_code
@@ -215,7 +111,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create group_members table (only bots can be members)
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS group_members (
@@ -233,7 +128,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create index on member_id for faster member lookups
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_group_members_member_id
@@ -244,7 +138,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create messages table
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS messages (
@@ -264,16 +157,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    if let Err(e) = sqlx::query("ALTER TABLE messages ADD COLUMN idempotency_key TEXT")
-        .execute(pool)
-        .await
-    {
-        if !e.to_string().contains("duplicate column name") {
-            return Err(crate::error::AppError::DatabaseError(e.to_string()));
-        }
-    }
-
-    // Create index on messages table for faster queries
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_messages_group_id_created_at
@@ -295,7 +178,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create files table
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS files (
@@ -315,27 +197,26 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    if let Err(e) = sqlx::query("ALTER TABLE files ADD COLUMN content_hash TEXT")
-        .execute(pool)
-        .await
-    {
-        if !e.to_string().contains("duplicate column name") {
-            return Err(crate::error::AppError::DatabaseError(e.to_string()));
-        }
-    }
-
     sqlx::query(
         r#"
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_files_content_hash
-        ON files(content_hash)
-        WHERE content_hash IS NOT NULL
+        CREATE INDEX IF NOT EXISTS idx_files_owner_id
+        ON files(owner_id)
         "#,
     )
     .execute(pool)
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Create file_uploaders table to track all uploaders for deduplicated files
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_files_content_hash
+        ON files(content_hash)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS file_uploaders (
@@ -362,17 +243,5 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    // Backfill: existing files.owner_id is treated as the initial uploader
-    sqlx::query(
-        r#"
-        INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at)
-        SELECT file_id, owner_id, created_at FROM files
-        "#,
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
-
-    tracing::info!("Database migrations completed successfully");
     Ok(())
 }
