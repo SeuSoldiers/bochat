@@ -112,7 +112,6 @@ pub struct SendMessageRequest {
     pub group_id: String,
     pub content: MessageContent,
     pub msg_type: Option<String>,
-    pub idempotency_key: String,
 }
 
 /// Structured message content used by send/history APIs.

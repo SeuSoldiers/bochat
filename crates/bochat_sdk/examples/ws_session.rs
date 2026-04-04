@@ -120,11 +120,7 @@ async fn main() -> SdkResult<()> {
     for (idx, gid) in group_ids.iter().enumerate() {
         let _ = client
             .messages()
-            .send_text(
-                gid,
-                format!("来自 ws 分发示例的消息 {}", idx + 1),
-                format!("ws-session-{}-{}", ts, idx),
-            )
+            .send_text(gid, format!("来自 ws 分发示例的消息 {}", idx + 1))
             .await?;
     }
 

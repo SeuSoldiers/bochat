@@ -1,8 +1,40 @@
 use reqwest::Method;
+use serde::Serialize;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::time::sleep;
 
 use crate::client::{AuthKind, BochatClient};
-use crate::error::SdkResult;
+use crate::error::{SdkError, SdkResult};
 use crate::models::{GroupHistoryResponse, MessageContent, MessageResponse, SendMessageRequest};
+
+static MESSAGE_IDEMPOTENCY_SEQ: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug, Clone, Serialize)]
+struct SendMessagePayload {
+    group_id: String,
+    content: MessageContent,
+    msg_type: Option<String>,
+    idempotency_key: String,
+}
+
+fn generate_idempotency_key() -> String {
+    let ts_nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let seq = MESSAGE_IDEMPOTENCY_SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("sdk-{}-{}-{}", std::process::id(), ts_nanos, seq)
+}
+
+fn should_retry_send_error(err: &SdkError) -> bool {
+    match err {
+        SdkError::Transport(_) => true,
+        SdkError::Api { status, .. } => *status >= 500 || *status == 429,
+        SdkError::HttpStatus { status, .. } => *status >= 500 || *status == 429,
+        _ => false,
+    }
+}
 
 /// Message sending and history API facade.
 ///
@@ -20,15 +52,14 @@ impl MessagesApi {
     /// Send a message as the currently selected bot.
     ///
     /// 以当前选中的 Bot 身份发送消息。
-    ///
-    /// `idempotency_key` is required by the backend and should be unique for the
-    /// logical message you are sending.
-    ///
-    /// 后端要求必须传入 `idempotency_key`，应为当前逻辑消息提供唯一值。
     pub async fn send(&self, req: SendMessageRequest) -> SdkResult<MessageResponse> {
-        self.client
-            .request_json(Method::POST, "/api/v1/message/send", AuthKind::Bot, &req)
-            .await
+        let payload = SendMessagePayload {
+            group_id: req.group_id,
+            content: req.content,
+            msg_type: req.msg_type,
+            idempotency_key: generate_idempotency_key(),
+        };
+        self.send_with_retry(payload).await
     }
 
     /// Convenience helper for sending a plain text message.
@@ -38,13 +69,11 @@ impl MessagesApi {
         &self,
         group_id: impl Into<String>,
         text: impl Into<String>,
-        idempotency_key: impl Into<String>,
     ) -> SdkResult<MessageResponse> {
         let req = SendMessageRequest {
             group_id: group_id.into(),
             content: MessageContent::text(text),
             msg_type: Some("text".to_string()),
-            idempotency_key: idempotency_key.into(),
         };
         self.send(req).await
     }
@@ -84,5 +113,34 @@ impl MessagesApi {
     /// 构造文件消息内容字段对应的 JSON 结构。
     pub fn file_content(url: impl Into<String>) -> MessageContent {
         MessageContent::file(url)
+    }
+
+    async fn send_with_retry(&self, payload: SendMessagePayload) -> SdkResult<MessageResponse> {
+        let policy = self.client.retry_policy();
+        let attempts = policy.max_attempts.max(1);
+
+        for attempt in 0..attempts {
+            match self
+                .client
+                .request_json(
+                    Method::POST,
+                    "/api/v1/message/send",
+                    AuthKind::Bot,
+                    &payload,
+                )
+                .await
+            {
+                Ok(resp) => return Ok(resp),
+                Err(err) => {
+                    if should_retry_send_error(&err) && attempt + 1 < attempts {
+                        sleep(policy.next_delay(attempt)).await;
+                        continue;
+                    }
+                    return Err(err);
+                }
+            }
+        }
+
+        Err(SdkError::Transport("消息发送失败".to_string()))
     }
 }

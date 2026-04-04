@@ -9,7 +9,7 @@
 - 账号密码注册/登录（支持可选昵称）
 - 用户 token 与 Bot token 状态管理
 - Bot 列表、创建、更新、删除
-- 消息发送与历史拉取（支持 `idempotency_key`）
+- 消息发送与历史拉取（自动幂等与重试）
 - 文件上传/下载 URL 生成
 - 可选高级 WebSocket 会话（自动重连、心跳、事件流）
 
@@ -18,7 +18,7 @@
 - Register/login with account and password, with optional nickname
 - Built-in user token and bot token storage
 - Bot list, create, update, delete
-- Send messages and fetch history with `idempotency_key`
+- Send messages and fetch history with automatic idempotency and retries
 - Upload files and build download URLs
 - Optional advanced WebSocket session with reconnect and heartbeat
 
@@ -45,7 +45,7 @@ async fn main() -> SdkResult<()> {
 
     let sent = client
         .messages()
-        .send_text("g_demo", "hello", "demo-idempotency-1")
+        .send_text("g_demo", "hello")
         .await?;
 
     println!("msg_id={}", sent.msg_id);
@@ -105,7 +105,7 @@ async fn main() -> SdkResult<()> {
 
     let sent = client
         .messages()
-        .send_text(&group.group_id, "hello", "sdk-demo-msg-1")
+        .send_text(&group.group_id, "hello")
         .await?;
 
     let history = client
@@ -120,11 +120,11 @@ async fn main() -> SdkResult<()> {
 
 ## 设计约束 / API Semantics
 
-- `idempotency_key` is mandatory for message sending. Reuse the same key only for retries of the same logical message.
+- Message sending automatically attaches an internal idempotency key and retries transport/5xx/429 failures.
 - Group history requires a bot token and only works when that bot can access the target group.
 - `files().download_url(file_id, filename)` must include the original filename because the backend download route is `/api/v1/file/download/{file_id}/{filename}`.
 
-- 发送消息时 `idempotency_key` 为必填项，只应在“同一条逻辑消息重试”时复用。
+- 发送消息会自动附带内部幂等键，并对网络错误/5xx/429 自动重试。
 - 群消息历史查询要求使用 bot token，且该 Bot 必须对目标群有访问权限。
 - `files().download_url(file_id, filename)` 必须带上原始文件名，因为后端下载路由为 `/api/v1/file/download/{file_id}/{filename}`。
 

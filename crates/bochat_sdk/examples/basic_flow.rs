@@ -59,11 +59,7 @@ async fn main() -> SdkResult<()> {
 
     let message = client
         .messages()
-        .send_text(
-            &group.group_id,
-            "你好，来自 bochat_sdk",
-            format!("example-msg-{}", ts),
-        )
+        .send_text(&group.group_id, "你好，来自 bochat_sdk")
         .await?;
 
     println!("发送成功: msg_id={}", message.msg_id);

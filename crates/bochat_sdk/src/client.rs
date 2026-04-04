@@ -223,6 +223,10 @@ impl BochatClient {
         &self.inner.base_url
     }
 
+    pub(crate) fn retry_policy(&self) -> RetryPolicy {
+        self.inner.retry_policy.clone()
+    }
+
     pub(crate) async fn get_json<T: DeserializeOwned>(
         &self,
         path: &str,
