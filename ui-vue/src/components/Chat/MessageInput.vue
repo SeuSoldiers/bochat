@@ -21,10 +21,25 @@
       </div>
 
       <div class="input-footer">
+        <input
+          ref="fileInputRef"
+          type="file"
+          class="file-input-hidden"
+          :disabled="sending || uploading"
+          @change="handleFileChange"
+        />
+        <button
+          type="button"
+          class="file-btn"
+          :disabled="sending || uploading"
+          @click="triggerFilePicker"
+        >
+          {{ uploading ? '上传中...' : '发文件' }}
+        </button>
         <button
           type="submit"
           class="send-btn"
-          :disabled="!messageText.trim() || sending"
+          :disabled="!messageText.trim() || sending || uploading"
         >
           {{ sending ? '发送中...' : '发送' }}
         </button>
@@ -49,12 +64,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   send: [content: string, botId: string]
+  'send-file': [file: File, botId: string]
 }>()
 
 const messageText = ref('')
 const selectedBotId = ref(props.initialBotId || '')
 const sending = ref(false)
+const uploading = ref(false)
 const error = ref<string | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 watch(
   () => props.initialBotId,
@@ -95,6 +113,40 @@ const handleSend = async () => {
     error.value = err.message || '发送失败'
   } finally {
     sending.value = false
+  }
+}
+
+const triggerFilePicker = () => {
+  if (!props.groupId || !selectedBotId.value) {
+    error.value = '请选择 Bot 和群'
+    return
+  }
+
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const selectedFile = input.files?.[0]
+  if (!selectedFile) {
+    return
+  }
+
+  if (!props.groupId || !selectedBotId.value) {
+    error.value = '请选择 Bot 和群'
+    input.value = ''
+    return
+  }
+
+  uploading.value = true
+  error.value = null
+  try {
+    emit('send-file', selectedFile, selectedBotId.value)
+  } catch (err: any) {
+    error.value = err.message || '文件发送失败'
+  } finally {
+    uploading.value = false
+    input.value = ''
   }
 }
 </script>
@@ -163,7 +215,33 @@ const handleSend = async () => {
 
 .input-footer {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.file-btn {
+  padding: 10px 16px;
+  background-color: #d8d1c8;
+  color: #5f5a54;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-btn:hover:not(:disabled) {
+  background-color: #e2dbd3;
+}
+
+.file-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .send-btn {

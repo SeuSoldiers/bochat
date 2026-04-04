@@ -9,7 +9,10 @@
         <span class="message-sender">{{ senderLabel }}</span>
         <span class="message-time">{{ formatTime(message.created_at) }}</span>
       </div>
-      <div class="message-text">{{ messageText }}</div>
+      <div v-if="isFileMessage && fileUrl" class="message-file">
+        <a :href="fileUrl" target="_blank" rel="noopener noreferrer">{{ fileName }}</a>
+      </div>
+      <div v-else class="message-text">{{ messageText }}</div>
     </div>
   </div>
 </template>
@@ -27,6 +30,38 @@ defineEmits<{
 }>()
 
 const senderLabel = computed(() => props.message.sender_name || props.message.sender_id.slice(0, 8))
+
+const fileUrl = computed(() => {
+  const { content } = props.message
+  if (typeof content === 'string') {
+    return null
+  }
+  return typeof content.url === 'string' ? content.url : null
+})
+
+const isFileMessage = computed(() => props.message.msg_type === 'file' && !!fileUrl.value)
+
+const fileName = computed(() => {
+  const { content } = props.message
+  if (typeof content !== 'string' && typeof content.filename === 'string' && content.filename.trim()) {
+    return content.filename
+  }
+
+  if (!fileUrl.value) {
+    return '文件'
+  }
+
+  const segment = fileUrl.value.split('/').pop() || ''
+  if (!segment) {
+    return '文件'
+  }
+
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+})
 
 const messageText = computed(() => {
   const { content } = props.message
@@ -124,6 +159,24 @@ const formatTime = (dateStr: string) => {
   background-color: #fafaf8;
   padding: 8px 12px;
   border-radius: 6px;
+}
+
+.message-file {
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: #fafaf8;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.message-file a {
+  color: #58756d;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.message-file a:hover {
+  text-decoration: underline;
 }
 
 @keyframes fadeIn {

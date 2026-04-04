@@ -50,6 +50,7 @@
         :bots="botStore.bots"
         :initial-bot-id="activeBotId"
         @send="handleSendMessage"
+        @send-file="handleSendFile"
       />
     </div>
 
@@ -86,6 +87,7 @@ import MessageInput from '@/components/Chat/MessageInput.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
 import BotInfoModal from '@/components/Bot/BotInfoModal.vue'
 import { getBot } from '@/services/bot'
+import { uploadFile } from '@/services/file'
 import type { Bot } from '@/types'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { getErrorMessage } from '@/utils/error'
@@ -168,6 +170,41 @@ const handleSendMessage = async (content: string, botId: string) => {
   } catch (error: any) {
     messageError.value = getErrorMessage(error, '发送消息失败')
     console.error('Failed to send message:', error)
+  }
+}
+
+const handleSendFile = async (file: File, botId: string) => {
+  if (!groupStore.selectedGroup) {
+    messageError.value = '请先选择一个群'
+    return
+  }
+
+  if (!botId) {
+    messageError.value = '请先选择一个 Bot'
+    return
+  }
+
+  try {
+    messageError.value = null
+    activeBotId.value = botId
+    const botToken = getBotToken(botId)
+    if (!botToken) {
+      throw new Error('未找到对应 Bot Token')
+    }
+
+    const uploaded = await uploadFile(file, botToken)
+    await chatStore.addMessage({
+      group_id: groupStore.selectedGroup.group_id,
+      content: {
+        url: uploaded.url,
+        filename: uploaded.filename || file.name,
+      },
+      msg_type: 'file',
+      idempotency_key: createIdempotencyKey(),
+    }, botToken)
+  } catch (error: any) {
+    messageError.value = getErrorMessage(error, '发送文件失败')
+    console.error('Failed to send file:', error)
   }
 }
 

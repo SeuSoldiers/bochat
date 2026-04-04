@@ -83,6 +83,8 @@ export interface Message {
   sender_avatar_url?: string
   content: {
     text?: string
+    url?: string
+    filename?: string
     [key: string]: unknown
   } | string
   created_at: string
@@ -92,7 +94,10 @@ export interface Message {
 export interface SendMessageRequest {
   group_id: string
   content: {
-    text: string
+    text?: string
+    url?: string
+    filename?: string
+    [key: string]: unknown
   }
   msg_type?: 'text' | 'file'
   idempotency_key: string

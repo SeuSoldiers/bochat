@@ -2,6 +2,7 @@ import { apiClient } from './api'
 
 export interface UploadedFile {
   file_id: string
+  filename: string
   url: string
   created_at: string
 }
