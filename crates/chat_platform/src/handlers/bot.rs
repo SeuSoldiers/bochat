@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
 use crate::services::authz::{can_manage_target_user, ensure_user_exists, user_is_super_admin};
+use crate::services::file_reference::{self, REF_TYPE_BOT_AVATAR};
 use crate::utils::{generate_bot_id, generate_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -95,6 +96,8 @@ pub async fn create_bot(
         tracing::error!("创建 Bot 时数据库错误: {}", e);
         AppError::DatabaseError(e.to_string())
     })?;
+
+    sync_bot_avatar_reference(&state.pool, &new_bot_id, None, req.avatar_url.as_deref()).await?;
 
     tracing::info!(
         "✅ Bot 创建成功 - Bot ID: {}, 所有者: {}",
@@ -308,6 +311,14 @@ pub async fn delete_bot(
             AppError::DatabaseError(e.to_string())
         })?;
 
+    sync_bot_avatar_reference(
+        &state.pool,
+        &target_bot_id,
+        target_bot.avatar_url.as_deref(),
+        None,
+    )
+    .await?;
+
     tracing::info!(
         "✅ Bot 删除成功 - Bot ID: {}, 所有者: {}",
         target_bot_id,
@@ -352,6 +363,7 @@ pub async fn update_bot(
         return Err(AppError::BadRequest("Bot 名称是必需的".to_string()));
     }
 
+    let old_avatar_url = target_bot.avatar_url.clone();
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
@@ -370,6 +382,14 @@ pub async fn update_bot(
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+    sync_bot_avatar_reference(
+        &state.pool,
+        &target_bot_id,
+        old_avatar_url.as_deref(),
+        req.avatar_url.as_deref(),
+    )
+    .await?;
+
     let updated_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
     )
@@ -383,4 +403,39 @@ pub async fn update_bot(
         StatusCode::OK,
         BotResponse::from(updated_bot),
     ))
+}
+
+async fn sync_bot_avatar_reference(
+    pool: &sqlx::SqlitePool,
+    bot_id: &str,
+    old_avatar_url: Option<&str>,
+    new_avatar_url: Option<&str>,
+) -> AppResult<()> {
+    let old_file_id = old_avatar_url.and_then(file_reference::extract_file_id_from_download_url);
+    let new_file_id = new_avatar_url.and_then(file_reference::extract_file_id_from_download_url);
+
+    if old_file_id == new_file_id {
+        return Ok(());
+    }
+
+    if let Some(old_file_id) = old_file_id {
+        let _ = file_reference::remove_reference(pool, &old_file_id, REF_TYPE_BOT_AVATAR, bot_id)
+            .await?;
+        let _ = file_reference::cleanup_file_if_unreferenced(pool, &old_file_id).await?;
+    }
+
+    if let Some(new_file_id) = new_file_id {
+        if file_reference::file_exists(pool, &new_file_id).await? {
+            let _ = file_reference::add_reference(pool, &new_file_id, REF_TYPE_BOT_AVATAR, bot_id)
+                .await?;
+        } else {
+            tracing::warn!(
+                "Bot 头像引用的文件不存在，跳过引用计数: bot_id={}, file_id={}",
+                bot_id,
+                new_file_id
+            );
+        }
+    }
+
+    Ok(())
 }

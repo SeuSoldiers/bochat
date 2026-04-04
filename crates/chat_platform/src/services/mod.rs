@@ -2,6 +2,7 @@ pub mod authz;
 pub mod bootstrap;
 pub mod bot;
 pub mod file;
+pub mod file_reference;
 pub mod message;
 
 pub use bot::BotService;

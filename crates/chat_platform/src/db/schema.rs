@@ -243,5 +243,31 @@ pub async fn init_schema(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS file_references (
+            file_id TEXT NOT NULL,
+            reference_type TEXT NOT NULL,
+            reference_id TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (file_id, reference_type, reference_id),
+            FOREIGN KEY (file_id) REFERENCES files(file_id)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_file_references_type_ref_id
+        ON file_references(reference_type, reference_id)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
     Ok(())
 }

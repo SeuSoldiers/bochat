@@ -11,6 +11,7 @@ use crate::utils::verify_token;
 use crate::{
     error::{json_response, AppError, AppResult},
     http::{require_bot_bearer_token, token_bot_id},
+    services::file_reference,
     AppState,
 };
 
@@ -278,8 +279,8 @@ pub async fn delete_file(
     let _token_payload =
         verify_token(&token, &bot_secret, state.config.security.token_expiry_secs)?;
 
-    let file: (String, String) =
-        sqlx::query_as("SELECT file_id, storage_path FROM files WHERE file_id = ?")
+    let file_id_for_response: String =
+        sqlx::query_scalar("SELECT file_id FROM files WHERE file_id = ?")
             .bind(&file_id)
             .fetch_optional(&state.pool)
             .await
@@ -306,44 +307,13 @@ pub async fn delete_file(
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let uploader_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(1) FROM file_uploaders WHERE file_id = ?")
-            .bind(&file_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    let mut physical_deleted = false;
-    if uploader_count == 0 {
-        sqlx::query("DELETE FROM files WHERE file_id = ?")
-            .bind(&file_id)
-            .execute(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-        if let Err(err) = tokio::fs::remove_file(&file.1).await {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                return Err(AppError::InternalError(err.to_string()));
-            }
-        }
-
-        if let Some(parent_dir) = std::path::Path::new(&file.1).parent() {
-            if let Err(err) = tokio::fs::remove_dir(parent_dir).await {
-                if err.kind() != std::io::ErrorKind::NotFound
-                    && err.kind() != std::io::ErrorKind::DirectoryNotEmpty
-                {
-                    return Err(AppError::InternalError(err.to_string()));
-                }
-            }
-        }
-
-        physical_deleted = true;
-    }
+    let physical_deleted =
+        file_reference::cleanup_file_if_unreferenced(&state.pool, &file_id).await?;
 
     Ok(json_response(
         StatusCode::OK,
         json!({
-            "file_id": file.0,
+            "file_id": file_id_for_response,
             "uploader_removed": true,
             "physical_deleted": physical_deleted,
         }),
