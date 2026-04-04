@@ -24,7 +24,7 @@ use crate::{
 /// 3. 从数据库获取请求者 bot 的 secret
 /// 4. 使用 secret 验证 token
 /// 5. 创建新 bot 并返回 bot 信息
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn create_bot(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -56,7 +56,7 @@ pub async fn create_bot(
         return Err(AppError::BadRequest("Bot 名称是必需的".to_string()));
     }
 
-    tracing::info!("输入验证通过，Bot 名称: {}", req.name);
+    tracing::trace!("输入验证通过，Bot 名称: {}", req.name);
 
     // 创建新 bot
     let new_bot_id = generate_bot_id();
@@ -126,7 +126,7 @@ pub async fn create_bot(
 /// 2. 验证 token 有效性
 /// 3. 查询该用户的所有 bot
 /// 4. 返回 bot 列表
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Response> {
     tracing::info!("=== 开始查询 Bot 列表 ===");
 
@@ -198,7 +198,7 @@ pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> App
 }
 
 /// 获取指定的 Bot 信息
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn get_bot(
     State(state): State<AppState>,
     Path(requested_bot_id): Path<String>,
@@ -240,7 +240,7 @@ pub async fn get_bot(
 /// 3. 验证请求者身份
 /// 4. 检查请求者是否是目标 bot 的所有者
 /// 5. 删除 bot（消息会被保留，因为没有外键约束）
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn delete_bot(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -323,7 +323,7 @@ pub async fn delete_bot(
     ))
 }
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn update_bot(
     State(state): State<AppState>,
     headers: HeaderMap,

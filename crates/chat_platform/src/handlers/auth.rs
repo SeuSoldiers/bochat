@@ -83,7 +83,7 @@ fn default_user_name() -> String {
     format!("用户-{}", &short_uuid[..8])
 }
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn register(
     State(state): State<AppState>,
     Json(req): Json<RegisterRequest>,
@@ -225,7 +225,7 @@ struct UserLoginRow {
     password_hash: Option<String>,
 }
 
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip_all)]
 pub async fn get_user_by_id(
     pool: &crate::db::DbPool,
     user_id: &str,
@@ -257,7 +257,7 @@ pub async fn get_user_by_id(
 /// 1. 验证账号和密码格式
 /// 2. 查询用户并校验密码
 /// 3. 生成并返回 Token
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<crate::models::LoginRequest>,

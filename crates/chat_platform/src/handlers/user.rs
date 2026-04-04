@@ -43,7 +43,7 @@ fn hash_password(password: &str, pepper: &str) -> String {
     format!("{}${}", salt, hex::encode(digest))
 }
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn get_current_user(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -68,7 +68,7 @@ pub async fn get_current_user(
     ))
 }
 
-#[tracing::instrument(skip(state, req))]
+#[tracing::instrument(skip_all)]
 pub async fn update_current_user(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -147,7 +147,7 @@ pub async fn update_current_user(
 }
 
 /// Delete user account (requires user token)
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn delete_user(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Response> {
     let token = require_user_bearer_token(&headers)?;
     let user_id = token_user_id(&token)?.to_string();

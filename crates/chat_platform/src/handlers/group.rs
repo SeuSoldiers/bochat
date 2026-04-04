@@ -37,7 +37,7 @@ pub struct LeaveGroupQuery {
 /// 3. 查询 bot 找到其所有者（用户）
 /// 4. 验证 token
 /// 5. 创建新群聊并将创建者加入
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn create_group(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -194,7 +194,7 @@ pub async fn create_group(
 /// 列出已认证用户创建的群聊
 ///
 /// 返回该用户创建的所有群聊列表
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn list_user_groups(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -277,7 +277,7 @@ pub async fn list_user_groups(
 }
 
 /// Get group details
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn get_group(
     State(state): State<AppState>,
     Path(group_id): Path<String>,
@@ -296,7 +296,7 @@ pub async fn get_group(
 }
 
 /// Join a bot to a group (支持群ID或群号)
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn join_group(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -449,7 +449,7 @@ pub async fn join_group(
 }
 
 /// Leave a group
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn leave_group(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -495,7 +495,7 @@ pub async fn leave_group(
 }
 
 /// Remove a specific owned bot from a group
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn remove_group_member(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -537,7 +537,7 @@ pub async fn remove_group_member(
 }
 
 /// Delete a group (only creator can delete)
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn delete_group(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -596,7 +596,7 @@ pub async fn delete_group(
 }
 
 /// 获取群聊消息历史
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 /// 获取群聊消息历史（需要身份验证，只有群内的Bot可以查看）
 ///
 /// 流程:
@@ -605,7 +605,7 @@ pub async fn delete_group(
 /// 3. 查询 bot 信息并验证 token
 /// 4. 验证 bot 是否在该群聊中
 /// 5. 返回群聊的消息历史
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn get_group_messages(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -775,7 +775,7 @@ pub async fn get_group_messages(
 }
 
 /// List group members
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn list_group_members(
     State(state): State<AppState>,
     headers: HeaderMap,

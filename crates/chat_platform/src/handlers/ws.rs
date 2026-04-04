@@ -23,7 +23,7 @@ pub struct WsQuery {
     pub token: String,
 }
 
-#[tracing::instrument(skip(state, ws))]
+#[tracing::instrument(skip_all)]
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,

@@ -17,7 +17,7 @@ use crate::{
     AppState,
 };
 
-#[tracing::instrument(skip(state, msg_req))]
+#[tracing::instrument(skip_all)]
 pub async fn send_message(
     State(state): State<AppState>,
     headers: HeaderMap,

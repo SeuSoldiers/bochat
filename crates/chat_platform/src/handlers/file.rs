@@ -17,7 +17,7 @@ use crate::{
 #[allow(dead_code)]
 const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 
-#[tracing::instrument(skip(state, payload))]
+#[tracing::instrument(skip_all)]
 pub async fn upload_file(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -92,7 +92,7 @@ pub async fn upload_file(
     let mime_type = uploaded_mime.unwrap_or_else(|| "application/octet-stream".to_string());
     let content_hash = hex::encode(Sha256::digest(&file_bytes));
 
-    tracing::info!(
+    tracing::trace!(
         "开始处理文件上传: bot_id={}, filename={}, size={}, mime_type={}, sha256={}",
         bot_id,
         filename,
@@ -136,7 +136,7 @@ pub async fn upload_file(
             scheme, host, existing_file.file_id, existing_file.filename
         );
 
-        tracing::info!(
+        tracing::trace!(
             "文件复用命中: bot_id={}, existing_file_id={}, sha256={}",
             bot_id,
             existing_file.file_id,
@@ -200,7 +200,7 @@ pub async fn upload_file(
         scheme, host, file_id, filename
     );
 
-    tracing::info!(
+    tracing::trace!(
         "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
         bot_id,
         file_id,
@@ -219,7 +219,7 @@ pub async fn upload_file(
     ))
 }
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip_all)]
 pub async fn download_file(
     State(state): State<AppState>,
     Path((file_id, requested_filename)): Path<(String, String)>,
@@ -252,7 +252,7 @@ pub async fn download_file(
         .map_err(|e| AppError::InternalError(e.to_string()))
 }
 
-#[tracing::instrument(skip(state, headers))]
+#[tracing::instrument(skip_all)]
 pub async fn delete_file(
     State(state): State<AppState>,
     headers: HeaderMap,
