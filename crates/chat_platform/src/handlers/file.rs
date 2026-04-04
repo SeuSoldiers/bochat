@@ -11,7 +11,7 @@ use crate::utils::verify_token;
 use crate::{
     error::{json_response, AppError, AppResult},
     http::{require_bot_bearer_token, token_bot_id},
-    services::file_reference,
+    services::FileService,
     AppState,
 };
 
@@ -287,34 +287,17 @@ pub async fn delete_file(
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or(AppError::FileNotFound)?;
 
-    let relation_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM file_uploaders WHERE file_id = ? AND uploader_id = ?)",
-    )
-    .bind(&file_id)
-    .bind(&bot_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    if !relation_exists {
+    let (uploader_removed, physical_deleted) =
+        FileService::remove_uploader_and_cleanup(&state.pool, &file_id, &bot_id).await?;
+    if !uploader_removed {
         return Err(AppError::Forbidden("只能删除自己上传过的文件".to_string()));
     }
-
-    sqlx::query("DELETE FROM file_uploaders WHERE file_id = ? AND uploader_id = ?")
-        .bind(&file_id)
-        .bind(&bot_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    let physical_deleted =
-        file_reference::cleanup_file_if_unreferenced(&state.pool, &file_id).await?;
 
     Ok(json_response(
         StatusCode::OK,
         json!({
             "file_id": file_id_for_response,
-            "uploader_removed": true,
+            "uploader_removed": uploader_removed,
             "physical_deleted": physical_deleted,
         }),
     ))

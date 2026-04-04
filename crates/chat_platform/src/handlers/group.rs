@@ -11,7 +11,7 @@ use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, Join
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, ensure_user_exists, user_is_super_admin,
 };
-use crate::services::file_reference;
+use crate::services::FileService;
 use crate::utils::{generate_group_id, verify_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -564,8 +564,7 @@ pub async fn delete_group(
         return Err(AppError::Forbidden("只有群创建者才能删除该群".to_string()));
     }
 
-    let affected_file_ids =
-        file_reference::remove_message_references_for_group(&state.pool, &group_id_str).await?;
+    FileService::on_group_deleted(&state.pool, &group_id_str).await?;
 
     // 删除群消息，避免 groups 删除时触发 messages 的外键约束错误。
     sqlx::query("DELETE FROM messages WHERE group_id = ?")
@@ -587,10 +586,6 @@ pub async fn delete_group(
         .execute(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    for file_id in affected_file_ids {
-        let _ = file_reference::cleanup_file_if_unreferenced(&state.pool, &file_id).await?;
-    }
 
     tracing::info!("Group deleted: {}", group_id_str);
 
