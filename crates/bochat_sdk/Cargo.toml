@@ -18,7 +18,14 @@ reqwest = { version = "0.13.2", default-features = false, features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["sync", "time", "rt", "macros", "fs"] }
+tokio = { version = "1", features = [
+    "sync",
+    "time",
+    "rt",
+    "macros",
+    "fs",
+    "signal",
+] }
 tracing = "0.1"
 url = "2"
 
@@ -36,4 +43,9 @@ required-features = ["http"]
 [[example]]
 name = "ws_session"
 path = "examples/ws_session.rs"
+required-features = ["ws"]
+
+[[example]]
+name = "ws_observe"
+path = "examples/ws_observe.rs"
 required-features = ["ws"]

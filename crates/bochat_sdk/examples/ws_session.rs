@@ -92,29 +92,26 @@ async fn main() -> SdkResult<()> {
     let handled_default = Arc::clone(&handled);
 
     dispatcher
-        .default_handler(move |event| {
+        .default_message_handler(move |msg| {
             println!(
-                "[Handler-Default] group={} msg={}",
-                event.group_id().unwrap_or("?"),
-                event.payload
+                "[Message-Handler] group={} sender={} content={:?}",
+                msg.group_id, msg.sender_id, msg.content
             );
             handled_default.fetch_add(1, Ordering::Relaxed);
         })
         .await
-        .group_handler(group_ids[0].clone(), move |event| {
+        .group_message_handler(group_ids[0].clone(), move |msg| {
             println!(
-                "[Handler-A] group={} msg={}",
-                event.group_id().unwrap_or("?"),
-                event.payload
+                "[Handler-A] group={} sender={} content={:?}",
+                msg.group_id, msg.sender_id, msg.content
             );
             handled_a.fetch_add(1, Ordering::Relaxed);
         })
         .await
-        .group_handler(group_ids[1].clone(), move |event| {
+        .group_message_handler(group_ids[1].clone(), move |msg| {
             println!(
-                "[Handler-B] group={} msg={}",
-                event.group_id().unwrap_or("?"),
-                event.payload
+                "[Handler-B] group={} sender={} content={:?}",
+                msg.group_id, msg.sender_id, msg.content
             );
             handled_b.fetch_add(1, Ordering::Relaxed);
         })

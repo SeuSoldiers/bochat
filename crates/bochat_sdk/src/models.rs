@@ -112,9 +112,80 @@ pub struct GroupInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendMessageRequest {
     pub group_id: String,
-    pub content: Value,
+    pub content: MessageContent,
     pub msg_type: Option<String>,
     pub idempotency_key: String,
+}
+
+/// Structured message content used by send/history APIs.
+///
+/// 发送消息与历史消息接口使用的结构化消息内容。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MessageContent {
+    Text { text: String },
+    File { url: String },
+    Custom(Value),
+}
+
+impl MessageContent {
+    /// Build a text content payload.
+    ///
+    /// 构建文本消息内容。
+    pub fn text(text: impl Into<String>) -> Self {
+        Self::Text { text: text.into() }
+    }
+
+    /// Build a file content payload.
+    ///
+    /// 构建文件消息内容。
+    pub fn file(url: impl Into<String>) -> Self {
+        Self::File { url: url.into() }
+    }
+
+    /// Build a custom JSON content payload.
+    ///
+    /// 构建自定义 JSON 消息内容。
+    pub fn custom(value: Value) -> Self {
+        Self::Custom(value)
+    }
+
+    /// Return text when this is a text message.
+    ///
+    /// 当消息为文本类型时返回文本内容。
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Self::Text { text } => Some(text.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Return file URL when this is a file message.
+    ///
+    /// 当消息为文件类型时返回文件 URL。
+    pub fn as_file_url(&self) -> Option<&str> {
+        match self {
+            Self::File { url } => Some(url.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Convert to raw JSON value.
+    ///
+    /// 转换为原始 JSON 值。
+    pub fn to_value(&self) -> Value {
+        match self {
+            Self::Text { text } => serde_json::json!({ "text": text }),
+            Self::File { url } => serde_json::json!({ "url": url }),
+            Self::Custom(value) => value.clone(),
+        }
+    }
+}
+
+impl From<Value> for MessageContent {
+    fn from(value: Value) -> Self {
+        serde_json::from_value(value.clone()).unwrap_or(Self::Custom(value))
+    }
 }
 
 /// Message payload returned by send/history APIs.
@@ -127,7 +198,7 @@ pub struct MessageResponse {
     pub sender_id: String,
     pub sender_name: Option<String>,
     pub sender_avatar_url: Option<String>,
-    pub content: Value,
+    pub content: MessageContent,
     pub msg_type: String,
     pub created_at: String,
 }
@@ -225,5 +296,15 @@ impl WsEvent {
             return None;
         }
         serde_json::from_value::<WsConnectionPayload>(self.payload.clone()).ok()
+    }
+
+    /// Parse the payload as a structured message payload.
+    ///
+    /// 将事件载荷解析为结构化消息载荷。
+    pub fn as_message_payload(&self) -> Option<MessageResponse> {
+        if self.event_type != "message" {
+            return None;
+        }
+        serde_json::from_value::<MessageResponse>(self.payload.clone()).ok()
     }
 }

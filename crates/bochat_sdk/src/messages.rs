@@ -1,9 +1,8 @@
 use reqwest::Method;
-use serde_json::Value;
 
 use crate::client::{AuthKind, BochatClient};
 use crate::error::SdkResult;
-use crate::models::{GroupHistoryResponse, MessageResponse, SendMessageRequest};
+use crate::models::{GroupHistoryResponse, MessageContent, MessageResponse, SendMessageRequest};
 
 /// Message sending and history API facade.
 ///
@@ -43,7 +42,7 @@ impl MessagesApi {
     ) -> SdkResult<MessageResponse> {
         let req = SendMessageRequest {
             group_id: group_id.into(),
-            content: serde_json::json!({ "text": text.into() }),
+            content: MessageContent::text(text),
             msg_type: Some("text".to_string()),
             idempotency_key: idempotency_key.into(),
         };
@@ -83,7 +82,7 @@ impl MessagesApi {
     /// Build the JSON payload for a file message body.
     ///
     /// 构造文件消息内容字段对应的 JSON 结构。
-    pub fn file_content(url: impl Into<String>) -> Value {
-        serde_json::json!({ "url": url.into() })
+    pub fn file_content(url: impl Into<String>) -> MessageContent {
+        MessageContent::file(url)
     }
 }

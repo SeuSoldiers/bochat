@@ -7,7 +7,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 use crate::client::BochatClient;
 use crate::error::{SdkError, SdkResult};
-use crate::models::{WsConnectionPayload, WsEvent};
+use crate::models::{MessageResponse, WsConnectionPayload, WsEvent};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -301,6 +301,28 @@ impl WsDispatcher {
         self
     }
 
+    /// Register a handler for structured message payloads.
+    ///
+    /// 注册结构化消息载荷处理器。
+    ///
+    /// The callback receives parsed [`MessageResponse`] directly and is only
+    /// called when event type is `message` and payload parsing succeeds.
+    ///
+    /// 回调直接接收解析后的 [`MessageResponse`]，仅在事件类型为 `message`
+    /// 且载荷解析成功时触发。
+    pub async fn default_message_handler<F>(&self, handler: F) -> &Self
+    where
+        F: Fn(&MessageResponse) + Send + Sync + 'static,
+    {
+        let handler = Arc::new(handler);
+        self.default_handler(move |event| {
+            if let Some(msg) = event.as_message_payload() {
+                handler(&msg);
+            }
+        })
+        .await
+    }
+
     /// Register a callback for a specific group.
     ///
     /// 为指定群注册回调函数。
@@ -311,6 +333,30 @@ impl WsDispatcher {
         let mut handlers = self.group_handlers.lock().await;
         handlers.insert(group_id.into(), Arc::new(handler));
         self
+    }
+
+    /// Register a structured message handler for one specific group.
+    ///
+    /// 为指定群注册结构化消息处理器。
+    ///
+    /// The callback receives parsed [`MessageResponse`] directly and is only
+    /// called when event type is `message`, payload parsing succeeds, and the
+    /// message belongs to the given `group_id`.
+    ///
+    /// 回调直接接收解析后的 [`MessageResponse`]，仅在事件类型为 `message`、
+    /// 载荷解析成功且消息属于给定 `group_id` 时触发。
+    pub async fn group_message_handler<F>(&self, group_id: impl Into<String>, handler: F) -> &Self
+    where
+        F: Fn(&MessageResponse) + Send + Sync + 'static,
+    {
+        let target_group_id = group_id.into();
+        let handler = Arc::new(handler);
+        self.group_handler(target_group_id, move |event| {
+            if let Some(msg) = event.as_message_payload() {
+                handler(&msg);
+            }
+        })
+        .await
     }
 
     /// Signal the dispatcher and its underlying session to stop.
