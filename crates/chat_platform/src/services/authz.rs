@@ -80,3 +80,18 @@ pub async fn list_super_admin_bot_ids(pool: &DbPool) -> AppResult<Vec<String>> {
 
     Ok(bot_ids)
 }
+
+#[tracing::instrument(skip(pool))]
+pub async fn ensure_user_exists(pool: &DbPool, user_id: &str) -> AppResult<()> {
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE user_id = ?)")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    if !exists {
+        return Err(AppError::InvalidUserToken);
+    }
+
+    Ok(())
+}

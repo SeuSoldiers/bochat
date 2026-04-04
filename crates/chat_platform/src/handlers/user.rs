@@ -13,6 +13,7 @@ use crate::{
     error::{json_response, AppError, AppResult},
     http::{require_user_bearer_token, token_user_id},
     models::{UpdateUserRequest, UserResponse},
+    services::authz::ensure_user_exists,
     AppState,
 };
 
@@ -50,6 +51,7 @@ pub async fn get_current_user(
     let token = require_user_bearer_token(&headers)?;
     let user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &user_id).await?;
 
     let user: crate::models::User = sqlx::query_as(
         "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
@@ -58,7 +60,7 @@ pub async fn get_current_user(
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::UserNotFound)?;
+    .ok_or(AppError::InvalidUserToken)?;
 
     Ok(json_response(
         StatusCode::OK,
@@ -75,6 +77,7 @@ pub async fn update_current_user(
     let token = require_user_bearer_token(&headers)?;
     let user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &user_id).await?;
 
     let current_user: crate::models::User = sqlx::query_as(
         "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
@@ -83,7 +86,7 @@ pub async fn update_current_user(
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::UserNotFound)?;
+    .ok_or(AppError::InvalidUserToken)?;
 
     let next_name = match req.name.as_deref().map(str::trim) {
         Some("") => {
@@ -149,6 +152,7 @@ pub async fn delete_user(State(state): State<AppState>, headers: HeaderMap) -> A
     let token = require_user_bearer_token(&headers)?;
     let user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &user_id).await?;
 
     // Delete all bots owned by this user
     sqlx::query("DELETE FROM bots WHERE owner_id = ?")

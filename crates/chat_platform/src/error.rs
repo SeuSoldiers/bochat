@@ -99,18 +99,18 @@ impl AppError {
             | AppError::BotNotFound
             | AppError::MessageNotFound
             | AppError::FileNotFound => StatusCode::NOT_FOUND,
-            AppError::InvalidIdNumber
+            AppError::Unauthorized
             | AppError::InvalidToken
             | AppError::InvalidUserToken
             | AppError::InvalidBotToken
+            | AppError::UserTokenRequired
+            | AppError::BotTokenRequired => StatusCode::UNAUTHORIZED,
+            AppError::InvalidIdNumber
             | AppError::BotInactive
             | AppError::NoAvailableBot
             | AppError::BotNotInGroup => StatusCode::BAD_REQUEST,
             AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-            AppError::Unauthorized
-            | AppError::UserTokenRequired
-            | AppError::BotTokenRequired
-            | AppError::BotPermissionDenied
+            AppError::BotPermissionDenied
             | AppError::BotOwnershipMismatch
             | AppError::Forbidden(_) => StatusCode::FORBIDDEN,
             AppError::IdNumberConflict | AppError::AccountConflict => StatusCode::CONFLICT,

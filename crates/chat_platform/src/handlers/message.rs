@@ -42,7 +42,7 @@ pub async fn send_message(
         bot_id
     } else {
         tracing::warn!("消息发送失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
+        return Err(AppError::InvalidBotToken);
     };
     tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
 
@@ -60,7 +60,7 @@ pub async fn send_message(
     })?
     .ok_or_else(|| {
         tracing::warn!("发送者 Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
+        AppError::InvalidBotToken
     })?;
 
     tracing::debug!("发送者 Bot 查询成功，所有者: {}", requester_bot.owner_id);

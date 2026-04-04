@@ -8,7 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
-use crate::services::authz::{can_manage_target_user, user_is_super_admin};
+use crate::services::authz::{can_manage_target_user, ensure_user_exists, user_is_super_admin};
 use crate::utils::{generate_bot_id, generate_token, verify_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -48,6 +48,7 @@ pub async fn create_bot(
     };
     tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &owner_id).await?;
 
     // 验证输入
     if req.name.is_empty() {
@@ -146,6 +147,7 @@ pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> App
     };
     tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &owner_id).await?;
 
     let is_super_admin = user_is_super_admin(&state.pool, &owner_id).await?;
 
@@ -263,6 +265,7 @@ pub async fn delete_bot(
     };
     tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     // 查询目标 bot
     tracing::debug!("正在查询目标 Bot: {}", target_bot_id);
@@ -330,6 +333,7 @@ pub async fn update_bot(
     let token = require_user_bearer_token(&headers)?;
     let requester_user_id = token_user_id(&token)?;
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, requester_user_id).await?;
 
     let target_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"

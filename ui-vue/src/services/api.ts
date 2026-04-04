@@ -70,23 +70,25 @@ class ApiClient {
         // 处理 HTTP 错误
         const status = error.response?.status
         const responseData = error.response?.data as ApiResponse & { error?: string } | undefined
+        const code = (responseData as any)?.code as string | undefined
         const message = getErrorMessage(
           {
-            code: (responseData as any)?.code,
+            code,
             status,
             message: responseData?.message || responseData?.error || error.message,
           },
           '请求失败'
         )
 
-        // 处理 401 未授权错误
-        if (status === 401) {
-          this.clearToken()
-          window.location.href = '/login'
+        if (this.shouldForceLogout(status, code, error.config?.url)) {
+          this.clearAuthState()
+          if (window.location.pathname !== '/login') {
+            window.location.assign('/login')
+          }
         }
 
         const appError = new Error(message) as any
-        appError.code = (responseData as any)?.code
+        appError.code = code
         appError.status = status
         appError.originalError = error
 
@@ -116,6 +118,38 @@ class ApiClient {
   clearToken() {
     this.token = null
     localStorage.removeItem(STORAGE_KEYS.TOKEN)
+  }
+
+  private clearAuthState() {
+    this.clearToken()
+    localStorage.removeItem(STORAGE_KEYS.USER)
+    localStorage.removeItem(STORAGE_KEYS.SELECTED_GROUP_ID)
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_GROUP_ID)
+  }
+
+  private shouldForceLogout(
+    status: number | undefined,
+    code: string | undefined,
+    requestUrl: string | undefined
+  ): boolean {
+    const normalizedUrl = (requestUrl || '').toLowerCase()
+    const isAuthEndpoint = normalizedUrl.includes('/auth/login') || normalizedUrl.includes('/auth/register')
+    if (isAuthEndpoint) {
+      return false
+    }
+
+    if (status === 401) {
+      return true
+    }
+
+    return [
+      'invalid_user_token',
+      'user_token_required',
+      'invalid_bot_token',
+      'bot_token_required',
+      'invalid_token',
+      'unauthorized',
+    ].includes(code || '')
   }
 
   /**

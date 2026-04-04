@@ -35,7 +35,8 @@ pub async fn ws_handler(
             .parse()
             .map_err(|_| AppError::BotTokenRequired)?,
     )]))?;
-    let requester_bot_id = crate::http::token_bot_id(&token)?;
+    let requester_bot_id =
+        crate::http::token_bot_id(&token).map_err(|_| AppError::InvalidBotToken)?;
 
     let requester_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
@@ -44,7 +45,7 @@ pub async fn ws_handler(
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
+    .ok_or(AppError::InvalidBotToken)?;
 
     let _token_payload = verify_token(
         &token,

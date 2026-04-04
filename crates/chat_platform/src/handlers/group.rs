@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
 use crate::services::authz::{
-    bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
+    bot_has_global_group_access, can_manage_target_user, ensure_user_exists, user_is_super_admin,
 };
 use crate::utils::{generate_group_id, verify_token, verify_user_token};
 use crate::{
@@ -67,6 +67,7 @@ pub async fn create_group(
     };
     tracing::debug!("从 token 解析出用户 ID: {}", user_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &user_id).await?;
 
     let member_bot_id = if let Some(target_bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
@@ -217,6 +218,7 @@ pub async fn list_user_groups(
     };
     tracing::debug!("从 token 解析出用户 ID: {}", user_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &user_id).await?;
 
     let is_super_admin = user_is_super_admin(&state.pool, &user_id).await?;
 
@@ -330,6 +332,7 @@ pub async fn join_group(
     };
     tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = sqlx::query_as(
@@ -456,6 +459,7 @@ pub async fn leave_group(
     let token = require_user_bearer_token(&headers)?;
     let requester_user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &requester_user_id).await?;
     let bot_id = query.bot_id;
 
     let bot: crate::models::Bot = sqlx::query_as(
@@ -500,6 +504,7 @@ pub async fn remove_group_member(
     let token = require_user_bearer_token(&headers)?;
     let requester_user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     let target_bot: crate::models::Bot = sqlx::query_as(
         "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
@@ -541,6 +546,7 @@ pub async fn delete_group(
     let token = require_user_bearer_token(&headers)?;
     let requester_user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     // Get group
     let group: crate::models::Group = sqlx::query_as(
@@ -622,7 +628,7 @@ pub async fn get_group_messages(
         bot_id
     } else {
         tracing::warn!("获取消息失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
+        return Err(AppError::InvalidBotToken);
     };
     tracing::debug!("从 token 解析出 Bot ID: {}", requester_bot_id);
 
@@ -640,7 +646,7 @@ pub async fn get_group_messages(
     })?
     .ok_or_else(|| {
         tracing::warn!("Bot 不存在: {}", requester_bot_id);
-        AppError::BotNotFound
+        AppError::InvalidBotToken
     })?;
 
     // 验证 token
@@ -778,6 +784,7 @@ pub async fn list_group_members(
     let token = require_user_bearer_token(&headers)?;
     let requester_user_id = token_user_id(&token)?.to_string();
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
+    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     let can_view: bool = sqlx::query_scalar(
         r#"

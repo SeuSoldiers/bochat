@@ -25,14 +25,16 @@ pub async fn upload_file(
 ) -> AppResult<axum::response::Response> {
     // Extract and verify token
     let token = require_bot_bearer_token(&headers)?;
-    let bot_id = token_bot_id(&token)?.to_string();
+    let bot_id = token_bot_id(&token)
+        .map_err(|_| AppError::InvalidBotToken)?
+        .to_string();
     let (bot_secret, bot_status): (String, String) =
         sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
             .bind(&bot_id)
             .fetch_optional(&state.pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .ok_or(AppError::BotNotFound)?;
+            .ok_or(AppError::InvalidBotToken)?;
 
     if bot_status != "active" {
         return Err(AppError::BotInactive);
@@ -257,7 +259,9 @@ pub async fn delete_file(
     Path(file_id): Path<String>,
 ) -> AppResult<axum::response::Response> {
     let token = require_bot_bearer_token(&headers)?;
-    let bot_id = token_bot_id(&token)?.to_string();
+    let bot_id = token_bot_id(&token)
+        .map_err(|_| AppError::InvalidBotToken)?
+        .to_string();
 
     let (bot_secret, bot_status): (String, String) =
         sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
@@ -265,7 +269,7 @@ pub async fn delete_file(
             .fetch_optional(&state.pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .ok_or(AppError::BotNotFound)?;
+            .ok_or(AppError::InvalidBotToken)?;
 
     if bot_status != "active" {
         return Err(AppError::BotInactive);
