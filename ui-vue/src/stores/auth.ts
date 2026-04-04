@@ -46,7 +46,6 @@ export const useAuthStore = defineStore('auth', () => {
   // 计算属性
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const userId = computed(() => parseUserIdFromToken(token.value) || '')
-  const userPhone = computed(() => user.value?.phone || '')
   const userName = computed(() => user.value?.name || '')
 
   // 方法：注册
@@ -102,7 +101,6 @@ export const useAuthStore = defineStore('auth', () => {
       const profile = await getCurrentUser()
       user.value = {
         name: profile.name,
-        phone: profile.phone,
         avatar_url: profile.avatar_url,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
@@ -117,7 +115,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   const updateProfile = async (payload: {
     name?: string
-    phone?: string
     avatar_url?: string
     password?: string
   }) => {
@@ -128,7 +125,6 @@ export const useAuthStore = defineStore('auth', () => {
       const updated = await updateCurrentUser(payload)
       user.value = {
         name: updated.name,
-        phone: updated.phone,
         avatar_url: updated.avatar_url,
         created_at: updated.created_at,
         updated_at: updated.updated_at,
@@ -179,7 +175,6 @@ export const useAuthStore = defineStore('auth', () => {
     // 计算属性
     isAuthenticated,
     userId,
-    userPhone,
     userName,
 
     // 方法
@@ -196,7 +191,6 @@ export const useAuthStore = defineStore('auth', () => {
 function extractUser(response: LoginResponse): User {
   return {
     name: response.name,
-    phone: response.phone,
   }
 }
 

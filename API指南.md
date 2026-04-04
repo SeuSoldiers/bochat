@@ -74,7 +74,6 @@
 {
   "message": "登录成功",
   "name": "张三",
-  "phone": null,
   "token": "u:u_xxx:1710000000:signature"
 }
 ```
@@ -93,7 +92,6 @@
 ```json
 {
   "name": "张三",
-  "phone": null,
   "avatar_url": null,
   "created_at": "2026-03-20T10:00:00Z",
   "updated_at": "2026-03-20T12:00:00Z"
@@ -110,7 +108,6 @@
 {
   "name": "新的昵称",
   "password": "NewPassw0rd!",
-  "phone": "",
   "avatar_url": ""
 }
 ```
@@ -119,7 +116,7 @@
 
 - `name` 可选，但如果传入则不能为空字符串
 - `password` 可选；若传入，需满足与注册相同的密码规则
-- `phone` / `avatar_url` 可选；传空字符串会清空该值
+- `avatar_url` 可选；传空字符串会清空该值
 
 响应：
 
@@ -127,7 +124,6 @@
 {
   "message": "用户信息更新成功",
   "name": "新的昵称",
-  "phone": null,
   "avatar_url": null,
   "created_at": "2026-03-20T10:00:00Z",
   "updated_at": "2026-03-20T12:30:00Z"
@@ -666,7 +662,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 - `404 Not Found`
   用户、Bot、文件等资源不存在
 - `409 Conflict`
-  账号或手机号冲突
+  账号冲突
 - `413 Payload Too Large`
   上传文件过大
 
@@ -677,7 +673,6 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 - `invalid_user_token`
 - `invalid_bot_token`
 - `account_conflict`
-- `phone_conflict`
 - `invalid_credentials`
 - `bot_inactive`
 - `file_too_large`

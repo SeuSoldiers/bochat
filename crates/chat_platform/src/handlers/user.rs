@@ -16,24 +16,8 @@ use crate::{
     AppState,
 };
 
-const NONE_PREFIX: &str = "_none_";
 const PASSWORD_MIN_LEN: usize = 8;
 const PASSWORD_MAX_LEN: usize = 64;
-
-fn normalize_optional_field(value: &str) -> Option<String> {
-    if value.is_empty() || value.starts_with(NONE_PREFIX) {
-        None
-    } else {
-        Some(value.to_string())
-    }
-}
-
-fn to_db_identifier(field: &str, value: Option<&str>, user_id: &str) -> String {
-    match value {
-        Some(v) => v.to_string(),
-        None => format!("{NONE_PREFIX}{field}_{user_id}"),
-    }
-}
 
 fn validate_password(password: &str) -> bool {
     let len = password.len();
@@ -68,7 +52,7 @@ pub async fn get_current_user(
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let user: crate::models::User = sqlx::query_as(
-        "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
+        "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
     )
     .bind(&user_id)
     .fetch_optional(&state.pool)
@@ -93,7 +77,7 @@ pub async fn update_current_user(
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
 
     let current_user: crate::models::User = sqlx::query_as(
-        "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
+        "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
     )
     .bind(&user_id)
     .fetch_optional(&state.pool)
@@ -107,12 +91,6 @@ pub async fn update_current_user(
         }
         Some(name) => name.to_string(),
         None => current_user.name.clone(),
-    };
-
-    let next_phone = match req.phone.as_deref().map(str::trim) {
-        Some("") => None,
-        Some(value) => Some(value.to_string()),
-        None => normalize_optional_field(&current_user.phone),
     };
 
     let next_avatar_url = match req.avatar_url.as_deref().map(str::trim) {
@@ -135,39 +113,29 @@ pub async fn update_current_user(
         None => None,
     };
 
-    let db_phone = to_db_identifier("phone", next_phone.as_deref(), &user_id);
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
         r#"
         UPDATE users
-        SET name = ?, phone = ?, avatar_url = ?, password_hash = COALESCE(?, password_hash), updated_at = ?
+        SET name = ?, avatar_url = ?, password_hash = COALESCE(?, password_hash), updated_at = ?
         WHERE user_id = ?
         "#,
     )
     .bind(&next_name)
-    .bind(&db_phone)
     .bind(&next_avatar_url)
     .bind(&next_password_hash)
     .bind(&now)
     .bind(&user_id)
     .execute(&state.pool)
     .await
-    .map_err(|e| {
-        let err_msg = e.to_string();
-        if err_msg.contains("users.phone") {
-            AppError::PhoneConflict
-        } else {
-            AppError::DatabaseError(err_msg)
-        }
-    })?;
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     Ok(json_response(
         StatusCode::OK,
         json!({
             "message": "用户信息更新成功",
             "name": next_name,
-            "phone": next_phone,
             "avatar_url": next_avatar_url,
             "created_at": current_user.created_at,
             "updated_at": now,

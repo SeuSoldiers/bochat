@@ -55,14 +55,13 @@ pub async fn ensure_super_admin_account(
 
     let now = chrono::Utc::now().to_rfc3339();
     let candidate_user_id = generate_user_id();
-    let candidate_phone = placeholder_identifier("phone", &candidate_user_id);
     let candidate_id_number = placeholder_identifier("id_number", &candidate_user_id);
     let candidate_hash = hash_password(&password, jwt_secret);
 
     let user_insert_result = sqlx::query(
         r#"
-        INSERT INTO users (user_id, name, account, password_hash, id_number, phone, avatar_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(account) DO NOTHING
         "#,
     )
@@ -71,7 +70,6 @@ pub async fn ensure_super_admin_account(
     .bind(&account)
     .bind(&candidate_hash)
     .bind(&candidate_id_number)
-    .bind(&candidate_phone)
     .bind(None::<String>)
     .bind(&now)
     .bind(&now)

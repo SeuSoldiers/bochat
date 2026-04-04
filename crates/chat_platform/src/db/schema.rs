@@ -11,7 +11,6 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
             account TEXT UNIQUE,
             password_hash TEXT,
             id_number TEXT NOT NULL UNIQUE,
-            phone TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -59,6 +58,64 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
         }
     }
 
+    let has_phone_column: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name = 'phone')",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    if has_phone_column {
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(pool)
+            .await
+            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS users_new (
+                user_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                account TEXT UNIQUE,
+                password_hash TEXT,
+                id_number TEXT NOT NULL UNIQUE,
+                avatar_url TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO users_new (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
+            SELECT user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at
+            FROM users
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+        sqlx::query("DROP TABLE users")
+            .execute(pool)
+            .await
+            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+        sqlx::query("ALTER TABLE users_new RENAME TO users")
+            .execute(pool)
+            .await
+            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(pool)
+            .await
+            .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+    }
+
     sqlx::query(
         r#"
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_unique
@@ -70,16 +127,10 @@ pub async fn run_migrations(pool: &SqlitePool) -> AppResult<()> {
     .await
     .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
-    sqlx::query(
-        r#"
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique
-        ON users(phone)
-        WHERE phone NOT LIKE '_none_%'
-        "#,
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+    sqlx::query("DROP INDEX IF EXISTS idx_users_phone_unique")
+        .execute(pool)
+        .await
+        .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
 
     // Create bots table
     sqlx::query(

@@ -125,7 +125,6 @@ pub async fn register(
 
     let user_id = generate_user_id();
     let now = chrono::Utc::now().to_rfc3339();
-    let db_phone = to_db_identifier("phone", None, &user_id);
     let db_id_number = to_db_identifier("id_number", None, &user_id);
     let password_hash = hash_password(&password, &state.config.security.jwt_secret);
 
@@ -136,8 +135,8 @@ pub async fn register(
     tracing::info!("正在数据库中创建用户记录: {}", user_id);
     sqlx::query(
         r#"
-        INSERT INTO users (user_id, name, account, password_hash, id_number, phone, avatar_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&user_id)
@@ -145,7 +144,6 @@ pub async fn register(
     .bind(&account)
     .bind(&password_hash)
     .bind(&db_id_number)
-    .bind(&db_phone)
     .bind(None::<String>)
     .bind(&now)
     .bind(&now)
@@ -224,7 +222,6 @@ pub async fn register(
 struct UserLoginRow {
     user_id: String,
     name: String,
-    phone: String,
     password_hash: Option<String>,
 }
 
@@ -236,7 +233,7 @@ pub async fn get_user_by_id(
     tracing::debug!("查询用户信息: {}", user_id);
 
     let user = sqlx::query_as(
-        "SELECT user_id, name, id_number, phone, avatar_url, created_at, updated_at FROM users WHERE user_id = ?"
+        "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?"
     )
     .bind(user_id)
     .fetch_optional(pool)
@@ -292,7 +289,7 @@ pub async fn login(
     // 查询用户
     tracing::info!("正在查询用户...");
     let user = sqlx::query_as::<_, UserLoginRow>(
-        "SELECT user_id, name, phone, password_hash FROM users WHERE account = ?",
+        "SELECT user_id, name, password_hash FROM users WHERE account = ?",
     )
     .bind(&account)
     .fetch_optional(&state.pool)
@@ -319,12 +316,6 @@ pub async fn login(
     tracing::debug!("用户查询成功: {}", user.user_id);
 
     let user_token = generate_user_token(&user.user_id, &state.config.security.jwt_secret)?;
-    let phone = if user.phone.is_empty() || user.phone.starts_with(NONE_PREFIX) {
-        None
-    } else {
-        Some(user.phone)
-    };
-
     tracing::info!("✅ 用户登录成功 - 用户ID: {}", user.user_id);
 
     Ok(json_response(
@@ -332,7 +323,6 @@ pub async fn login(
         json!({
             "message": "登录成功",
             "name": user.name,
-            "phone": phone,
             "token": user_token,
         }),
     ))

@@ -13,7 +13,6 @@ export function getErrorMessage(error: any, fallback: string): string {
     bot_inactive: '目标 Bot 未激活',
     no_available_bot: '当前账号没有可用的 Bot',
     id_number_conflict: '该身份证号已注册',
-    phone_conflict: '该手机号已注册',
     account_conflict: '该账号已注册',
     invalid_credentials: '账号或密码错误',
     invalid_id_number: '身份证号格式不正确',

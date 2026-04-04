@@ -46,7 +46,6 @@ curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
 
 - `token`
 - `name`
-- `phone`（可能为 `null`）
 
 ## 2. 保存 token
 
@@ -126,7 +125,7 @@ curl -X PUT "$BASE_URL/api/v1/users/me" \
 
 - `name` 可改，但不能为空字符串
 - `password` 可选，传入时按注册同规则校验并更新密码
-- `phone` / `avatar_url` 仍为兼容字段，可选
+- `avatar_url` 仍为可选字段
 
 ## 5. 群聊接入方式
 

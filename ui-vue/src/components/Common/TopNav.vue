@@ -34,7 +34,7 @@
       <!-- 用户菜单 -->
       <div class="nav-user">
         <div class="user-info">
-          <span class="user-phone">{{ authStore.userName || authStore.userPhone }}</span>
+          <span class="user-name">{{ authStore.userName }}</span>
           <button class="logout-btn" @click="handleLogout">
             登出
           </button>
@@ -130,7 +130,7 @@ const handleLogout = async () => {
   gap: 12px;
 }
 
-.user-phone {
+.user-name {
   font-size: 13px;
   color: #888888;
 }
@@ -170,7 +170,7 @@ const handleLogout = async () => {
     font-size: 13px;
   }
 
-  .user-phone {
+  .user-name {
     display: none;
   }
 }

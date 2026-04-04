@@ -43,9 +43,6 @@ pub enum AppError {
     #[error("ID number already exists")]
     IdNumberConflict,
 
-    #[error("Phone already exists")]
-    PhoneConflict,
-
     #[error("Account already exists")]
     AccountConflict,
 
@@ -116,7 +113,7 @@ impl AppError {
             | AppError::BotPermissionDenied
             | AppError::BotOwnershipMismatch
             | AppError::Forbidden(_) => StatusCode::FORBIDDEN,
-            AppError::IdNumberConflict | AppError::PhoneConflict | AppError::AccountConflict => {
+            AppError::IdNumberConflict | AppError::AccountConflict => {
                 StatusCode::CONFLICT
             }
             AppError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
@@ -139,7 +136,6 @@ impl AppError {
             AppError::InvalidUserToken => "invalid_user_token",
             AppError::InvalidBotToken => "invalid_bot_token",
             AppError::IdNumberConflict => "id_number_conflict",
-            AppError::PhoneConflict => "phone_conflict",
             AppError::AccountConflict => "account_conflict",
             AppError::InvalidCredentials => "invalid_credentials",
             AppError::MessageNotFound => "message_not_found",
@@ -175,7 +171,6 @@ impl AppError {
             AppError::InvalidUserToken => "用户登录已过期，请重新登录".to_string(),
             AppError::InvalidBotToken => "Bot 凭证已失效，请重新选择 Bot".to_string(),
             AppError::IdNumberConflict => "该身份证号已注册".to_string(),
-            AppError::PhoneConflict => "该手机号已注册".to_string(),
             AppError::AccountConflict => "该账号已注册".to_string(),
             AppError::InvalidCredentials => "账号或密码错误".to_string(),
             AppError::MessageNotFound => "消息不存在".to_string(),

@@ -19,7 +19,6 @@ pub struct AuthResponse {
     pub message: String,
     pub name: String,
     pub token: String,
-    pub phone: Option<String>,
     pub account: Option<String>,
     pub created_at: Option<String>,
 }
@@ -30,7 +29,6 @@ pub struct AuthResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserProfile {
     pub name: String,
-    pub phone: Option<String>,
     pub avatar_url: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
@@ -252,7 +250,6 @@ pub struct LoginRequest {
 pub struct UpdateProfileRequest {
     pub name: Option<String>,
     pub password: Option<String>,
-    pub phone: Option<String>,
     pub avatar_url: Option<String>,
 }
 

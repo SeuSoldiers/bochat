@@ -44,7 +44,6 @@ export async function getCurrentUser() {
 
 export async function updateCurrentUser(payload: {
   name?: string
-  phone?: string
   avatar_url?: string
   password?: string
 }) {
