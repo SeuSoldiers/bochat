@@ -25,7 +25,7 @@ export const useBotStore = defineStore('bots', () => {
       bots.value = await getBotList()
       return bots.value
     } catch (err: any) {
-      error.value = getErrorMessage(err, '获取 Bot 列表失败')
+      error.value = getErrorMessage(err, '获取机器人列表失败')
       throw err
     } finally {
       loading.value = false
@@ -43,7 +43,7 @@ export const useBotStore = defineStore('bots', () => {
 
       return newBot
     } catch (err: any) {
-      error.value = getErrorMessage(err, '创建 Bot 失败')
+      error.value = getErrorMessage(err, '创建机器人失败')
       throw err
     } finally {
       loading.value = false
@@ -60,7 +60,7 @@ export const useBotStore = defineStore('bots', () => {
 
       bots.value = bots.value.filter((b: Bot) => b.bot_id !== botId)
     } catch (err: any) {
-      error.value = getErrorMessage(err, '删除 Bot 失败')
+      error.value = getErrorMessage(err, '删除机器人失败')
       throw err
     } finally {
       loading.value = false
@@ -79,7 +79,7 @@ export const useBotStore = defineStore('bots', () => {
       }
       return updatedBot
     } catch (err: any) {
-      error.value = getErrorMessage(err, '更新 Bot 失败')
+      error.value = getErrorMessage(err, '更新机器人失败')
       throw err
     } finally {
       loading.value = false

@@ -104,8 +104,8 @@ const formatTime = (dateStr: string) => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: #8b9d83;
-  color: white;
+  background-color: #ebebeb;
+  color: #2f2f2f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -141,38 +141,40 @@ const formatTime = (dateStr: string) => {
 
 .message-sender {
   font-size: 13px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-weight: 700;
+  color: #2f2f2f;
 }
 
 .message-time {
   font-size: 11px;
-  color: #cccccc;
+  color: #7f7f7f;
 }
 
 .message-text {
   font-size: 14px;
-  color: #4a4a4a;
+  color: #2f2f2f;
   line-height: 1.5;
   word-break: break-word;
   white-space: pre-wrap;
-  background-color: #fafaf8;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 10px;
 }
 
 .message-file {
   font-size: 14px;
   line-height: 1.5;
-  background-color: #fafaf8;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 10px;
 }
 
 .message-file a {
-  color: #58756d;
+  color: #2f2f2f;
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .message-file a:hover {

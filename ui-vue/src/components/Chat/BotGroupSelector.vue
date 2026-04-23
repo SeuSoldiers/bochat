@@ -35,16 +35,17 @@ defineEmits<{
 .selector-container {
   flex: 1;
   min-width: 0;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  border: 1px solid #d4cfc8;
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .selector-section h3 {
   font-size: 14px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-weight: 700;
+  color: #1f1f1f;
   margin: 0 0 10px 0;
 }
 
@@ -59,26 +60,26 @@ defineEmits<{
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
-  background-color: #fafaf8;
-  border: 1px solid #e8e3dd;
-  border-radius: 6px;
+  background-color: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #888888;
-  transition: all 0.3s ease;
+  color: #4f4f4f;
+  transition: var(--transition-base);
   text-align: left;
   max-width: 220px;
 }
 
 .item:hover {
-  background-color: #f5f3f1;
-  border-color: #d4cfc8;
+  background-color: #ebebeb;
+  border-color: #c5c5c5;
 }
 
 .item.active {
-  background-color: #8b9d83;
-  color: white;
-  border-color: #8b9d83;
+  background-color: #2f2f2f;
+  color: #f3f3f3;
+  border-color: #2f2f2f;
 }
 
 .item-icon {
@@ -94,7 +95,7 @@ defineEmits<{
 
 .empty-text {
   font-size: 12px;
-  color: #cccccc;
+  color: #7f7f7f;
   margin: 0;
   padding: 10px 0;
 }

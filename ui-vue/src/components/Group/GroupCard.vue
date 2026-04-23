@@ -1,5 +1,5 @@
 <template>
-  <div :class="['group-card', { selected }]" @click="$emit('select')">
+  <div class="group-card">
     <div class="card-header">
       <div>
         <h3 class="group-name">{{ group.name }}</h3>
@@ -38,12 +38,10 @@ import type { Group } from '@/types'
 
 defineProps<{
   group: Group
-  selected?: boolean
   canDelete?: boolean
 }>()
 
 defineEmits<{
-  select: []
   delete: []
   'view-members': []
 }>()
@@ -56,23 +54,19 @@ const formatDate = (dateStr: string) => {
 
 <style scoped>
 .group-card {
-  background: white;
-  border: 1px solid #d4cfc8;
-  border-radius: 8px;
-  padding: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  padding: 18px;
+  cursor: default;
+  transition: var(--transition-base);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .group-card:hover {
-  border-color: #8b9d83;
-  box-shadow: 0 4px 12px rgba(139, 157, 131, 0.15);
-  transform: translateY(-2px);
-}
-
-.group-card.selected {
-  border-color: #8b9d83;
-  background-color: #fafaf8;
+  border-color: #bbbbbb;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .card-header {
@@ -84,16 +78,16 @@ const formatDate = (dateStr: string) => {
 
 .group-name {
   font-size: 16px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-weight: 700;
+  color: #1f1f1f;
   margin: 0 0 4px 0;
 }
 
 .group-number {
   font-size: 12px;
-  color: #888888;
+  color: #5f5f5f;
   margin: 0;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: inherit;
 }
 
 .card-actions {
@@ -107,27 +101,28 @@ const formatDate = (dateStr: string) => {
   border: none;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s ease;
-  border-radius: 4px;
+  transition: var(--transition-base);
+  border-radius: 8px;
+  color: #3f504a;
 }
 
 .action-btn:hover {
-  background-color: #f5f3f1;
+  background-color: #ebebeb;
 }
 
 .view-btn:hover {
-  color: #8b9d83;
+  color: #2f2f2f;
 }
 
 .delete-btn:hover {
-  color: #a88b7f;
+  color: #a14139;
 }
 
 .card-footer {
   display: flex;
   gap: 15px;
   padding-top: 12px;
-  border-top: 1px solid #e8e3dd;
+  border-top: 1px solid #d0d0d0;
 }
 
 .stat {
@@ -138,14 +133,15 @@ const formatDate = (dateStr: string) => {
 .stat-label {
   display: block;
   font-size: 11px;
-  color: #cccccc;
+  color: #7a7a7a;
   margin-bottom: 4px;
 }
 
 .stat-value {
   display: block;
   font-size: 14px;
-  font-weight: 600;
-  color: #8b9d83;
+  font-weight: 700;
+  color: #2f2f2f;
 }
+
 </style>

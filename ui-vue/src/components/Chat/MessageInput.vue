@@ -3,7 +3,7 @@
     <form @submit.prevent="handleSend" class="message-input-form">
       <div class="input-toolbar">
         <select v-model="selectedBotId" class="bot-select" :disabled="sending">
-          <option value="">选择发送 Bot</option>
+          <option value="">选择发送机器人</option>
           <option v-for="bot in bots" :key="bot.bot_id" :value="bot.bot_id">
             {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
           </option>
@@ -13,7 +13,7 @@
       <div class="input-wrapper">
         <textarea
           v-model="messageText"
-          placeholder="输入消息... (Shift + Enter 换行, Enter 发送)"
+          placeholder="输入消息...（按回车发送，按组合键换行）"
           class="message-input"
           :disabled="sending"
           @keydown.enter="handleKeydown"
@@ -99,7 +99,7 @@ const handleSend = async () => {
   }
 
   if (!props.groupId || !selectedBotId.value) {
-    error.value = '请选择 Bot 和群'
+    error.value = '请选择机器人和群'
     return
   }
 
@@ -118,7 +118,7 @@ const handleSend = async () => {
 
 const triggerFilePicker = () => {
   if (!props.groupId || !selectedBotId.value) {
-    error.value = '请选择 Bot 和群'
+    error.value = '请选择机器人和群'
     return
   }
 
@@ -133,7 +133,7 @@ const handleFileChange = async (event: Event) => {
   }
 
   if (!props.groupId || !selectedBotId.value) {
-    error.value = '请选择 Bot 和群'
+    error.value = '请选择机器人和群'
     input.value = ''
     return
   }
@@ -162,10 +162,11 @@ const handleFileChange = async (event: Event) => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  border: 1px solid #d4cfc8;
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .input-toolbar {
@@ -175,11 +176,11 @@ const handleFileChange = async (event: Event) => {
 .bot-select {
   min-width: 220px;
   padding: 10px 12px;
-  border: 1px solid #d4cfc8;
-  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   font-size: 13px;
-  color: #4a4a4a;
-  background: white;
+  color: #2f2f2f;
+  background: #f5f5f5;
 }
 
 .input-wrapper {
@@ -190,25 +191,26 @@ const handleFileChange = async (event: Event) => {
 .message-input {
   flex: 1;
   padding: 10px 12px;
-  border: 1px solid #e8e3dd;
-  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   font-size: 13px;
-  color: #4a4a4a;
+  color: #2f2f2f;
   font-family: inherit;
   resize: vertical;
   min-height: 60px;
   max-height: 150px;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
+  background: #f5f5f5;
 }
 
 .message-input:focus {
   outline: none;
-  border-color: #8b9d83;
-  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+  border-color: #7a7a7a;
+  box-shadow: 0 0 0 4px rgba(120, 120, 120, 0.2);
 }
 
 .message-input:disabled {
-  background-color: #fafaf8;
+  background-color: #efefef;
   color: #cccccc;
   cursor: not-allowed;
 }
@@ -225,18 +227,18 @@ const handleFileChange = async (event: Event) => {
 
 .file-btn {
   padding: 10px 16px;
-  background-color: #d8d1c8;
-  color: #5f5a54;
-  border: none;
-  border-radius: 6px;
+  background-color: #f5f5f5;
+  color: #4f4f4f;
+  border: 1px solid #d0d0d0;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .file-btn:hover:not(:disabled) {
-  background-color: #e2dbd3;
+  background-color: #ebebeb;
 }
 
 .file-btn:disabled {
@@ -246,23 +248,24 @@ const handleFileChange = async (event: Event) => {
 
 .send-btn {
   padding: 10px 24px;
-  background-color: #8b9d83;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  background: #2f2f2f;
+  color: #f3f3f3;
+  border: 1px solid #2f2f2f;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .send-btn:hover:not(:disabled) {
-  background-color: #9caa93;
-  box-shadow: 0 2px 8px rgba(139, 157, 131, 0.3);
+  background-color: #3a3a3a;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
 }
 
 .send-btn:active:not(:disabled) {
-  background-color: #7a8c72;
+  transform: translateY(0);
 }
 
 .send-btn:disabled {
@@ -272,9 +275,10 @@ const handleFileChange = async (event: Event) => {
 
 .error-message {
   padding: 10px 12px;
-  background-color: #f5e6e6;
-  color: #a88b7f;
-  border-radius: 6px;
+  background-color: #fff0ee;
+  color: #a6453e;
+  border-radius: 10px;
   font-size: 12px;
+  border: 1px solid #efc5bf;
 }
 </style>

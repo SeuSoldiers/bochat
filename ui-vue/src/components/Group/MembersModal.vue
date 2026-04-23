@@ -14,7 +14,7 @@
 
         <div class="toolbar">
           <select v-model="selectedOwnedBotId" class="toolbar-select" :disabled="loading">
-            <option value="">请选择你的 Bot</option>
+            <option value="">请选择你的机器人</option>
             <option v-for="bot in ownedBots" :key="bot.bot_id" :value="bot.bot_id">
               {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
             </option>
@@ -32,7 +32,7 @@
             <div class="member-avatar">🤖</div>
             <div class="member-info">
               <p class="member-name">{{ member.bot_name || member.member_type }}</p>
-              <p class="member-id">ID: {{ member.member_id.substring(0, 8) }}...</p>
+              <p class="member-id">编号：{{ member.member_id.substring(0, 8) }}...</p>
             </div>
             <p class="join-time">{{ formatDate(member.joined_at) }}</p>
           </div>
@@ -181,7 +181,7 @@ const formatDate = (dateStr: string) => {
   font-size: 12px;
   color: #888888;
   margin: 0;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: inherit;
 }
 
 .toolbar {
@@ -266,7 +266,7 @@ const formatDate = (dateStr: string) => {
   font-size: 11px;
   color: #cccccc;
   margin: 0;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: inherit;
 }
 
 .join-time {

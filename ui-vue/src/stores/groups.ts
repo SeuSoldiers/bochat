@@ -164,7 +164,7 @@ export const useGroupStore = defineStore('groups', () => {
       groupMembers.value[groupId] = members
       return result
     } catch (err: any) {
-      error.value = getErrorMessage(err, '添加 Bot 到群聊失败')
+      error.value = getErrorMessage(err, '添加机器人到群聊失败')
       throw err
     } finally {
       loading.value = false
