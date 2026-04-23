@@ -1,4 +1,5 @@
 use axum::{
+    middleware,
     routing::{delete, get, post},
     Router,
 };
@@ -24,10 +25,21 @@ pub struct AppState {
 }
 
 pub fn app_router(state: AppState) -> Router {
-    Router::new()
+    let user_auth_layer = middleware::from_fn_with_state(state.clone(), middlewares::require_user_auth);
+    let bot_auth_layer = middleware::from_fn_with_state(state.clone(), middlewares::require_bot_auth);
+
+    let public_routes = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/api/v1/auth/register", post(handlers::register))
         .route("/api/v1/auth/login", post(handlers::login))
+        .route("/api/v1/bots/{bot_id}", get(handlers::get_bot))
+        .route("/api/v1/groups/{group_id}", get(handlers::get_group))
+        .route(
+            "/api/v1/file/download/{file_id}/{filename}",
+            get(handlers::download_file),
+        );
+
+    let user_auth_routes = Router::new()
         .route(
             "/api/v1/users/me",
             get(handlers::get_current_user).put(handlers::update_current_user),
@@ -39,9 +51,7 @@ pub fn app_router(state: AppState) -> Router {
         )
         .route(
             "/api/v1/bots/{bot_id}",
-            get(handlers::get_bot)
-                .put(handlers::update_bot)
-                .delete(handlers::delete_bot),
+            axum::routing::put(handlers::update_bot).delete(handlers::delete_bot),
         )
         .route(
             "/api/v1/groups",
@@ -49,11 +59,7 @@ pub fn app_router(state: AppState) -> Router {
         )
         .route(
             "/api/v1/groups/{group_id}",
-            get(handlers::get_group).delete(handlers::delete_group),
-        )
-        .route(
-            "/api/v1/groups/{group_id}/messages",
-            get(handlers::get_group_messages),
+            delete(handlers::delete_group),
         )
         .route("/api/v1/groups/join", post(handlers::join_group))
         .route(
@@ -68,13 +74,21 @@ pub fn app_router(state: AppState) -> Router {
             "/api/v1/groups/{group_id}/members/{bot_id}",
             delete(handlers::remove_group_member),
         )
+        .layer(user_auth_layer);
+
+    let bot_auth_routes = Router::new()
+        .route(
+            "/api/v1/groups/{group_id}/messages",
+            get(handlers::get_group_messages),
+        )
         .route("/api/v1/message/send", post(handlers::send_message))
         .route("/api/v1/file/upload", post(handlers::upload_file))
-        .route(
-            "/api/v1/file/download/{file_id}/{filename}",
-            get(handlers::download_file),
-        )
         .route("/api/v1/file/{file_id}", delete(handlers::delete_file))
+        .layer(bot_auth_layer);
+
+    public_routes
+        .merge(user_auth_routes)
+        .merge(bot_auth_routes)
         .route("/ws", get(handlers::ws_handler))
         .layer(CorsLayer::permissive())
         .with_state(state)

@@ -3,6 +3,8 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{Mutex, mpsc, watch};
 use tokio::time::{interval, sleep};
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::http::header::{AUTHORIZATION, HeaderValue};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 use crate::client::BochatClient;
@@ -433,10 +435,9 @@ impl WsDispatcher {
 }
 
 impl WsSession {
-    /// Build the concrete WebSocket URL from the configured base URL and bot
-    /// token.
+    /// Build the concrete WebSocket URL from the configured base URL.
     ///
-    /// 基于当前基础 URL 和 Bot token 构造具体的 WebSocket 连接地址。
+    /// 基于当前基础 URL 构造具体的 WebSocket 连接地址。
     pub fn websocket_url(&self) -> SdkResult<String> {
         let base = self.client.base_url();
         let ws_base = if let Some(rest) = base.strip_prefix("https://") {
@@ -447,7 +448,18 @@ impl WsSession {
             return Err(SdkError::InvalidUrl(base.to_string()));
         };
 
-        Ok(format!("{}/ws?token={}", ws_base, self.bot_token))
+        Ok(format!("{}/ws", ws_base))
+    }
+
+    fn websocket_request(url: &str, bot_token: &str) -> SdkResult<tokio_tungstenite::tungstenite::http::Request<()>> {
+        let mut request = url
+            .into_client_request()
+            .map_err(|e| SdkError::RequestBuild(e.to_string()))?;
+        let auth = format!("Bearer {}", bot_token);
+        let header_value =
+            HeaderValue::from_str(&auth).map_err(|e| SdkError::RequestBuild(e.to_string()))?;
+        request.headers_mut().insert(AUTHORIZATION, header_value);
+        Ok(request)
     }
 
     /// Spawn the WebSocket session into a background task and return a handle.
@@ -455,6 +467,7 @@ impl WsSession {
     /// 将 WebSocket 会话启动为后台任务并返回控制句柄。
     pub async fn spawn(self) -> SdkResult<WsSessionHandle> {
         let url = self.websocket_url()?;
+        let bot_token = self.bot_token.clone();
         let (events_tx, events_rx) = mpsc::channel(self.event_buffer);
         let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
         let (connection_tx, connection_rx) = watch::channel::<Option<WsConnectionPayload>>(None);
@@ -467,7 +480,14 @@ impl WsSession {
                     break;
                 }
 
-                let connect_res = tokio_tungstenite::connect_async(&url).await;
+                let request = match Self::websocket_request(&url, &bot_token) {
+                    Ok(req) => req,
+                    Err(err) => {
+                        tracing::warn!("WS 握手请求构建失败: {}", err);
+                        break;
+                    }
+                };
+                let connect_res = tokio_tungstenite::connect_async(request).await;
                 let (mut ws_stream, _) = match connect_res {
                     Ok(v) => {
                         reconnect_attempt = 0;

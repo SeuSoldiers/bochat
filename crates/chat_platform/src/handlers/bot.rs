@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, Path, State},
+    http::StatusCode,
     response::Response,
     Json,
 };
@@ -9,12 +9,12 @@ use uuid::Uuid;
 
 use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
 use crate::repositories::{BotRepository, NewBot};
-use crate::services::authz::{can_manage_target_user, ensure_user_exists, user_is_super_admin};
+use crate::services::authz::{can_manage_target_user, user_is_super_admin};
 use crate::services::FileService;
-use crate::utils::{generate_bot_id, generate_token, verify_user_token};
+use crate::utils::{generate_bot_id, generate_token};
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_user_bearer_token, token_user_id},
+    middlewares::UserAuth,
     AppState,
 };
 
@@ -29,28 +29,13 @@ use crate::{
 #[tracing::instrument(skip_all)]
 pub async fn create_bot(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Json(req): Json<CreateBotRequest>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始创建新 Bot ===");
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_user_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("创建 Bot 失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功 (前30位): {}", &token[..30.min(token.len())]);
-
-    let owner_id = if let Ok(user_id) = token_user_id(&token) {
-        user_id.to_string()
-    } else {
-        tracing::warn!("创建 Bot 失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
-    };
+    let owner_id = auth.user_id;
     tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &owner_id).await?;
 
     // 验证输入
     if req.name.is_empty() {
@@ -127,27 +112,14 @@ pub async fn create_bot(
 /// 3. 查询该用户的所有 bot
 /// 4. 返回 bot 列表
 #[tracing::instrument(skip_all)]
-pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Response> {
+pub async fn list_bots(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+) -> AppResult<Response> {
     tracing::info!("=== 开始查询 Bot 列表 ===");
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_user_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("查询 Bot 列表失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取 bot_id（先不验证）
-    let owner_id = if let Ok(user_id) = token_user_id(&token) {
-        user_id.to_string()
-    } else {
-        tracing::warn!("查询 Bot 列表失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
-    };
+    let owner_id = auth.user_id;
     tracing::debug!("从 token 解析出用户 ID: {}", owner_id);
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &owner_id).await?;
 
     let is_super_admin = user_is_super_admin(&state.pool, &owner_id).await?;
 
@@ -230,29 +202,13 @@ pub async fn get_bot(
 #[tracing::instrument(skip_all)]
 pub async fn delete_bot(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Path(target_bot_id): Path<String>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始删除 Bot: {} ===", target_bot_id);
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_user_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("删除 Bot 失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取请求者 bot_id
-    let requester_user_id = if let Ok(user_id) = token_user_id(&token) {
-        user_id.to_string()
-    } else {
-        tracing::warn!("删除 Bot 失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
-    };
+    let requester_user_id = auth.user_id;
     tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     // 查询目标 bot
     tracing::debug!("正在查询目标 Bot: {}", target_bot_id);
@@ -315,14 +271,11 @@ pub async fn delete_bot(
 #[tracing::instrument(skip_all)]
 pub async fn update_bot(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Path(target_bot_id): Path<String>,
     Json(req): Json<UpdateBotRequest>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let requester_user_id = token_user_id(&token)?;
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, requester_user_id).await?;
+    let requester_user_id = auth.user_id;
 
     let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
         .await?

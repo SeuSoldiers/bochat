@@ -219,11 +219,12 @@ curl "$BASE_URL/api/v1/groups/{group_id}/messages?base_id=1000&limit=50" \
 WebSocket 地址：
 
 ```text
-ws://127.0.0.1:8080/ws?token={bot_token}
+ws://127.0.0.1:8080/ws
 ```
 
 连接语义：
 
+- 握手请求头必须带：`Authorization: Bearer {BOT_TOKEN}`
 - 一个连接只代表当前这个 Bot
 - 只订阅这个 Bot 当前所在群的消息
 - 如果你切换到别的 Bot，需要改用那个 Bot 的 token 重新连接

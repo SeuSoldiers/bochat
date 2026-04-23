@@ -1,6 +1,6 @@
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, State},
+    http::StatusCode,
     response::Response,
     Json,
 };
@@ -9,23 +9,22 @@ use std::collections::HashSet;
 
 use crate::models::CreateMessageRequest;
 use crate::repositories::{
-    BotRepository, GroupMemberLink, GroupRepository, MessageIdempotencyQuery, MessageRepository,
+    GroupMemberLink, GroupRepository, MessageIdempotencyQuery, MessageRepository,
     MessageWithSenderRow, NewMessage,
 };
 use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
 use crate::services::FileService;
-use crate::utils::verify_token;
 use crate::ws::WsEvent;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_bot_bearer_token, token_bot_id},
+    middlewares::BotAuth,
     AppState,
 };
 
 #[tracing::instrument(skip_all)]
 pub async fn send_message(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<BotAuth>,
     Json(msg_req): Json<CreateMessageRequest>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始处理消息发送请求 ===");
@@ -35,52 +34,8 @@ pub async fn send_message(
         msg_req.content
     );
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_bot_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("消息发送失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取 bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
-    } else {
-        tracing::warn!("消息发送失败: Token 格式无效");
-        return Err(AppError::InvalidBotToken);
-    };
+    let requester_bot_id = auth.bot_id;
     tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
-
-    // 查询请求者 bot 并使用其 secret 验证 token
-    tracing::debug!("正在查询发送者 Bot...");
-    let requester_bot: crate::models::Bot =
-        BotRepository::find_by_id(&state.pool, requester_bot_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("查询发送者 Bot 时数据库错误: {}", e);
-                e
-            })?
-            .ok_or_else(|| {
-                tracing::warn!("发送者 Bot 不存在: {}", requester_bot_id);
-                AppError::InvalidBotToken
-            })?;
-
-    tracing::debug!("发送者 Bot 查询成功，所有者: {}", requester_bot.owner_id);
-
-    // 使用 bot 的 secret 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
-    let sender_bot = requester_bot;
-
-    // 检查发送者 bot 是否活跃
-    if sender_bot.status != "active" {
-        tracing::warn!("消息发送失败: 发送者 Bot 状态非活跃: {}", sender_bot.status);
-        return Err(AppError::BotInactive);
-    }
-
-    tracing::debug!("发送者 Bot 状态检查通过");
 
     // 验证群聊存在
     tracing::debug!("正在检查群聊是否存在: {}", msg_req.group_id);
@@ -104,7 +59,7 @@ pub async fn send_message(
         &state.pool,
         &GroupMemberLink {
             group_id: &msg_req.group_id,
-            member_id: &sender_bot.bot_id,
+            member_id: &requester_bot_id,
         },
     )
         .await
@@ -113,10 +68,10 @@ pub async fn send_message(
             e
         })?;
 
-    if !is_member && !bot_has_global_group_access(&state.pool, &sender_bot.bot_id).await? {
+    if !is_member && !bot_has_global_group_access(&state.pool, &requester_bot_id).await? {
         tracing::warn!(
             "消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}",
-            sender_bot.bot_id,
+            requester_bot_id,
             msg_req.group_id
         );
         return Err(AppError::BotNotInGroup);
@@ -134,7 +89,7 @@ pub async fn send_message(
     let existing_message: Option<MessageWithSenderRow> = MessageRepository::find_idempotent_message(
         &state.pool,
         &MessageIdempotencyQuery {
-            sender_bot_id: &sender_bot.bot_id,
+            sender_bot_id: &requester_bot_id,
             group_id: &msg_req.group_id,
             idempotency_key,
         },
@@ -180,13 +135,13 @@ pub async fn send_message(
         &state.pool,
         &NewMessage {
             group_id: &msg_req.group_id,
-            sender_id: &sender_bot.bot_id,
+            sender_id: &requester_bot_id,
             content: &content,
             msg_type,
             idempotency_key,
             created_at: &now,
-            sender_name: &sender_bot.name,
-            sender_avatar_url: sender_bot.avatar_url.as_deref(),
+            sender_name: &auth.name,
+            sender_avatar_url: auth.avatar_url.as_deref(),
         },
     )
     .await
@@ -240,7 +195,7 @@ pub async fn send_message(
         "✅ 消息发送成功 - 消息ID: {}, 群聊ID: {}, 发送者: {}",
         inserted_message.msg_id,
         msg_req.group_id,
-        sender_bot.bot_id
+        requester_bot_id
     );
 
     Ok(json_response(StatusCode::CREATED, response_payload))

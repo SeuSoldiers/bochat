@@ -5,7 +5,7 @@
 ## 基础信息
 
 - Base URL: `http://127.0.0.1:8080`
-- WebSocket: `ws://127.0.0.1:8080/ws?token={bot_token}`
+- WebSocket: `ws://127.0.0.1:8080/ws`（请求头：`Authorization: Bearer {bot_token}`）
 - 用户管理类接口鉴权：`Authorization: Bearer {user_token}`
 - Bot 消息类接口鉴权：`Authorization: Bearer {bot_token}`
 
@@ -46,7 +46,7 @@
 | 文件 | `POST /api/v1/file/upload` | 上传文件 | [5.1 上传文件](#api-file-upload) |
 | 文件 | `GET /api/v1/file/download/:file_id/:filename` | 下载文件 | [5.2 下载文件](#api-file-download) |
 | 文件 | `DELETE /api/v1/file/:file_id` | 删除文件 | [5.3 删除文件](#api-file-delete) |
-| WebSocket | `GET /ws?token={bot_token}` | 建立 Bot 事件连接 | [6.1 建立连接](#api-ws-connect) |
+| WebSocket | `GET /ws` | 建立 Bot 事件连接 | [6.1 建立连接](#api-ws-connect) |
 
 ## 1. 认证与用户
 
@@ -658,11 +658,11 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 <a id="api-ws-connect"></a>
 ### 6.1 建立连接
 
-`GET /ws?token={bot_token}`
+`GET /ws`
 
 规则：
 
-- 使用有效的 Bot token 建立连接
+- 使用有效的 Bot token 建立连接（请求头：`Authorization: Bearer {bot_token}`）
 - 一个连接只代表一个 Bot
 - 连接后会收到该 Bot 当前可访问群的消息
 - 具备全局群访问权限的 Bot 会收到全部群的消息

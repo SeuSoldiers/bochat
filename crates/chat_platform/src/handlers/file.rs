@@ -1,17 +1,16 @@
 use axum::{
     body::Body,
-    extract::{Multipart, Path, State},
-    http::{header, HeaderMap, Response, StatusCode},
+    extract::{Extension, Multipart, Path, State},
+    http::{header, Response, StatusCode},
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
-use crate::utils::verify_token;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_bot_bearer_token, token_bot_id},
-    repositories::{BotRepository, FileRepository, NewFile, NewFileUploader},
+    middlewares::BotAuth,
+    repositories::{FileRepository, NewFile, NewFileUploader},
     services::FileService,
     AppState,
 };
@@ -22,25 +21,11 @@ const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 #[tracing::instrument(skip_all)]
 pub async fn upload_file(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<BotAuth>,
+    headers: axum::http::HeaderMap,
     mut payload: Multipart,
 ) -> AppResult<axum::response::Response> {
-    // Extract and verify token
-    let token = require_bot_bearer_token(&headers)?;
-    let bot_id = token_bot_id(&token)
-        .map_err(|_| AppError::InvalidBotToken)?
-        .to_string();
-    let (bot_secret, bot_status): (String, String) =
-        BotRepository::find_secret_and_status(&state.pool, &bot_id)
-            .await?
-            .ok_or(AppError::InvalidBotToken)?;
-
-    if bot_status != "active" {
-        return Err(AppError::BotInactive);
-    }
-
-    let _token_payload =
-        verify_token(&token, &bot_secret, state.config.security.token_expiry_secs)?;
+    let bot_id = auth.bot_id;
 
     let mut uploaded_filename: Option<String> = None;
     let mut uploaded_mime: Option<String> = None;
@@ -241,25 +226,10 @@ pub async fn download_file(
 #[tracing::instrument(skip_all)]
 pub async fn delete_file(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<BotAuth>,
     Path(file_id): Path<String>,
 ) -> AppResult<axum::response::Response> {
-    let token = require_bot_bearer_token(&headers)?;
-    let bot_id = token_bot_id(&token)
-        .map_err(|_| AppError::InvalidBotToken)?
-        .to_string();
-
-    let (bot_secret, bot_status): (String, String) =
-        BotRepository::find_secret_and_status(&state.pool, &bot_id)
-            .await?
-            .ok_or(AppError::InvalidBotToken)?;
-
-    if bot_status != "active" {
-        return Err(AppError::BotInactive);
-    }
-
-    let _token_payload =
-        verify_token(&token, &bot_secret, state.config.security.token_expiry_secs)?;
+    let bot_id = auth.bot_id;
 
     let file_id_for_response: String = FileRepository::exists_file_id(&state.pool, &file_id)
         .await?

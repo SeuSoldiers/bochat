@@ -1,20 +1,17 @@
 use axum::{
-    extract::Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, Json, State},
+    http::StatusCode,
     response::Response,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::utils::verify_user_token;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_user_bearer_token, token_user_id},
+    middlewares::UserAuth,
     models::{UpdateUserRequest, UserResponse},
     repositories::UserRepository,
-    services::authz::ensure_user_exists,
     AppState,
 };
 
@@ -47,12 +44,9 @@ fn hash_password(password: &str, pepper: &str) -> String {
 #[tracing::instrument(skip_all)]
 pub async fn get_current_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
+    let user_id = auth.user_id;
 
     let user: crate::models::User = UserRepository::find_by_id(&state.pool, &user_id)
         .await?
@@ -67,13 +61,10 @@ pub async fn get_current_user(
 #[tracing::instrument(skip_all)]
 pub async fn update_current_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Json(req): Json<UpdateUserRequest>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
+    let user_id = auth.user_id;
 
     let current_user: crate::models::User = UserRepository::find_by_id(&state.pool, &user_id)
         .await?
@@ -133,11 +124,11 @@ pub async fn update_current_user(
 
 /// Delete user account (requires user token)
 #[tracing::instrument(skip_all)]
-pub async fn delete_user(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
+pub async fn delete_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+) -> AppResult<Response> {
+    let user_id = auth.user_id;
 
     // Delete all bots owned by this user
     UserRepository::delete_bots_by_owner(&state.pool, &user_id).await?;

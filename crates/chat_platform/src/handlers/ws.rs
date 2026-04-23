@@ -1,64 +1,41 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        State,
     },
+    http::HeaderMap,
     response::Response,
 };
 use futures_util::StreamExt;
-use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use crate::services::authz::bot_has_global_group_access;
-use crate::utils::verify_token;
 use crate::ws::{WsEvent, WsManager};
 use crate::{
-    error::{AppError, AppResult},
-    http::require_bot_bearer_token,
-    repositories::{BotRepository, GroupRepository},
+    error::AppResult,
+    middlewares::authenticate_bot_headers,
+    repositories::GroupRepository,
     AppState,
 };
-
-#[derive(Debug, Deserialize)]
-pub struct WsQuery {
-    pub token: String,
-}
 
 #[tracing::instrument(skip_all)]
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
-    Query(query): Query<WsQuery>,
+    headers: HeaderMap,
 ) -> AppResult<Response> {
-    let token = require_bot_bearer_token(&axum::http::HeaderMap::from_iter([(
-        axum::http::header::AUTHORIZATION,
-        format!("Bearer {}", query.token)
-            .parse()
-            .map_err(|_| AppError::BotTokenRequired)?,
-    )]))?;
-    let requester_bot_id =
-        crate::http::token_bot_id(&token).map_err(|_| AppError::InvalidBotToken)?;
-
-    let requester_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, requester_bot_id)
-        .await?
-        .ok_or(AppError::InvalidBotToken)?;
-
-    let _token_payload = verify_token(
-        &token,
-        &requester_bot.secret,
-        state.config.security.token_expiry_secs,
-    )?;
+    let auth = authenticate_bot_headers(&state, &headers).await?;
 
     let group_ids: Vec<String> =
-        if bot_has_global_group_access(&state.pool, &requester_bot.bot_id).await? {
+        if bot_has_global_group_access(&state.pool, &auth.bot_id).await? {
             GroupRepository::list_all_group_ids(&state.pool).await?
         } else {
-            GroupRepository::list_group_ids_by_member(&state.pool, &requester_bot.bot_id).await?
+            GroupRepository::list_group_ids_by_member(&state.pool, &auth.bot_id).await?
         };
 
     let ws_manager = state.ws_manager.clone();
-    let bot_id = requester_bot.bot_id.clone();
-    let bot_name = requester_bot.name.clone();
+    let bot_id = auth.bot_id;
+    let bot_name = auth.name;
 
     Ok(ws.on_upgrade(move |socket| async move {
         handle_socket(socket, ws_manager, bot_id, bot_name, group_ids).await;

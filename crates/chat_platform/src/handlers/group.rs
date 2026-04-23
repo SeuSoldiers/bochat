@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, Path, Query, State},
+    http::StatusCode,
     response::Response,
     Json,
 };
@@ -13,13 +13,13 @@ use crate::repositories::{
     GroupRepository, NewGroup, NewGroupMember,
 };
 use crate::services::authz::{
-    bot_has_global_group_access, can_manage_target_user, ensure_user_exists, user_is_super_admin,
+    bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
 };
 use crate::services::FileService;
-use crate::utils::{generate_group_id, verify_token, verify_user_token};
+use crate::utils::generate_group_id;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_bot_bearer_token, require_user_bearer_token, token_bot_id, token_user_id},
+    middlewares::{BotAuth, UserAuth},
     AppState,
 };
 
@@ -45,7 +45,7 @@ pub struct LeaveGroupQuery {
 #[tracing::instrument(skip_all)]
 pub async fn create_group(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Json(req): Json<CreateGroupRequest>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始创建新群聊 ===");
@@ -55,24 +55,8 @@ pub async fn create_group(
         req.description.as_deref().unwrap_or("无")
     );
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_user_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("创建群聊失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取 bot_id
-    let user_id = if let Ok(user_id) = token_user_id(&token) {
-        user_id.to_string()
-    } else {
-        tracing::warn!("创建群聊失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
-    };
+    let user_id = auth.user_id;
     tracing::debug!("从 token 解析出用户 ID: {}", user_id);
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
 
     let member_bot_id = if let Some(target_bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, target_bot_id)
@@ -186,28 +170,12 @@ pub async fn create_group(
 #[tracing::instrument(skip_all)]
 pub async fn list_user_groups(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始查询用户群聊列表 ===");
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_user_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("查询群聊列表失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取 bot_id
-    let user_id = if let Ok(user_id) = token_user_id(&token) {
-        user_id.to_string()
-    } else {
-        tracing::warn!("查询群聊列表失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
-    };
+    let user_id = auth.user_id;
     tracing::debug!("从 token 解析出用户 ID: {}", user_id);
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
 
     let is_super_admin = user_is_super_admin(&state.pool, &user_id).await?;
 
@@ -262,7 +230,7 @@ pub async fn get_group(
 #[tracing::instrument(skip_all)]
 pub async fn join_group(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Json(req): Json<JoinGroupRequest>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始加入群聊 ===");
@@ -280,22 +248,8 @@ pub async fn join_group(
         ));
     }
 
-    // Extract token from Authorization header
-    let token = require_user_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("加入群聊失败: {}", err);
-        err
-    })?;
-
-    // Parse token to get bot_id
-    let requester_user_id = if let Ok(user_id) = token_user_id(&token) {
-        user_id.to_string()
-    } else {
-        tracing::warn!("加入群聊失败: Token 格式无效");
-        return Err(AppError::InvalidToken);
-    };
+    let requester_user_id = auth.user_id;
     tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
         let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, bot_id)
@@ -401,14 +355,11 @@ pub async fn join_group(
 #[tracing::instrument(skip_all)]
 pub async fn leave_group(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Path(group_id_str): Path<String>,
     Query(query): Query<LeaveGroupQuery>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let requester_user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &requester_user_id).await?;
+    let requester_user_id = auth.user_id;
     let bot_id = query.bot_id;
 
     let bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &bot_id)
@@ -444,13 +395,10 @@ pub async fn leave_group(
 #[tracing::instrument(skip_all)]
 pub async fn remove_group_member(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Path((group_id_str, target_bot_id)): Path<(String, String)>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let requester_user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &requester_user_id).await?;
+    let requester_user_id = auth.user_id;
 
     let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
         .await?
@@ -483,13 +431,10 @@ pub async fn remove_group_member(
 #[tracing::instrument(skip_all)]
 pub async fn delete_group(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Path(group_id_str): Path<String>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let requester_user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &requester_user_id).await?;
+    let requester_user_id = auth.user_id;
 
     // Get group
     let group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id_str)
@@ -536,47 +481,15 @@ pub async fn delete_group(
 #[tracing::instrument(skip_all)]
 pub async fn get_group_messages(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<BotAuth>,
     Path(group_id_str): Path<String>,
     Query(query): Query<GroupMessagesQuery>,
 ) -> AppResult<Response> {
     tracing::info!("=== 获取群聊消息历史 ===");
     tracing::debug!("群聊 ID: {}", group_id_str);
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_bot_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("获取消息失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取 bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
-    } else {
-        tracing::warn!("获取消息失败: Token 格式无效");
-        return Err(AppError::InvalidBotToken);
-    };
+    let requester_bot_id = auth.bot_id;
     tracing::debug!("从 token 解析出 Bot ID: {}", requester_bot_id);
-
-    // 查询 bot 信息
-    tracing::debug!("正在查询 Bot 信息...");
-    let bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, requester_bot_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询 Bot 时数据库错误: {}", e);
-            e
-        })?
-        .ok_or_else(|| {
-            tracing::warn!("Bot 不存在: {}", requester_bot_id);
-            AppError::InvalidBotToken
-        })?;
-
-    // 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
 
     // 验证群聊存在
     tracing::debug!("正在验证群聊存在...");
@@ -596,7 +509,7 @@ pub async fn get_group_messages(
         &state.pool,
         &GroupMemberLink {
             group_id: &group_id_str,
-            member_id: &bot.bot_id,
+            member_id: &requester_bot_id,
         },
     )
         .await
@@ -605,10 +518,10 @@ pub async fn get_group_messages(
             e
         })?;
 
-    if !is_member && !bot_has_global_group_access(&state.pool, &bot.bot_id).await? {
+    if !is_member && !bot_has_global_group_access(&state.pool, &requester_bot_id).await? {
         tracing::warn!(
             "Bot {} 不是群 {} 的成员，无权查看消息",
-            bot.bot_id,
+            requester_bot_id,
             group_id_str
         );
         return Err(AppError::BotNotInGroup);
@@ -670,13 +583,10 @@ pub async fn get_group_messages(
 #[tracing::instrument(skip_all)]
 pub async fn list_group_members(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Path(group_id_str): Path<String>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let requester_user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &requester_user_id).await?;
+    let requester_user_id = auth.user_id;
 
     let can_view: bool =
         GroupRepository::can_user_view_members(&state.pool, &group_id_str, &requester_user_id)
