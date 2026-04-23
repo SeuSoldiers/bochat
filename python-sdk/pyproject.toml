@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bochat-sdk"
+version = "0.1.0"
+description = "Async Python SDK for BoChat platform"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "BoChat" }]
+dependencies = [
+  "httpx>=0.27,<1.0",
+]
+
+[project.optional-dependencies]
+ws = ["websockets>=12,<16"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["bochat_sdk"]
