@@ -1,19 +1,43 @@
 use chat_platform::{app_router, config::Config, db, ws, AppState};
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+fn init_tracing(config: &Config) -> std::io::Result<WorkerGuard> {
+    std::fs::create_dir_all(&config.logging.dir)?;
+
+    let file_appender =
+        tracing_appender::rolling::daily(&config.logging.dir, &config.logging.file_prefix);
+    let (file_writer, file_guard) = tracing_appender::non_blocking(file_appender);
+
+    let env_filter = EnvFilter::from_default_env()
+        .add_directive("chat_platform=debug".parse().unwrap());
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stdout)
+                .with_ansi(true),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(file_writer)
+                .with_ansi(false),
+        )
+        .init();
+
+    Ok(file_guard)
+}
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("chat_platform=debug".parse().unwrap()),
-        )
-        .init();
+    let config = Config::from_env();
+    let _log_guard = init_tracing(&config)?;
 
     tracing::info!("════════════════════════════════════════════════════════════════");
     tracing::info!("🚀 群聊平台后端服务 启动中...");
     tracing::info!("════════════════════════════════════════════════════════════════");
 
-    let config = Config::from_env();
     tracing::info!("📋 配置已加载");
     tracing::debug!(
         "服务器配置: host={}, port={}, workers={}",
@@ -22,6 +46,11 @@ async fn main() -> std::io::Result<()> {
         config.server.workers
     );
     tracing::debug!("数据库配置: DATABASE_URL={}", config.database.url);
+    tracing::info!(
+        "📝 日志落盘已启用: dir={}, file_prefix={} (按天切分)",
+        config.logging.dir,
+        config.logging.file_prefix
+    );
 
     tracing::info!("🔌 正在初始化数据库连接池...");
     let db_pool = db::init_pool(&config.database)

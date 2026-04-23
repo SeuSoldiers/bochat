@@ -5,7 +5,7 @@ use axum::{
 };
 use chat_platform::{
     app_router,
-    config::{Config, DatabaseConfig, SecurityConfig, ServerConfig, StorageConfig},
+    config::{Config, DatabaseConfig, LoggingConfig, SecurityConfig, ServerConfig, StorageConfig},
     db,
     ws::WsManager,
     AppState,
@@ -36,6 +36,10 @@ fn test_config(temp_dir: &TempDir) -> Config {
         },
         storage: StorageConfig {
             file_storage_path: file_storage_path.to_string_lossy().to_string(),
+        },
+        logging: LoggingConfig {
+            dir: temp_dir.path().join("logs").to_string_lossy().to_string(),
+            file_prefix: "chat_platform_test".to_string(),
         },
     }
 }

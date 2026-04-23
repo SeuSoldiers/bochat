@@ -6,6 +6,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub security: SecurityConfig,
     pub storage: StorageConfig,
+    pub logging: LoggingConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -33,6 +34,12 @@ pub struct SecurityConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StorageConfig {
     pub file_storage_path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct LoggingConfig {
+    pub dir: String,
+    pub file_prefix: String,
 }
 
 impl Config {
@@ -86,11 +93,18 @@ impl Config {
                 .unwrap_or_else(|_| "./assets/files/".to_string()),
         };
 
+        let logging = LoggingConfig {
+            dir: std::env::var("LOG_DIR").unwrap_or_else(|_| "./logs".to_string()),
+            file_prefix: std::env::var("LOG_FILE_PREFIX")
+                .unwrap_or_else(|_| "chat_platform".to_string()),
+        };
+
         Config {
             server,
             database,
             security,
             storage,
+            logging,
         }
     }
 }
@@ -116,6 +130,10 @@ impl Default for Config {
             },
             storage: StorageConfig {
                 file_storage_path: "./assets/files/".to_string(),
+            },
+            logging: LoggingConfig {
+                dir: "./logs".to_string(),
+                file_prefix: "chat_platform".to_string(),
             },
         }
     }
