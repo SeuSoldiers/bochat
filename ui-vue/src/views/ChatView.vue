@@ -1,9 +1,7 @@
 <template>
-  <div class="chat-container">
-    <!-- 顶部导航 -->
+  <div class="page-shell chat-shell">
     <TopNav />
 
-    <!-- 主聊天区 -->
     <div class="chat-main">
       <div class="chat-header">
         <BotGroupSelector
@@ -15,21 +13,19 @@
         <div v-if="groupStore.selectedGroup" class="group-summary">
           <div class="group-info">
             <h3>{{ groupStore.selectedGroup.name }}</h3>
-            <p>群号: {{ groupStore.selectedGroup.group_code || '未设置' }}</p>
+            <p>Group Code: {{ groupStore.selectedGroup.group_code || 'Not Set' }}</p>
           </div>
           <button class="view-members-btn" @click="openMembersModal">
-            👥 成员
+            Members
           </button>
         </div>
       </div>
 
-      <!-- 消息区域 -->
       <div class="message-area">
         <div v-if="messageError" class="page-error">
           {{ messageError }}
         </div>
 
-        <!-- 消息列表 -->
         <MessageList
           v-if="groupStore.selectedGroup"
           :messages="chatStore.groupMessages"
@@ -37,13 +33,11 @@
           @view-bot="openBotInfo"
         />
 
-        <!-- 未选择群 -->
         <div v-else class="empty-chat">
-          <p>请选择一个群开始聊天</p>
+          <p>请选择群聊开始消息会话</p>
         </div>
       </div>
 
-      <!-- 输入区域 -->
       <MessageInput
         v-if="groupStore.selectedGroup"
         :group-id="groupStore.selectedGroup.group_id"
@@ -54,7 +48,6 @@
       />
     </div>
 
-    <!-- 成员列表模态框 -->
     <MembersModal
       v-if="showMembers && groupStore.selectedGroup"
       :group="groupStore.selectedGroup"
@@ -265,22 +258,22 @@ const openBotInfo = async (botId: string) => {
 </script>
 
 <style scoped>
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: #f5f3f1;
-}
-
 .chat-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   padding: 20px;
   gap: 16px;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+  min-height: 0;
+  border-radius: 22px;
+  border: 1px solid #e4eae3;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 16px 30px rgba(12, 36, 29, 0.1);
+}
+
+.chat-shell {
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-header {
@@ -295,46 +288,48 @@ const openBotInfo = async (botId: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  border: 1px solid #d4cfc8;
+  padding: 15px 18px;
+  background: linear-gradient(110deg, #f8fbf6 0%, #eff4eb 100%);
+  border-radius: 16px;
+  border: 1px solid #d8e0d8;
 }
 
 .group-info h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-size: 18px;
+  font-weight: 700;
+  color: #102d23;
   margin: 0 0 4px 0;
 }
 
 .group-info p {
   font-size: 12px;
-  color: #888888;
+  color: #61716b;
   margin: 0;
 }
 
 .view-members-btn {
-  padding: 8px 12px;
-  background-color: #8b9d83;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  padding: 9px 14px;
+  background: #0e3c2f;
+  color: #ebf2ee;
+  border: 1px solid #1f5d4a;
+  border-radius: 999px;
   font-size: 13px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  font-weight: 700;
+  transition: var(--transition-base);
 }
 
 .view-members-btn:hover {
-  background-color: #9caa93;
+  transform: translateY(-1px);
+  background: #165242;
 }
 
 .message-area {
-  flex: 1;
+  flex: 0 1 68%;
   display: flex;
   flex-direction: column;
   gap: 15px;
-  min-height: 400px;
+  min-height: 0;
+  max-height: 68%;
 }
 
 .empty-chat {
@@ -342,22 +337,36 @@ const openBotInfo = async (botId: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #cccccc;
+  color: #8d9994;
   font-size: 16px;
+  border-radius: 16px;
+  border: 1px dashed #cfdbcf;
+  background: rgba(247, 250, 245, 0.64);
+  min-height: 300px;
 }
 
 .page-error {
-  padding: 12px 14px;
-  border: 1px solid #e0b4aa;
-  border-radius: 8px;
-  background: #fbf0ed;
-  color: #9e5647;
+  padding: 12px 16px;
+  border: 1px solid #efc7c2;
+  border-radius: 12px;
+  background: #fff2ef;
+  color: #a2443c;
   font-size: 13px;
 }
 
 @media (max-width: 768px) {
+  .chat-shell {
+    padding: 12px;
+  }
+
   .chat-main {
-    padding: 15px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .message-area {
+    flex: 1;
+    max-height: none;
   }
 
   .chat-header {

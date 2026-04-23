@@ -56,23 +56,24 @@ const formatDate = (dateStr: string) => {
 
 <style scoped>
 .group-card {
-  background: white;
-  border: 1px solid #d4cfc8;
-  border-radius: 8px;
-  padding: 16px;
+  background: linear-gradient(150deg, #ffffff 0%, #f8fbf6 100%);
+  border: 1px solid #d8dfd8;
+  border-radius: 16px;
+  padding: 18px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
+  box-shadow: 0 10px 22px rgba(10, 36, 27, 0.08);
 }
 
 .group-card:hover {
-  border-color: #8b9d83;
-  box-shadow: 0 4px 12px rgba(139, 157, 131, 0.15);
+  border-color: #a9d53c;
+  box-shadow: 0 20px 34px rgba(10, 36, 27, 0.15);
   transform: translateY(-2px);
 }
 
 .group-card.selected {
-  border-color: #8b9d83;
-  background-color: #fafaf8;
+  border-color: #0e3c2f;
+  background: linear-gradient(130deg, #f2fbdf 0%, #f8fcf2 100%);
 }
 
 .card-header {
@@ -84,14 +85,14 @@ const formatDate = (dateStr: string) => {
 
 .group-name {
   font-size: 16px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-weight: 700;
+  color: #112f25;
   margin: 0 0 4px 0;
 }
 
 .group-number {
   font-size: 12px;
-  color: #888888;
+  color: #5f6d67;
   margin: 0;
   font-family: 'Monaco', 'Courier New', monospace;
 }
@@ -107,27 +108,28 @@ const formatDate = (dateStr: string) => {
   border: none;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s ease;
-  border-radius: 4px;
+  transition: var(--transition-base);
+  border-radius: 8px;
+  color: #3f504a;
 }
 
 .action-btn:hover {
-  background-color: #f5f3f1;
+  background-color: #eef6e4;
 }
 
 .view-btn:hover {
-  color: #8b9d83;
+  color: #1f5d4a;
 }
 
 .delete-btn:hover {
-  color: #a88b7f;
+  color: #a14139;
 }
 
 .card-footer {
   display: flex;
   gap: 15px;
   padding-top: 12px;
-  border-top: 1px solid #e8e3dd;
+  border-top: 1px solid #e5ebe4;
 }
 
 .stat {
@@ -138,14 +140,14 @@ const formatDate = (dateStr: string) => {
 .stat-label {
   display: block;
   font-size: 11px;
-  color: #cccccc;
+  color: #87928c;
   margin-bottom: 4px;
 }
 
 .stat-value {
   display: block;
   font-size: 14px;
-  font-weight: 600;
-  color: #8b9d83;
+  font-weight: 700;
+  color: #1a5b45;
 }
 </style>

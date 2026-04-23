@@ -1,9 +1,7 @@
 <template>
-  <div class="home-container">
-    <!-- 顶部导航 -->
+  <div class="page-shell home-shell">
     <TopNav />
 
-    <!-- 主内容区 -->
     <div class="home-content">
       <div v-if="actionError" class="page-error">
         {{ actionError }}
@@ -14,31 +12,28 @@
           :class="['page-tab', { active: activeTab === 'bots' }]"
           @click="activeTab = 'bots'"
         >
-          Bot 管理
+          Bot Console
         </button>
         <button
           :class="['page-tab', { active: activeTab === 'groups' }]"
           @click="activeTab = 'groups'"
         >
-          群聊管理
+          Group Space
         </button>
       </div>
 
-      <!-- Bot 管理标签页 -->
       <section v-if="activeTab === 'bots'" class="tab-content">
         <div class="section-header">
-          <h2>我的 Bot</h2>
+          <h2>My Bots</h2>
           <button class="btn btn-primary" @click="showCreateBotModal = true">
-            + 创建 Bot
+            + New Bot
           </button>
         </div>
 
-        <!-- 加载状态 -->
         <div v-if="botStore.loading" class="loading">
-          加载中...
+          Loading...
         </div>
 
-        <!-- Bot 列表 -->
         <div v-else-if="botStore.bots.length > 0" class="card-grid">
           <BotCard
             v-for="bot in botStore.bots"
@@ -49,36 +44,32 @@
           />
         </div>
 
-        <!-- 空状态 -->
         <div v-else class="empty-state">
-          <p>还没有创建任何 Bot</p>
-          <p class="text-muted">点击上面的按钮创建你的第一个 Bot</p>
+          <p>暂无 Bot</p>
+          <p class="text-muted">点击上方按钮创建第一个 Bot</p>
         </div>
       </section>
 
-      <!-- 群聊管理标签页 -->
       <section v-if="activeTab === 'groups'" class="tab-content">
         <div class="section-header">
           <div>
-            <h2>我的群</h2>
-            <p class="section-tip">先选群，再在弹窗里选择你的 Bot 来加群或退群</p>
+            <h2>My Groups</h2>
+            <p class="section-tip">选择群后可在成员弹窗中添加或移除 Bot</p>
           </div>
           <div class="actions">
             <button class="btn btn-primary" @click="showCreateGroupModal = true">
-              + 创建群
+              + New Group
             </button>
             <button class="btn btn-secondary" @click="showJoinGroupModal = true">
-              加入群
+              Join Group
             </button>
           </div>
         </div>
 
-        <!-- 加载状态 -->
         <div v-if="groupStore.loading" class="loading">
-          加载中...
+          Loading...
         </div>
 
-        <!-- 群列表 -->
         <div v-else-if="groupStore.groups.length > 0" class="card-grid">
           <GroupCard
             v-for="group in groupStore.groups"
@@ -92,15 +83,13 @@
           />
         </div>
 
-        <!-- 空状态 -->
         <div v-else class="empty-state">
-          <p>还没有加入任何群</p>
-          <p class="text-muted">创建新群或加入现有的群</p>
+          <p>暂无群聊</p>
+          <p class="text-muted">创建新群或通过群号加入</p>
         </div>
       </section>
     </div>
 
-    <!-- 创建 Bot 模态框 -->
     <CreateBotModal
       v-if="showCreateBotModal"
       :upload-token="botStore.bots[0]?.token"
@@ -115,7 +104,6 @@
       @close="showEditBotModal = false"
     />
 
-    <!-- 创建群模态框 -->
     <CreateGroupModal
       v-if="showCreateGroupModal"
       :bots="botStore.bots"
@@ -123,7 +111,6 @@
       @close="showCreateGroupModal = false"
     />
 
-    <!-- 加入群模态框 -->
     <JoinGroupModal
       v-if="showJoinGroupModal"
       :bots="botStore.bots"
@@ -131,7 +118,6 @@
       @close="showJoinGroupModal = false"
     />
 
-    <!-- 群成员模态框 -->
     <MembersModal
       v-if="showMembersModal && selectedGroupForMembers"
       :group="selectedGroupForMembers"
@@ -309,53 +295,49 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 </script>
 
 <style scoped>
-.home-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
 .home-content {
-  flex: 1;
-  padding: 30px;
-  background-color: #f5f3f1;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #e5ebe5;
+  border-radius: 22px;
+  box-shadow: 0 16px 30px rgba(12, 36, 29, 0.1);
+  padding: 22px;
 }
 
 .page-tabs {
   display: inline-flex;
-  gap: 8px;
+  gap: 6px;
   padding: 6px;
   margin-bottom: 24px;
-  background: white;
-  border: 1px solid #d4cfc8;
-  border-radius: 10px;
+  background: #f8fbf6;
+  border: 1px solid #dbe3db;
+  border-radius: 999px;
 }
 
 .page-error {
   margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid #e0b4aa;
-  border-radius: 8px;
-  background: #fbf0ed;
-  color: #9e5647;
+  padding: 12px 16px;
+  border: 1px solid #efc7c2;
+  border-radius: 12px;
+  background: #fff2ef;
+  color: #a2443c;
   font-size: 13px;
 }
 
 .page-tab {
   border: none;
   background: transparent;
-  color: #888888;
+  color: #64726c;
   padding: 10px 16px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  font-weight: 700;
+  transition: var(--transition-base);
 }
 
 .page-tab.active {
-  background-color: #8b9d83;
-  color: white;
+  background-color: #0e3c2f;
+  color: #f3f9f5;
+  box-shadow: 0 10px 18px rgba(14, 60, 47, 0.24);
 }
 
 .section-header {
@@ -366,15 +348,15 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 }
 
 .section-header h2 {
-  font-size: 24px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-size: 26px;
+  font-weight: 700;
+  color: #102b23;
 }
 
 .section-tip {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 13px;
-  color: #888888;
+  color: #65756f;
 }
 
 .actions {
@@ -384,47 +366,49 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 
 .btn {
   padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  font-weight: 700;
+  transition: var(--transition-base);
 }
 
 .btn-primary {
-  background-color: #8b9d83;
-  color: white;
+  background: #a6d72e;
+  color: #173329;
+  border-color: #9ccf2a;
 }
 
 .btn-primary:hover {
-  background-color: #9caa93;
+  background-color: #b5de46;
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background-color: #d4cfc8;
-  color: #4a4a4a;
+  background-color: #f5f7f3;
+  color: #3f4d47;
+  border-color: #d8dfd8;
 }
 
 .btn-secondary:hover {
-  background-color: #e8e3dd;
+  background-color: #edf3e8;
 }
 
 .tab-content {
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn 0.24s ease;
 }
 
 .card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  gap: 18px;
 }
 
 .loading,
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
-  color: #888888;
+  padding: 44px 20px;
+  color: #687670;
 }
 
 .empty-state p {
@@ -433,7 +417,7 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 
 .empty-state .text-muted {
   font-size: 13px;
-  color: #cccccc;
+  color: #98a39d;
 }
 
 @keyframes fadeIn {
@@ -446,8 +430,13 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 }
 
 @media (max-width: 768px) {
+  .home-shell {
+    padding: 12px;
+  }
+
   .home-content {
-    padding: 20px;
+    padding: 16px;
+    border-radius: 16px;
   }
 
   .page-tabs {
@@ -462,7 +451,7 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   .section-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 15px;
+    gap: 12px;
   }
 
   .actions {

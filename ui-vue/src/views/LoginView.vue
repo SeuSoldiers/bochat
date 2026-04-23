@@ -1,7 +1,8 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h1 class="login-title">BoChat</h1>
+      <p class="eyebrow">BOT OPERATIONS HUB</p>
+      <h1 class="login-title">BoChat Dashboard</h1>
       <p class="login-subtitle">智能聊天机器人管理平台</p>
 
       <form @submit.prevent="handleSubmit">
@@ -12,14 +13,14 @@
             :class="['tab', { active: isLogin }]"
             @click="isLogin = true"
           >
-            登 录
+            Sign In
           </button>
           <button
             type="button"
             :class="['tab', { active: !isLogin }]"
             @click="isLogin = false"
           >
-            注 册
+            Register
           </button>
         </div>
 
@@ -64,7 +65,7 @@
 
         <!-- 提交按钮 -->
         <button type="submit" class="submit-btn" :disabled="loading">
-          <span v-if="!loading">{{ isLogin ? '登 录' : '注 册' }}</span>
+          <span v-if="!loading">{{ isLogin ? '进入控制台' : '创建并进入' }}</span>
           <span v-else>处理中...</span>
         </button>
       </form>
@@ -157,40 +158,52 @@ const handleSubmit = async () => {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f3f1 0%, #ebe6e1 100%);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(14, 60, 47, 0.22) 0, rgba(14, 60, 47, 0) 36%),
+    radial-gradient(circle at 88% 12%, rgba(166, 215, 46, 0.24) 0, rgba(166, 215, 46, 0) 34%),
+    linear-gradient(160deg, #eceeeb, #e4e8e2 100%);
   padding: 20px;
 }
 
 .login-card {
-  background: white;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e0e8df;
+  border-radius: 24px;
   padding: 40px;
   width: 100%;
-  max-width: 400px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  max-width: 430px;
+  box-shadow: 0 26px 56px rgba(8, 29, 22, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: #5c6d67;
 }
 
 .login-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #8b9d83;
-  text-align: center;
+  font-size: 34px;
+  font-weight: 700;
+  color: #0f2f25;
+  text-align: left;
   margin-bottom: 8px;
-  letter-spacing: 1px;
 }
 
 .login-subtitle {
-  font-size: 12px;
-  color: #888888;
-  text-align: center;
-  margin-bottom: 30px;
+  font-size: 13px;
+  color: #5d6b66;
+  text-align: left;
+  margin-bottom: 28px;
 }
 
 .form-tabs {
   display: flex;
   gap: 0;
   margin-bottom: 30px;
-  border-bottom: 1px solid #d4cfc8;
+  border-bottom: 1px solid #dbe2db;
 }
 
 .tab {
@@ -198,16 +211,16 @@ const handleSubmit = async () => {
   padding: 12px 0;
   border: none;
   background: none;
-  color: #888888;
+  color: #6c7a75;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   position: relative;
   transition: all 0.3s ease;
 }
 
 .tab.active {
-  color: #8b9d83;
+  color: #173329;
 }
 
 .tab.active::after {
@@ -217,7 +230,7 @@ const handleSubmit = async () => {
   left: 0;
   right: 0;
   height: 2px;
-  background: #8b9d83;
+  background: #a6d72e;
 }
 
 .form-group {
@@ -228,24 +241,25 @@ const handleSubmit = async () => {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
-  color: #4a4a4a;
-  font-weight: 500;
+  color: #24352e;
+  font-weight: 700;
 }
 
 .form-group input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d4cfc8;
-  border-radius: 6px;
+  border: 1px solid #d7dfd7;
+  border-radius: 12px;
   font-size: 14px;
-  color: #4a4a4a;
-  transition: all 0.3s ease;
+  color: #203129;
+  transition: var(--transition-base);
+  background: #fbfdf9;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #8b9d83;
-  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+  border-color: #99cb27;
+  box-shadow: 0 0 0 4px rgba(166, 215, 46, 0.2);
 }
 
 .form-group input:disabled {
@@ -256,33 +270,33 @@ const handleSubmit = async () => {
 
 .error-message {
   padding: 10px 12px;
-  background-color: #f5e6e6;
-  color: #a88b7f;
-  border-radius: 6px;
+  background-color: #fff0ee;
+  color: #a6453e;
+  border-radius: 10px;
   font-size: 13px;
   margin-bottom: 20px;
+  border: 1px solid #efc5bf;
 }
 
 .submit-btn {
   width: 100%;
   padding: 12px;
-  background-color: #8b9d83;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  background: linear-gradient(120deg, #a6d72e 0%, #b7df4b 100%);
+  color: #143227;
+  border: 1px solid #97c32d;
+  border-radius: 12px;
   font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  font-weight: 800;
+  transition: var(--transition-base);
 }
 
 .submit-btn:hover:not(:disabled) {
-  background-color: #9caA93;
-  box-shadow: 0 2px 8px rgba(139, 157, 131, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(15, 55, 42, 0.24);
 }
 
 .submit-btn:active:not(:disabled) {
-  background-color: #7a8c72;
+  transform: translateY(0);
 }
 
 .submit-btn:disabled {

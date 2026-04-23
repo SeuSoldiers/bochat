@@ -102,25 +102,26 @@ const copyValue = async (value: string, label: string) => {
 
 <style scoped>
 .bot-card {
-  background: white;
-  border: 1px solid #d4cfc8;
-  border-radius: 12px;
+  background: linear-gradient(160deg, #ffffff 0%, #f8fbf6 100%);
+  border: 1px solid #d8dfd8;
+  border-radius: 18px;
   padding: 22px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
   position: relative;
   min-height: 220px;
+  box-shadow: 0 10px 22px rgba(10, 36, 27, 0.08);
 }
 
 .bot-card:hover {
-  border-color: #8b9d83;
-  box-shadow: 0 4px 12px rgba(139, 157, 131, 0.15);
+  border-color: #a9d53c;
+  box-shadow: 0 20px 34px rgba(10, 36, 27, 0.15);
   transform: translateY(-2px);
 }
 
 .bot-card.selected {
-  border-color: #8b9d83;
-  background-color: #fafaf8;
+  border-color: #0e3c2f;
+  background: linear-gradient(130deg, #f2fbdf 0%, #f8fcf2 100%);
 }
 
 .card-header {
@@ -143,7 +144,7 @@ const copyValue = async (value: string, label: string) => {
   height: 52px;
   border-radius: 50%;
   object-fit: cover;
-  background: #f5f3f1;
+  background: #edf2ea;
   flex-shrink: 0;
 }
 
@@ -152,14 +153,14 @@ const copyValue = async (value: string, label: string) => {
   align-items: center;
   justify-content: center;
   color: white;
-  background: #8b9d83;
+  background: #0e3c2f;
   font-weight: 600;
 }
 
 .bot-name {
   font-size: 18px;
-  font-weight: 600;
-  color: #4a4a4a;
+  font-weight: 700;
+  color: #112f25;
   margin: 0;
   flex: 1;
   line-height: 1.3;
@@ -174,32 +175,32 @@ const copyValue = async (value: string, label: string) => {
 
 .action-btn {
   padding: 7px 12px;
-  background: #f7f3ef;
-  border: 1px solid #e6ddd4;
+  background: #f7faf6;
+  border: 1px solid #dbe3db;
   cursor: pointer;
   font-size: 12px;
   transition: all 0.2s ease;
   border-radius: 999px;
-  color: #5d574f;
+  color: #4d5d57;
 }
 
 .action-btn:hover {
-  background-color: #efe7de;
+  background-color: #eef6e4;
 }
 
 .edit-btn:hover {
-  color: #7a8c72;
+  color: #1f5d4a;
 }
 
 .delete-btn:hover {
-  color: #9e5647;
-  border-color: #d8b3aa;
-  background: #fbefec;
+  color: #a14139;
+  border-color: #e9c5c0;
+  background: #fff0ee;
 }
 
 .bot-description {
   font-size: 14px;
-  color: #888888;
+  color: #5f6d67;
   margin-bottom: 16px;
   line-height: 1.6;
   overflow: hidden;
@@ -215,7 +216,7 @@ const copyValue = async (value: string, label: string) => {
   flex-direction: column;
   gap: 10px;
   padding-top: 16px;
-  border-top: 1px solid #e8e3dd;
+  border-top: 1px solid #e5ebe4;
 }
 
 .meta-item {
@@ -227,13 +228,13 @@ const copyValue = async (value: string, label: string) => {
 }
 
 .meta-item .label {
-  color: #cccccc;
+  color: #87928c;
   font-weight: 500;
   flex-shrink: 0;
 }
 
 .meta-item .value {
-  color: #888888;
+  color: #44524d;
   font-family: 'Monaco', 'Courier New', monospace;
 }
 
@@ -259,18 +260,18 @@ const copyValue = async (value: string, label: string) => {
 
 .mini-action {
   padding: 4px 9px;
-  border: 1px solid #ddd4ca;
+  border: 1px solid #d7dfd7;
   border-radius: 999px;
   background: white;
-  color: #746c62;
+  color: #4f5d58;
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .mini-action:hover {
-  border-color: #b9aea1;
-  background: #f8f4ef;
+  border-color: #afc8ad;
+  background: #eef5e5;
 }
 
 .copy-tip {
@@ -278,8 +279,8 @@ const copyValue = async (value: string, label: string) => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: #8b9d83;
-  color: white;
+  background-color: #0e3c2f;
+  color: #ebf2ee;
   padding: 8px 16px;
   border-radius: 4px;
   font-size: 12px;

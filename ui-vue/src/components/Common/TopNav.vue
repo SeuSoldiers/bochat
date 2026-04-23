@@ -1,42 +1,41 @@
 <template>
   <nav class="top-nav">
-    <div class="nav-container">
-      <!-- Logo -->
+    <div class="nav-container dashboard-surface">
       <div class="nav-logo">
-        <h1>BoChat</h1>
+        <span class="logo-mark">✶</span>
+        <h1>BoChat Console</h1>
       </div>
 
-      <!-- 导航标签 -->
       <div class="nav-tabs">
         <router-link
           to="/home"
           class="nav-tab"
           :class="{ active: $route.path === '/home' }"
         >
-          主页
+          Overview
         </router-link>
         <router-link
           to="/chat"
           class="nav-tab"
           :class="{ active: $route.path === '/chat' }"
         >
-          聊天
+          Live Chat
         </router-link>
         <router-link
           to="/profile"
           class="nav-tab"
           :class="{ active: $route.path === '/profile' }"
         >
-          个人信息
+          Profile
         </router-link>
       </div>
 
-      <!-- 用户菜单 -->
       <div class="nav-user">
         <div class="user-info">
-          <span class="user-name">{{ authStore.userName }}</span>
+          <span class="user-tag">Sales Admin</span>
+          <span class="user-name">{{ authStore.userName || '未命名用户' }}</span>
           <button class="logout-btn" @click="handleLogout">
-            登出
+            Sign out
           </button>
         </div>
       </div>
@@ -65,57 +64,75 @@ const handleLogout = async () => {
 
 <style scoped>
 .top-nav {
-  background-color: white;
-  border-bottom: 1px solid #d4cfc8;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  position: relative;
+  z-index: 4;
+  margin-bottom: 14px;
 }
 
 .nav-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 30px;
+  width: 100%;
+  padding: 12px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 64px;
+  min-height: 76px;
+  gap: 18px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #173329;
+  background: #a6d72e;
+  box-shadow: 0 8px 16px rgba(14, 60, 47, 0.24);
 }
 
 .nav-logo h1 {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
-  color: #8b9d83;
-  letter-spacing: 1px;
+  color: #0f2f25;
   margin: 0;
 }
 
 .nav-tabs {
   display: flex;
-  gap: 30px;
+  gap: 10px;
   flex: 1;
-  margin-left: 40px;
+  margin-left: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .nav-tab {
-  color: #888888;
+  color: #5d6a65;
   text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  padding-bottom: 8px;
-  border-bottom: 2px solid transparent;
-  transition: all 0.3s ease;
-  position: relative;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: var(--transition-base);
 }
 
 .nav-tab:hover {
-  color: #8b9d83;
+  color: #102d23;
+  border-color: #d4ddd4;
+  background: #f7faf6;
 }
 
 .nav-tab.active {
-  color: #8b9d83;
-  border-bottom-color: #8b9d83;
+  color: #102d23;
+  border-color: #9bcf2d;
+  background: #eaf6cd;
 }
 
 .nav-user {
@@ -127,51 +144,70 @@ const handleLogout = async () => {
 .user-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  padding: 8px 9px 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #d8dfd8;
+  background: #fff;
+}
+
+.user-tag {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dff1e8;
+  background: #0e3c2f;
 }
 
 .user-name {
-  font-size: 13px;
-  color: #888888;
+  font-size: 12px;
+  color: #51615b;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .logout-btn {
-  padding: 6px 12px;
-  background-color: #f5e6e6;
-  color: #a88b7f;
-  border: none;
-  border-radius: 4px;
+  padding: 7px 12px;
+  background-color: #eaf6cd;
+  color: #173329;
+  border: 1px solid #bcde66;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  font-weight: 700;
+  transition: var(--transition-base);
 }
 
 .logout-btn:hover {
-  background-color: #ead4d0;
-  color: #8b6b5f;
+  background-color: #dff0b2;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
-  .nav-container {
-    padding: 0 15px;
+  .top-nav {
+    margin-bottom: 10px;
   }
 
-  .nav-logo h1 {
-    font-size: 18px;
+  .nav-container {
+    padding: 14px;
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .nav-tabs {
-    gap: 15px;
-    margin-left: 20px;
+    width: 100%;
+    margin-left: 0;
   }
 
-  .nav-tab {
-    font-size: 13px;
+  .nav-user {
+    width: 100%;
   }
 
-  .user-name {
-    display: none;
+  .user-info {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

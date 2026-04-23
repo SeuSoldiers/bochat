@@ -1,31 +1,25 @@
-/**
- * 莫兰迪色系配置
- * 低饱和度、高级感的配色方案
- */
-
 export const morandiColors = {
-  // 主色调（莫兰迪绿）
-  primary: '#8B9D83',
+  primary: '#A6D72E',
+  primaryDark: '#0E3C2F',
+  success: '#2E8A5C',
+  warning: '#F1A33D',
+  error: '#C94D45',
+  info: '#2E6E5D',
 
-  // 辅助色
-  success: '#9B8B7E',      // 莫兰迪棕
-  warning: '#C9A876',      // 莫兰迪黄
-  error: '#A88B7F',        // 莫兰迪粉
-  info: '#7A9BA6',         // 莫兰迪蓝
+  bg: '#ECEDEC',
+  bgLight: '#F7F8F6',
+  bgDark: '#E2E5DF',
+  panel: '#FFFFFF',
+  sidebar: '#012F23',
+  sidebarHover: '#0A4735',
 
-  // 背景色
-  bg: '#F5F3F1',           // 米色背景
-  bgLight: '#FAFAF8',      // 极浅米色
-  bgDark: '#EBE6E1',       // 深米色
+  text: '#17221E',
+  textLight: '#5E6B66',
+  textLighter: '#96A09A',
+  textOnDark: '#EAF0EC',
 
-  // 文字色
-  text: '#4A4A4A',         // 深灰文字
-  textLight: '#888888',    // 浅灰文字
-  textLighter: '#CCCCCC',  // 更浅灰
-
-  // 边框色
-  border: '#D4CFC8',       // 浅灰边框
-  borderLight: '#E8E3DD',  // 更浅边框
+  border: '#D8DFD8',
+  borderLight: '#E8ECE8',
 }
 
 /**
@@ -33,48 +27,43 @@ export const morandiColors = {
  */
 export const naiveUITheme = {
   common: {
-    // 主色调
     primaryColor: morandiColors.primary,
     successColor: morandiColors.success,
     warningColor: morandiColors.warning,
     errorColor: morandiColors.error,
     infoColor: morandiColors.info,
 
-    // 背景
     baseColor: morandiColors.bg,
     bodyColor: morandiColors.bgLight,
-    cardColor: '#FFFFFF',
-    modalColor: '#FFFFFF',
+    cardColor: morandiColors.panel,
+    modalColor: morandiColors.panel,
 
-    // 文字
     textColorBase: morandiColors.text,
     textColor1: morandiColors.text,
     textColor2: morandiColors.textLight,
     textColor3: morandiColors.textLighter,
 
-    // 边框
     borderColor: morandiColors.border,
 
-    // 其他
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
+    fontFamily: '"Space Grotesk", "Manrope", "Noto Sans SC", sans-serif',
     fontSize: '14px',
     fontSizeSmall: '12px',
     fontSizeLarge: '16px',
   },
   Button: {
     colorPrimary: morandiColors.primary,
-    textColorPrimary: '#FFFFFF',
-    colorPrimaryHover: '#9CAA93',
-    colorPrimaryPressed: '#7A8C72',
+    textColorPrimary: '#132019',
+    colorPrimaryHover: '#B9E349',
+    colorPrimaryPressed: '#98C52C',
   },
   Input: {
-    borderRadius: '6px',
+    borderRadius: '10px',
     borderColor: morandiColors.border,
-    colorTarget: morandiColors.bg,
+    colorTarget: morandiColors.bgLight,
   },
   Modal: {
-    borderRadius: '8px',
-    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+    borderRadius: '16px',
+    boxShadow: '0 24px 48px rgba(9, 30, 22, 0.16)',
   },
 }
 
@@ -84,31 +73,29 @@ export const naiveUITheme = {
 export const generateCSSVariables = () => {
   const vars: Record<string, string> = {}
 
-  // 颜色变量
   Object.entries(morandiColors).forEach(([key, value]) => {
     vars[`--color-${key}`] = value
   })
 
-  // 空间变量
   vars['--spacing-xs'] = '4px'
   vars['--spacing-sm'] = '8px'
   vars['--spacing-md'] = '12px'
-  vars['--spacing-lg'] = '16px'
+  vars['--spacing-lg'] = '18px'
   vars['--spacing-xl'] = '24px'
-  vars['--spacing-2xl'] = '32px'
+  vars['--spacing-2xl'] = '36px'
 
-  // 圆角变量
-  vars['--radius-sm'] = '4px'
-  vars['--radius-md'] = '6px'
-  vars['--radius-lg'] = '8px'
+  vars['--radius-sm'] = '8px'
+  vars['--radius-md'] = '12px'
+  vars['--radius-lg'] = '18px'
+  vars['--radius-xl'] = '24px'
 
-  // 阴影变量
-  vars['--shadow-sm'] = '0 1px 2px rgba(0, 0, 0, 0.05)'
-  vars['--shadow-md'] = '0 2px 4px rgba(0, 0, 0, 0.08)'
-  vars['--shadow-lg'] = '0 4px 12px rgba(0, 0, 0, 0.1)'
+  vars['--shadow-sm'] = '0 6px 14px rgba(7, 27, 19, 0.06)'
+  vars['--shadow-md'] = '0 12px 30px rgba(7, 27, 19, 0.1)'
+  vars['--shadow-lg'] = '0 28px 48px rgba(7, 27, 19, 0.18)'
+  vars['--shadow-inset'] = 'inset 0 1px 0 rgba(255, 255, 255, 0.55)'
+  vars['--surface-outline'] = '0 0 0 1px rgba(255, 255, 255, 0.66), inset 0 0 0 1px #dce4db'
 
-  // 过渡
-  vars['--transition-base'] = 'all 0.3s ease'
+  vars['--transition-base'] = 'all 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)'
 
   return vars
 }

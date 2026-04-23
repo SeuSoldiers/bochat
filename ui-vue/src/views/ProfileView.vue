@@ -1,13 +1,13 @@
 <template>
-  <div class="profile-page">
+  <div class="page-shell profile-page">
     <TopNav />
 
     <main class="profile-main">
       <section class="profile-card">
         <header class="card-header">
           <div>
-            <h2>个人信息</h2>
-            <p>管理你的昵称和密码</p>
+            <h2>Profile Settings</h2>
+            <p>管理昵称、密码与账户资料</p>
           </div>
         </header>
 
@@ -138,33 +138,32 @@ onMounted(fetchProfile)
 
 <style scoped>
 .profile-page {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #f7f4f1 0%, #f0ece7 100%);
+  min-height: calc(100vh - 40px);
 }
 
 .profile-main {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 28px 20px 40px;
+  max-width: 920px;
+  margin: 0 auto 8px;
+  padding: 8px 8px 22px;
 }
 
 .profile-card {
-  background: #fff;
-  border: 1px solid #e1dad3;
-  border-radius: 14px;
-  padding: 28px;
-  box-shadow: 0 8px 24px rgba(78, 68, 59, 0.08);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #dde5dd;
+  border-radius: 22px;
+  padding: 30px;
+  box-shadow: 0 18px 34px rgba(9, 30, 22, 0.14);
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 24px;
-  color: #443831;
+  font-size: 28px;
+  color: #113026;
 }
 
 .card-header p {
   margin: 8px 0 0;
-  color: #7d726a;
+  color: #64726d;
   font-size: 14px;
 }
 
@@ -179,26 +178,26 @@ onMounted(fetchProfile)
 .form-group label {
   display: block;
   margin-bottom: 6px;
-  color: #594c44;
+  color: #2f4039;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .form-group input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d7cec6;
-  border-radius: 8px;
+  border: 1px solid #d6dfd6;
+  border-radius: 12px;
   padding: 10px 12px;
   font-size: 14px;
-  color: #4c3e36;
-  background: #fff;
+  color: #22332b;
+  background: #fafdfa;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #8b9d83;
-  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.15);
+  border-color: #99cb27;
+  box-shadow: 0 0 0 4px rgba(166, 215, 46, 0.2);
 }
 
 .error-box,
@@ -210,13 +209,15 @@ onMounted(fetchProfile)
 }
 
 .error-box {
-  background: #fceeed;
-  color: #9e4a45;
+  background: #fff0ee;
+  color: #a6453e;
+  border: 1px solid #efc7c1;
 }
 
 .success-box {
-  background: #edf7ed;
-  color: #2d7d46;
+  background: #ecf9d7;
+  color: #29513f;
+  border: 1px solid #cde895;
 }
 
 .actions {
@@ -226,11 +227,11 @@ onMounted(fetchProfile)
 }
 
 .btn {
-  border: none;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   padding: 10px 16px;
-  font-weight: 600;
-  cursor: pointer;
+  font-weight: 700;
+  transition: var(--transition-base);
 }
 
 .btn:disabled {
@@ -239,13 +240,15 @@ onMounted(fetchProfile)
 }
 
 .btn-primary {
-  background: #8b9d83;
-  color: #fff;
+  background: #a6d72e;
+  color: #123126;
+  border-color: #98c52c;
 }
 
 .btn-secondary {
-  background: #ece6df;
-  color: #6e5e52;
+  background: #f5f7f3;
+  color: #50605a;
+  border-color: #d8dfd8;
 }
 
 @media (max-width: 768px) {

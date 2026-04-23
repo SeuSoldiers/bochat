@@ -35,11 +35,14 @@ defineEmits<{
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: white;
-  border-radius: 8px;
-  border: 1px solid #d4cfc8;
-  overflow-y: auto;
-  padding: 15px;
+  background: linear-gradient(145deg, #ffffff 0%, #f7faf5 100%);
+  border-radius: 16px;
+  border: 1px solid #d8dfd8;
+  overflow: hidden;
+  padding: 16px;
+  min-height: 0;
+  max-height: 100%;
+  box-shadow: 0 10px 22px rgba(10, 36, 27, 0.08);
 }
 
 .loading-state,
@@ -48,7 +51,7 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: #cccccc;
+  color: #8d9994;
   font-size: 14px;
 }
 
@@ -56,6 +59,10 @@ defineEmits<{
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .message-group {

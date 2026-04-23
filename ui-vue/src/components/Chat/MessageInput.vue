@@ -162,10 +162,11 @@ const handleFileChange = async (event: Event) => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  border: 1px solid #d4cfc8;
+  padding: 16px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fbf6 100%);
+  border-radius: 16px;
+  border: 1px solid #d8dfd8;
+  box-shadow: 0 10px 22px rgba(10, 36, 27, 0.08);
 }
 
 .input-toolbar {
@@ -175,11 +176,11 @@ const handleFileChange = async (event: Event) => {
 .bot-select {
   min-width: 220px;
   padding: 10px 12px;
-  border: 1px solid #d4cfc8;
-  border-radius: 6px;
+  border: 1px solid #d7e0d7;
+  border-radius: 10px;
   font-size: 13px;
-  color: #4a4a4a;
-  background: white;
+  color: #23322c;
+  background: #fbfdf9;
 }
 
 .input-wrapper {
@@ -190,21 +191,22 @@ const handleFileChange = async (event: Event) => {
 .message-input {
   flex: 1;
   padding: 10px 12px;
-  border: 1px solid #e8e3dd;
-  border-radius: 6px;
+  border: 1px solid #d7e0d7;
+  border-radius: 10px;
   font-size: 13px;
-  color: #4a4a4a;
+  color: #23322c;
   font-family: inherit;
   resize: vertical;
   min-height: 60px;
   max-height: 150px;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
+  background: #fbfdf9;
 }
 
 .message-input:focus {
   outline: none;
-  border-color: #8b9d83;
-  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+  border-color: #99cb27;
+  box-shadow: 0 0 0 4px rgba(166, 215, 46, 0.2);
 }
 
 .message-input:disabled {
@@ -225,18 +227,18 @@ const handleFileChange = async (event: Event) => {
 
 .file-btn {
   padding: 10px 16px;
-  background-color: #d8d1c8;
-  color: #5f5a54;
-  border: none;
-  border-radius: 6px;
+  background-color: #f5f8f2;
+  color: #3f4d47;
+  border: 1px solid #d8dfd8;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .file-btn:hover:not(:disabled) {
-  background-color: #e2dbd3;
+  background-color: #edf3e8;
 }
 
 .file-btn:disabled {
@@ -246,23 +248,24 @@ const handleFileChange = async (event: Event) => {
 
 .send-btn {
   padding: 10px 24px;
-  background-color: #8b9d83;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  background: #a6d72e;
+  color: #143227;
+  border: 1px solid #98c52c;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .send-btn:hover:not(:disabled) {
-  background-color: #9caa93;
-  box-shadow: 0 2px 8px rgba(139, 157, 131, 0.3);
+  background-color: #b5de46;
+  box-shadow: 0 12px 22px rgba(14, 60, 47, 0.18);
+  transform: translateY(-1px);
 }
 
 .send-btn:active:not(:disabled) {
-  background-color: #7a8c72;
+  transform: translateY(0);
 }
 
 .send-btn:disabled {
@@ -272,9 +275,10 @@ const handleFileChange = async (event: Event) => {
 
 .error-message {
   padding: 10px 12px;
-  background-color: #f5e6e6;
-  color: #a88b7f;
-  border-radius: 6px;
+  background-color: #fff0ee;
+  color: #a6453e;
+  border-radius: 10px;
   font-size: 12px;
+  border: 1px solid #efc5bf;
 }
 </style>
