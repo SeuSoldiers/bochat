@@ -11,6 +11,7 @@ use crate::utils::verify_token;
 use crate::{
     error::{json_response, AppError, AppResult},
     http::{require_bot_bearer_token, token_bot_id},
+    repositories::{BotRepository, FileRepository, NewFile, NewFileUploader},
     services::FileService,
     AppState,
 };
@@ -30,11 +31,8 @@ pub async fn upload_file(
         .map_err(|_| AppError::InvalidBotToken)?
         .to_string();
     let (bot_secret, bot_status): (String, String) =
-        sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
-            .bind(&bot_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        BotRepository::find_secret_and_status(&state.pool, &bot_id)
+            .await?
             .ok_or(AppError::InvalidBotToken)?;
 
     if bot_status != "active" {
@@ -102,13 +100,8 @@ pub async fn upload_file(
         content_hash
     );
 
-    let existing_file: Option<crate::models::File> = sqlx::query_as(
-        "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE content_hash = ?"
-    )
-    .bind(&content_hash)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let existing_file: Option<crate::models::File> =
+        FileRepository::find_by_content_hash(&state.pool, &content_hash).await?;
 
     let scheme = headers
         .get("x-forwarded-proto")
@@ -122,15 +115,15 @@ pub async fn upload_file(
         .to_string();
 
     if let Some(existing_file) = existing_file {
-        sqlx::query(
-            "INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)",
+        FileRepository::add_uploader_ignore(
+            &state.pool,
+            &NewFileUploader {
+                file_id: &existing_file.file_id,
+                uploader_id: &bot_id,
+                created_at: &now,
+            },
         )
-        .bind(&existing_file.file_id)
-        .bind(&bot_id)
-        .bind(&now)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
         let file_url = format!(
             "{}://{}/api/v1/file/download/{}/{}",
@@ -168,33 +161,30 @@ pub async fn upload_file(
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        "#
+    FileRepository::insert_file(
+        &state.pool,
+        &NewFile {
+            file_id: &file_id,
+            owner_id: &bot_id,
+            content_hash: &content_hash,
+            filename: &filename,
+            size: total_size as i64,
+            mime_type: &mime_type,
+            storage_path: &storage_path.to_string_lossy(),
+            created_at: &now,
+        },
     )
-    .bind(&file_id)
-    .bind(&bot_id)
-    .bind(&content_hash)
-    .bind(&filename)
-    .bind(total_size as i64)
-    .bind(&mime_type)
-    .bind(storage_path.to_string_lossy().to_string())
-    .bind(&now)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .await?;
 
-    sqlx::query(
-        "INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)",
+    FileRepository::add_uploader_ignore(
+        &state.pool,
+        &NewFileUploader {
+            file_id: &file_id,
+            uploader_id: &bot_id,
+            created_at: &now,
+        },
     )
-    .bind(&file_id)
-    .bind(&bot_id)
-    .bind(&now)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .await?;
 
     let file_url = format!(
         "{}://{}/api/v1/file/download/{}/{}",
@@ -225,14 +215,9 @@ pub async fn download_file(
     State(state): State<AppState>,
     Path((file_id, requested_filename)): Path<(String, String)>,
 ) -> AppResult<Response<Body>> {
-    let file: crate::models::File = sqlx::query_as(
-        "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = ?"
-    )
-    .bind(file_id.as_str())
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::FileNotFound)?;
+    let file: crate::models::File = FileRepository::find_by_id(&state.pool, file_id.as_str())
+        .await?
+        .ok_or(AppError::FileNotFound)?;
 
     let bytes = tokio::fs::read(&file.storage_path)
         .await
@@ -265,11 +250,8 @@ pub async fn delete_file(
         .to_string();
 
     let (bot_secret, bot_status): (String, String) =
-        sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
-            .bind(&bot_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        BotRepository::find_secret_and_status(&state.pool, &bot_id)
+            .await?
             .ok_or(AppError::InvalidBotToken)?;
 
     if bot_status != "active" {
@@ -279,13 +261,9 @@ pub async fn delete_file(
     let _token_payload =
         verify_token(&token, &bot_secret, state.config.security.token_expiry_secs)?;
 
-    let file_id_for_response: String =
-        sqlx::query_scalar("SELECT file_id FROM files WHERE file_id = ?")
-            .bind(&file_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .ok_or(AppError::FileNotFound)?;
+    let file_id_for_response: String = FileRepository::exists_file_id(&state.pool, &file_id)
+        .await?
+        .ok_or(AppError::FileNotFound)?;
 
     let (uploader_removed, physical_deleted) =
         FileService::remove_uploader_and_cleanup(&state.pool, &file_id, &bot_id).await?;

@@ -15,6 +15,7 @@ use crate::ws::{WsEvent, WsManager};
 use crate::{
     error::{AppError, AppResult},
     http::require_bot_bearer_token,
+    repositories::{BotRepository, GroupRepository},
     AppState,
 };
 
@@ -38,14 +39,9 @@ pub async fn ws_handler(
     let requester_bot_id =
         crate::http::token_bot_id(&token).map_err(|_| AppError::InvalidBotToken)?;
 
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::InvalidBotToken)?;
+    let requester_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, requester_bot_id)
+        .await?
+        .ok_or(AppError::InvalidBotToken)?;
 
     let _token_payload = verify_token(
         &token,
@@ -55,18 +51,9 @@ pub async fn ws_handler(
 
     let group_ids: Vec<String> =
         if bot_has_global_group_access(&state.pool, &requester_bot.bot_id).await? {
-            sqlx::query_scalar("SELECT group_id FROM groups ORDER BY created_at ASC")
-                .fetch_all(&state.pool)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            GroupRepository::list_all_group_ids(&state.pool).await?
         } else {
-            sqlx::query_scalar(
-                "SELECT group_id FROM group_members WHERE member_id = ? ORDER BY joined_at ASC",
-            )
-            .bind(&requester_bot.bot_id)
-            .fetch_all(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            GroupRepository::list_group_ids_by_member(&state.pool, &requester_bot.bot_id).await?
         };
 
     let ws_manager = state.ws_manager.clone();

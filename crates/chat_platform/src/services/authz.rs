@@ -1,6 +1,7 @@
 use crate::{
     db::DbPool,
     error::{AppError, AppResult},
+    repositories::AuthzRepository,
 };
 
 use super::bootstrap::SUPER_ADMIN_ACCOUNT;
@@ -12,39 +13,14 @@ fn resolve_super_admin_account() -> String {
 #[tracing::instrument(skip(pool))]
 pub async fn bot_has_global_group_access(pool: &DbPool, bot_id: &str) -> AppResult<bool> {
     let super_admin_account = resolve_super_admin_account();
-
-    let has_access: bool = sqlx::query_scalar(
-        r#"
-        SELECT EXISTS(
-            SELECT 1
-            FROM bots b
-            INNER JOIN users u ON u.user_id = b.owner_id
-            WHERE b.bot_id = ? AND u.account = ?
-        )
-        "#,
-    )
-    .bind(bot_id)
-    .bind(&super_admin_account)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    Ok(has_access)
+    AuthzRepository::bot_owned_by_account(pool, bot_id, &super_admin_account).await
 }
 
 #[tracing::instrument(skip(pool))]
 pub async fn user_is_super_admin(pool: &DbPool, user_id: &str) -> AppResult<bool> {
     let super_admin_account = resolve_super_admin_account();
 
-    let is_super_admin: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE user_id = ? AND account = ?)")
-            .bind(user_id)
-            .bind(&super_admin_account)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    Ok(is_super_admin)
+    AuthzRepository::user_matches_account(pool, user_id, &super_admin_account).await
 }
 
 #[tracing::instrument(skip(pool))]
@@ -64,30 +40,12 @@ pub async fn can_manage_target_user(
 pub async fn list_super_admin_bot_ids(pool: &DbPool) -> AppResult<Vec<String>> {
     let super_admin_account = resolve_super_admin_account();
 
-    let bot_ids: Vec<String> = sqlx::query_scalar(
-        r#"
-        SELECT b.bot_id
-        FROM bots b
-        INNER JOIN users u ON u.user_id = b.owner_id
-        WHERE u.account = ? AND b.status = 'active'
-        ORDER BY b.created_at ASC
-        "#,
-    )
-    .bind(&super_admin_account)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    Ok(bot_ids)
+    AuthzRepository::list_active_bot_ids_by_account(pool, &super_admin_account).await
 }
 
 #[tracing::instrument(skip(pool))]
 pub async fn ensure_user_exists(pool: &DbPool, user_id: &str) -> AppResult<()> {
-    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE user_id = ?)")
-        .bind(user_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let exists: bool = AuthzRepository::user_exists(pool, user_id).await?;
 
     if !exists {
         return Err(AppError::InvalidUserToken);

@@ -8,6 +8,10 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
+use crate::repositories::{
+    BotRepository, GroupMemberLink, GroupMessagesQuery as RepoGroupMessagesQuery, GroupMessagesRow,
+    GroupRepository, NewGroup, NewGroupMember,
+};
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, ensure_user_exists, user_is_super_admin,
 };
@@ -71,20 +75,16 @@ pub async fn create_group(
     ensure_user_exists(&state.pool, &user_id).await?;
 
     let member_bot_id = if let Some(target_bot_id) = req.bot_id.as_ref() {
-        let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-        )
-        .bind(target_bot_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询目标 Bot 时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            tracing::warn!("目标 Bot 不存在: {}", target_bot_id);
-            AppError::BotNotFound
-        })?;
+        let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, target_bot_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询目标 Bot 时数据库错误: {}", e);
+                e
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("目标 Bot 不存在: {}", target_bot_id);
+                AppError::BotNotFound
+            })?;
 
         if !can_manage_target_user(&state.pool, &user_id, &target_bot.owner_id).await? {
             tracing::warn!(
@@ -102,13 +102,8 @@ pub async fn create_group(
 
         target_bot.bot_id
     } else {
-        let default_bot_id: Option<String> = sqlx::query_scalar(
-            "SELECT bot_id FROM bots WHERE owner_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1"
-        )
-        .bind(&user_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let default_bot_id: Option<String> =
+            BotRepository::find_default_active_bot_id(&state.pool, &user_id).await?;
 
         default_bot_id.ok_or(AppError::NoAvailableBot)?
     };
@@ -129,46 +124,39 @@ pub async fn create_group(
     tracing::debug!("时间戳: {}", now);
 
     tracing::info!("正在数据库中插入群聊记录: {}", group_id);
-    sqlx::query(
-        r#"
-        INSERT INTO groups (group_id, group_code, creator_id, name, description, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&group_id)
-    .bind(&req.group_code)
-    .bind(&user_id)
-    .bind(&req.name)
-    .bind(&req.description)
-    .bind("active")
-    .bind(&now)
-    .bind(&now)
-    .execute(&state.pool)
+    let new_group = NewGroup {
+        group_id: &group_id,
+        group_code: req.group_code.as_deref(),
+        creator_id: &user_id,
+        name: &req.name,
+        description: req.description.as_deref(),
+        status: "active",
+        now: &now,
+    };
+    GroupRepository::insert_group(&state.pool, &new_group)
     .await
     .map_err(|e| {
         tracing::error!("创建群聊时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
+        e
     })?;
 
     tracing::info!("群聊创建成功，正在添加指定 Bot 到群聊成员...");
 
     // 将创建者的 Bot 自动添加到群聊成员中
-    sqlx::query(
-        r#"
-        INSERT OR IGNORE INTO group_members (group_id, member_id, member_type, joined_at)
-        VALUES (?, ?, ?, ?)
-        "#,
+    GroupRepository::add_member_ignore(
+        &state.pool,
+        &NewGroupMember {
+            group_id: &group_id,
+            member_id: &member_bot_id,
+            member_type: "bot",
+            joined_at: &now,
+        },
     )
-    .bind(&group_id)
-    .bind(&member_bot_id)
-    .bind("bot")
-    .bind(&now)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("添加 Bot 到群聊成员时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("添加 Bot 到群聊成员时数据库错误: {}", e);
+            e
+        })?;
 
     tracing::info!(
         "✅ 群聊创建成功 - 群聊ID: {}, 创建者: {}, Bot已自动加入: {}",
@@ -227,38 +215,17 @@ pub async fn list_user_groups(
     tracing::info!("正在查询群聊列表，is_super_admin={}", is_super_admin);
 
     let groups: Vec<crate::models::Group> = if is_super_admin {
-        sqlx::query_as(
-            r#"
-            SELECT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
-            FROM groups g
-            ORDER BY g.created_at DESC
-            "#,
-        )
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
+        GroupRepository::list_all(&state.pool).await.map_err(|e| {
             tracing::error!("查询全部群聊时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
+            e
         })?
     } else {
-        sqlx::query_as(
-            r#"
-            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
-            FROM groups g
-            LEFT JOIN group_members gm ON gm.group_id = g.group_id
-            LEFT JOIN bots b ON b.bot_id = gm.member_id
-            WHERE g.creator_id = ? OR b.owner_id = ?
-            ORDER BY g.created_at DESC
-            "#,
-        )
-        .bind(&user_id)
-        .bind(&user_id)
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询群聊列表时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?
+        GroupRepository::list_visible_by_user(&state.pool, &user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询群聊列表时数据库错误: {}", e);
+                e
+            })?
     };
 
     tracing::info!("✅ 查询成功，共找到 {} 个群聊", groups.len());
@@ -283,14 +250,9 @@ pub async fn get_group(
     State(state): State<AppState>,
     Path(group_id): Path<String>,
 ) -> AppResult<Response> {
-    let group: crate::models::Group = sqlx::query_as(
-        "SELECT group_id, group_code, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?"
-    )
-    .bind(group_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BadRequest("Group not found".to_string()))?;
+    let group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id)
+        .await?
+        .ok_or(AppError::BadRequest("Group not found".to_string()))?;
 
     let response: GroupResponse = group.into();
     Ok(json_response(StatusCode::OK, response))
@@ -336,20 +298,16 @@ pub async fn join_group(
     ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
-        let target_bot: crate::models::Bot = sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-        )
-        .bind(bot_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询目标 Bot 时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            tracing::warn!("目标 Bot 不存在: {}", bot_id);
-            AppError::BotNotFound
-        })?;
+        let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, bot_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询目标 Bot 时数据库错误: {}", e);
+                e
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("目标 Bot 不存在: {}", bot_id);
+                AppError::BotNotFound
+            })?;
 
         if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
             tracing::warn!(
@@ -367,13 +325,8 @@ pub async fn join_group(
 
         target_bot.bot_id
     } else {
-        let default_bot_id: Option<String> = sqlx::query_scalar(
-            "SELECT bot_id FROM bots WHERE owner_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1"
-        )
-        .bind(&requester_user_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let default_bot_id: Option<String> =
+            BotRepository::find_default_active_bot_id(&state.pool, &requester_user_id).await?;
 
         default_bot_id.ok_or(AppError::NoAvailableBot)?
     };
@@ -386,15 +339,12 @@ pub async fn join_group(
         let gcode = req.group_code.as_ref().unwrap();
         tracing::debug!("使用 group_code 查找群聊: {}", gcode);
 
-        let found_group: Option<String> =
-            sqlx::query_scalar("SELECT group_id FROM groups WHERE group_code = ?")
-                .bind(gcode)
-                .fetch_optional(&state.pool)
-                .await
-                .map_err(|e| {
-                    tracing::error!("查询群聊时数据库错误: {}", e);
-                    AppError::DatabaseError(e.to_string())
-                })?;
+        let found_group: Option<String> = GroupRepository::find_group_id_by_code(&state.pool, gcode)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询群聊时数据库错误: {}", e);
+                e
+            })?;
 
         found_group.ok_or_else(|| {
             tracing::warn!("群号不存在: {}", gcode);
@@ -405,15 +355,12 @@ pub async fn join_group(
     tracing::debug!("群聊 ID: {}", group_id_str);
 
     // Verify group exists
-    let group_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE group_id = ?)")
-            .bind(&group_id_str)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("验证群聊存在时数据库错误: {}", e);
-                AppError::DatabaseError(e.to_string())
-            })?;
+    let group_exists: bool = GroupRepository::exists(&state.pool, &group_id_str)
+        .await
+        .map_err(|e| {
+            tracing::error!("验证群聊存在时数据库错误: {}", e);
+            e
+        })?;
 
     if !group_exists {
         tracing::warn!("群聊不存在: {}", group_id_str);
@@ -423,19 +370,20 @@ pub async fn join_group(
     let now = chrono::Utc::now().to_rfc3339();
 
     // Add bot to group (ignore if already a member)
-    sqlx::query(
-        "INSERT OR IGNORE INTO group_members (group_id, member_id, member_type, joined_at) VALUES (?, ?, ?, ?)"
+    GroupRepository::add_member_ignore(
+        &state.pool,
+        &NewGroupMember {
+            group_id: &group_id_str,
+            member_id: &target_bot_id,
+            member_type: "bot",
+            joined_at: &now,
+        },
     )
-    .bind(&group_id_str)
-    .bind(&target_bot_id)
-    .bind("bot")
-    .bind(&now)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("添加 Bot 到群聊时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("添加 Bot 到群聊时数据库错误: {}", e);
+            e
+        })?;
 
     tracing::info!("✅ Bot {} 已加入群聊 {}", target_bot_id, group_id_str);
 
@@ -463,25 +411,22 @@ pub async fn leave_group(
     ensure_user_exists(&state.pool, &requester_user_id).await?;
     let bot_id = query.bot_id;
 
-    let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(&bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
+    let bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &bot_id)
+        .await?
+        .ok_or(AppError::BotNotFound)?;
 
     if !can_manage_target_user(&state.pool, &requester_user_id, &bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
     }
 
-    sqlx::query("DELETE FROM group_members WHERE group_id = ? AND member_id = ?")
-        .bind(&group_id_str)
-        .bind(&bot_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    GroupRepository::remove_member(
+        &state.pool,
+        &GroupMemberLink {
+            group_id: &group_id_str,
+            member_id: &bot_id,
+        },
+    )
+    .await?;
 
     tracing::info!("Bot {} left group {}", bot_id, group_id_str);
 
@@ -507,25 +452,22 @@ pub async fn remove_group_member(
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
     ensure_user_exists(&state.pool, &requester_user_id).await?;
 
-    let target_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(&target_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
+    let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
+        .await?
+        .ok_or(AppError::BotNotFound)?;
 
     if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
     }
 
-    sqlx::query("DELETE FROM group_members WHERE group_id = ? AND member_id = ?")
-        .bind(&group_id_str)
-        .bind(&target_bot_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    GroupRepository::remove_member(
+        &state.pool,
+        &GroupMemberLink {
+            group_id: &group_id_str,
+            member_id: &target_bot_id,
+        },
+    )
+    .await?;
 
     Ok(json_response(
         StatusCode::OK,
@@ -550,14 +492,9 @@ pub async fn delete_group(
     ensure_user_exists(&state.pool, &requester_user_id).await?;
 
     // Get group
-    let group: crate::models::Group = sqlx::query_as(
-        "SELECT group_id, group_code, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?"
-    )
-    .bind(&group_id_str)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BadRequest("Group not found".to_string()))?;
+    let group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id_str)
+        .await?
+        .ok_or(AppError::BadRequest("Group not found".to_string()))?;
 
     // 超级管理员可删除任意群。
     if !can_manage_target_user(&state.pool, &requester_user_id, &group.creator_id).await? {
@@ -567,25 +504,13 @@ pub async fn delete_group(
     FileService::on_group_deleted(&state.pool, &group_id_str).await?;
 
     // 删除群消息，避免 groups 删除时触发 messages 的外键约束错误。
-    sqlx::query("DELETE FROM messages WHERE group_id = ?")
-        .bind(&group_id_str)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    GroupRepository::delete_messages_by_group(&state.pool, &group_id_str).await?;
 
     // Delete group members
-    sqlx::query("DELETE FROM group_members WHERE group_id = ?")
-        .bind(&group_id_str)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    GroupRepository::delete_members_by_group(&state.pool, &group_id_str).await?;
 
     // Delete group
-    sqlx::query("DELETE FROM groups WHERE group_id = ?")
-        .bind(&group_id_str)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    GroupRepository::delete_group(&state.pool, &group_id_str).await?;
 
     tracing::info!("Group deleted: {}", group_id_str);
 
@@ -637,20 +562,16 @@ pub async fn get_group_messages(
 
     // 查询 bot 信息
     tracing::debug!("正在查询 Bot 信息...");
-    let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("Bot 不存在: {}", requester_bot_id);
-        AppError::InvalidBotToken
-    })?;
+    let bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, requester_bot_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询 Bot 时数据库错误: {}", e);
+            e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("Bot 不存在: {}", requester_bot_id);
+            AppError::InvalidBotToken
+        })?;
 
     // 验证 token
     tracing::debug!("正在验证 token...");
@@ -659,32 +580,30 @@ pub async fn get_group_messages(
 
     // 验证群聊存在
     tracing::debug!("正在验证群聊存在...");
-    let group_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE group_id = ?)")
-            .bind(&group_id_str)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("验证群聊存在时数据库错误: {}", e);
-                AppError::DatabaseError(e.to_string())
-            })?;
+    let group_exists: bool = GroupRepository::exists(&state.pool, &group_id_str)
+        .await
+        .map_err(|e| {
+            tracing::error!("验证群聊存在时数据库错误: {}", e);
+            e
+        })?;
 
     if !group_exists {
         tracing::warn!("群聊不存在: {}", group_id_str);
         return Err(AppError::BadRequest("群聊不存在".to_string()));
     }
 
-    let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)",
+    let is_member: bool = GroupRepository::is_member(
+        &state.pool,
+        &GroupMemberLink {
+            group_id: &group_id_str,
+            member_id: &bot.bot_id,
+        },
     )
-    .bind(&group_id_str)
-    .bind(&bot.bot_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("检查群组成员时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("检查群组成员时数据库错误: {}", e);
+            e
+        })?;
 
     if !is_member && !bot_has_global_group_access(&state.pool, &bot.bot_id).await? {
         tracing::warn!(
@@ -700,48 +619,18 @@ pub async fn get_group_messages(
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
     let base_id = query.base_id.unwrap_or(i64::MAX);
 
-    #[derive(sqlx::FromRow)]
-    struct MessageRow {
-        msg_id: i64,
-        group_id: String,
-        sender_id: String,
-        sender_name: Option<String>,
-        sender_avatar_url: Option<String>,
-        content: String,
-        msg_type: String,
-        created_at: String,
-    }
-
-    let messages: Vec<MessageRow> = sqlx::query_as(
-        r#"
-        SELECT
-            recent.msg_id,
-            recent.group_id,
-            recent.sender_id,
-            b.name as sender_name,
-            b.avatar_url as sender_avatar_url,
-            recent.content,
-            recent.msg_type,
-            recent.created_at
-        FROM (
-            SELECT msg_id, group_id, sender_id, content, msg_type, created_at
-            FROM messages
-            WHERE group_id = ? AND msg_id < ?
-            ORDER BY msg_id DESC
-            LIMIT ?
-        ) recent
-        LEFT JOIN bots b ON b.bot_id = recent.sender_id
-        ORDER BY recent.msg_id ASC
-        "#,
+    let messages: Vec<GroupMessagesRow> = GroupRepository::list_messages(
+        &state.pool,
+        &RepoGroupMessagesQuery {
+            group_id: &group_id_str,
+            base_id,
+            limit,
+        },
     )
-    .bind(&group_id_str)
-    .bind(base_id)
-    .bind(limit)
-    .fetch_all(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("查询消息历史时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
+        e
     })?;
 
     tracing::info!("✅ 成功获取 {} 条消息", messages.len());
@@ -789,23 +678,9 @@ pub async fn list_group_members(
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
     ensure_user_exists(&state.pool, &requester_user_id).await?;
 
-    let can_view: bool = sqlx::query_scalar(
-        r#"
-        SELECT EXISTS(
-            SELECT 1
-            FROM groups g
-            LEFT JOIN group_members gm ON gm.group_id = g.group_id
-            LEFT JOIN bots b ON b.bot_id = gm.member_id
-            WHERE g.group_id = ? AND (g.creator_id = ? OR b.owner_id = ?)
-        )
-        "#,
-    )
-    .bind(&group_id_str)
-    .bind(&requester_user_id)
-    .bind(&requester_user_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let can_view: bool =
+        GroupRepository::can_user_view_members(&state.pool, &group_id_str, &requester_user_id)
+            .await?;
 
     if !can_view && !user_is_super_admin(&state.pool, &requester_user_id).await? {
         return Err(AppError::Forbidden(
@@ -813,19 +688,7 @@ pub async fn list_group_members(
         ));
     }
 
-    let members: Vec<GroupMemberResponse> = sqlx::query_as(
-        r#"
-        SELECT gm.group_id, gm.member_id, gm.member_type, gm.joined_at, b.name as bot_name, b.owner_id
-        FROM group_members gm
-        LEFT JOIN bots b ON b.bot_id = gm.member_id
-        WHERE gm.group_id = ?
-        ORDER BY gm.joined_at
-        "#
-    )
-    .bind(&group_id_str)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let members: Vec<GroupMemberResponse> = GroupRepository::list_members(&state.pool, &group_id_str).await?;
 
     Ok(json_response(
         StatusCode::OK,

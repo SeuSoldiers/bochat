@@ -11,6 +11,7 @@ pub mod handlers;
 pub mod http;
 pub mod middlewares;
 pub mod models;
+pub mod repositories;
 pub mod services;
 pub mod utils;
 pub mod ws;

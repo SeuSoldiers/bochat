@@ -8,6 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
+use crate::repositories::{BotRepository, NewBot};
 use crate::services::authz::{can_manage_target_user, ensure_user_exists, user_is_super_admin};
 use crate::services::FileService;
 use crate::utils::{generate_bot_id, generate_token, verify_user_token};
@@ -74,27 +75,22 @@ pub async fn create_bot(
     tracing::debug!("  时间戳: {}", now);
 
     tracing::info!("正在数据库中插入新 Bot 记录: {}", new_bot_id);
-    sqlx::query(
-        r#"
-        INSERT INTO bots (bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&new_bot_id)
-    .bind(&owner_id)
-    .bind(&req.name)
-    .bind(&req.description)
-    .bind(&req.avatar_url)
-    .bind("active")
-    .bind(&bot_token)
-    .bind(&bot_secret)
-    .bind(&now)
-    .bind(&now)
-    .execute(&state.pool)
+    let new_bot = NewBot {
+        bot_id: &new_bot_id,
+        owner_id: &owner_id,
+        name: &req.name,
+        description: req.description.as_deref(),
+        avatar_url: req.avatar_url.as_deref(),
+        status: "active",
+        token: &bot_token,
+        secret: &bot_secret,
+        now: &now,
+    };
+    BotRepository::insert(&state.pool, &new_bot)
     .await
     .map_err(|e| {
         tracing::error!("创建 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
+        e
     })?;
 
     FileService::on_bot_avatar_changed(&state.pool, &new_bot_id, None, req.avatar_url.as_deref())
@@ -163,26 +159,17 @@ pub async fn list_bots(State(state): State<AppState>, headers: HeaderMap) -> App
     );
 
     let bots: Vec<crate::models::Bot> = if is_super_admin {
-        sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots ORDER BY created_at DESC"
-        )
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
+        BotRepository::list_all(&state.pool).await.map_err(|e| {
             tracing::error!("查询全量 Bot 列表时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
+            e
         })?
     } else {
-        sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at DESC"
-        )
-        .bind(&owner_id)
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询 Bot 列表时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
-        })?
+        BotRepository::list_by_owner(&state.pool, &owner_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询 Bot 列表时数据库错误: {}", e);
+                e
+            })?
     };
 
     tracing::info!("✅ 查询成功，共找到 {} 个 Bot", bots.len());
@@ -209,20 +196,16 @@ pub async fn get_bot(
 ) -> AppResult<Response> {
     tracing::info!("=== 查询 Bot 详情: {} ===", requested_bot_id);
 
-    let bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(&requested_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("Bot 不存在: {}", requested_bot_id);
-        AppError::BotNotFound
-    })?;
+    let bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &requested_bot_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询 Bot 时数据库错误: {}", e);
+            e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("Bot 不存在: {}", requested_bot_id);
+            AppError::BotNotFound
+        })?;
 
     tracing::info!("✅ Bot 查询成功: {}", requested_bot_id);
     tracing::debug!(
@@ -273,20 +256,16 @@ pub async fn delete_bot(
 
     // 查询目标 bot
     tracing::debug!("正在查询目标 Bot: {}", target_bot_id);
-    let target_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(&target_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询目标 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("目标 Bot 不存在: {}", target_bot_id);
-        AppError::BotNotFound
-    })?;
+    let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询目标 Bot 时数据库错误: {}", e);
+            e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("目标 Bot 不存在: {}", target_bot_id);
+            AppError::BotNotFound
+        })?;
 
     tracing::debug!("目标 Bot 查询成功，所有者: {}", target_bot.owner_id);
 
@@ -303,13 +282,11 @@ pub async fn delete_bot(
     tracing::info!("权限检查通过，开始删除 Bot 记录");
 
     // 删除 bot（消息会被保留，因为没有外键约束）
-    sqlx::query("DELETE FROM bots WHERE bot_id = ?")
-        .bind(&target_bot_id)
-        .execute(&state.pool)
+    BotRepository::delete_by_id(&state.pool, &target_bot_id)
         .await
         .map_err(|e| {
             tracing::error!("删除 Bot 时数据库错误: {}", e);
-            AppError::DatabaseError(e.to_string())
+            e
         })?;
 
     FileService::on_bot_avatar_changed(
@@ -347,14 +324,9 @@ pub async fn update_bot(
     let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
     ensure_user_exists(&state.pool, requester_user_id).await?;
 
-    let target_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(&target_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
+    let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
+        .await?
+        .ok_or(AppError::BotNotFound)?;
 
     if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
@@ -367,21 +339,15 @@ pub async fn update_bot(
     let old_avatar_url = target_bot.avatar_url.clone();
     let now = chrono::Utc::now().to_rfc3339();
 
-    sqlx::query(
-        r#"
-        UPDATE bots
-        SET name = ?, description = ?, avatar_url = ?, updated_at = ?
-        WHERE bot_id = ?
-        "#,
+    BotRepository::update_profile(
+        &state.pool,
+        &target_bot_id,
+        &req.name,
+        req.description.as_deref(),
+        req.avatar_url.as_deref(),
+        &now,
     )
-    .bind(&req.name)
-    .bind(&req.description)
-    .bind(&req.avatar_url)
-    .bind(&now)
-    .bind(&target_bot_id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .await?;
 
     FileService::on_bot_avatar_changed(
         &state.pool,
@@ -391,14 +357,9 @@ pub async fn update_bot(
     )
     .await?;
 
-    let updated_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(&target_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::BotNotFound)?;
+    let updated_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
+        .await?
+        .ok_or(AppError::BotNotFound)?;
 
     Ok(json_response(
         StatusCode::OK,
