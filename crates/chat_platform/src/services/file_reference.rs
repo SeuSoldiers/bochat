@@ -1,4 +1,7 @@
 use crate::error::{AppError, AppResult};
+use crate::repositories::{
+    FileReferenceKey, FileReferenceRepository, MessageReferenceCleanup, NewFileReference,
+};
 use sqlx::SqlitePool;
 
 pub const REF_TYPE_MESSAGE: &str = "message";
@@ -43,21 +46,18 @@ pub async fn add_reference(
     reference_id: &str,
 ) -> AppResult<bool> {
     let now = chrono::Utc::now().to_rfc3339();
-    let result = sqlx::query(
-        r#"
-        INSERT OR IGNORE INTO file_references (file_id, reference_type, reference_id, created_at)
-        VALUES (?, ?, ?, ?)
-        "#,
+    let affected = FileReferenceRepository::add_reference_ignore(
+        pool,
+        &NewFileReference {
+            file_id,
+            reference_type,
+            reference_id,
+            created_at: &now,
+        },
     )
-    .bind(file_id)
-    .bind(reference_type)
-    .bind(reference_id)
-    .bind(now)
-    .execute(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .await?;
 
-    Ok(result.rows_affected() > 0)
+    Ok(affected > 0)
 }
 
 pub async fn remove_reference(
@@ -66,84 +66,44 @@ pub async fn remove_reference(
     reference_type: &str,
     reference_id: &str,
 ) -> AppResult<bool> {
-    let result = sqlx::query(
-        "DELETE FROM file_references WHERE file_id = ? AND reference_type = ? AND reference_id = ?",
+    let affected = FileReferenceRepository::remove_reference(
+        pool,
+        &FileReferenceKey {
+            file_id,
+            reference_type,
+            reference_id,
+        },
     )
-    .bind(file_id)
-    .bind(reference_type)
-    .bind(reference_id)
-    .execute(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    Ok(result.rows_affected() > 0)
+    .await?;
+    Ok(affected > 0)
 }
 
 pub async fn file_exists(pool: &SqlitePool, file_id: &str) -> AppResult<bool> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = ?)")
-        .bind(file_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))
+    FileReferenceRepository::file_exists(pool, file_id).await
 }
 
 pub async fn remove_message_references_for_group(
     pool: &SqlitePool,
     group_id: &str,
 ) -> AppResult<Vec<String>> {
-    let affected_file_ids: Vec<String> = sqlx::query_scalar(
-        r#"
-        SELECT DISTINCT fr.file_id
-        FROM file_references fr
-        INNER JOIN messages m
-            ON fr.reference_type = ? AND fr.reference_id = CAST(m.msg_id AS TEXT)
-        WHERE m.group_id = ?
-        "#,
-    )
-    .bind(REF_TYPE_MESSAGE)
-    .bind(group_id)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let cleanup = MessageReferenceCleanup {
+        reference_type: REF_TYPE_MESSAGE,
+        group_id,
+    };
+    let affected_file_ids: Vec<String> =
+        FileReferenceRepository::list_affected_file_ids_by_group_messages(pool, &cleanup).await?;
 
-    sqlx::query(
-        r#"
-        DELETE FROM file_references
-        WHERE reference_type = ?
-          AND reference_id IN (
-              SELECT CAST(msg_id AS TEXT)
-              FROM messages
-              WHERE group_id = ?
-          )
-        "#,
-    )
-    .bind(REF_TYPE_MESSAGE)
-    .bind(group_id)
-    .execute(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    FileReferenceRepository::remove_message_references_by_group(pool, &cleanup).await?;
 
     Ok(affected_file_ids)
 }
 
 pub async fn cleanup_file_if_unreferenced(pool: &SqlitePool, file_id: &str) -> AppResult<bool> {
-    let file: Option<(String,)> =
-        sqlx::query_as("SELECT storage_path FROM files WHERE file_id = ?")
-            .bind(file_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    let Some((storage_path,)) = file else {
+    let Some(storage_path) = FileReferenceRepository::find_storage_path(pool, file_id).await? else {
         return Ok(false);
     };
 
-    let ref_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(1) FROM file_references WHERE file_id = ?")
-            .bind(file_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let ref_count: i64 = FileReferenceRepository::count_references(pool, file_id).await?;
 
     // 物理文件生命周期只由业务引用决定（消息/头像等）。
     // file_uploaders 仅用于“谁上传过”的关系，不阻止回收。
@@ -151,23 +111,9 @@ pub async fn cleanup_file_if_unreferenced(pool: &SqlitePool, file_id: &str) -> A
         return Ok(false);
     }
 
-    sqlx::query("DELETE FROM file_uploaders WHERE file_id = ?")
-        .bind(file_id)
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    sqlx::query("DELETE FROM file_references WHERE file_id = ?")
-        .bind(file_id)
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-    sqlx::query("DELETE FROM files WHERE file_id = ?")
-        .bind(file_id)
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    FileReferenceRepository::delete_uploaders_by_file_id(pool, file_id).await?;
+    FileReferenceRepository::delete_references_by_file_id(pool, file_id).await?;
+    FileReferenceRepository::delete_file_by_id(pool, file_id).await?;
 
     if let Err(err) = tokio::fs::remove_file(&storage_path).await {
         if err.kind() != std::io::ErrorKind::NotFound {

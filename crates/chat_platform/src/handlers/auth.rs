@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::models::RegisterRequest;
+use crate::repositories::{BotRepository, NewBot, NewUser, UserRepository};
 use crate::utils::{generate_bot_id, generate_token, generate_user_id, generate_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -133,30 +134,20 @@ pub async fn register(
 
     // 创建用户（实名认证）
     tracing::info!("正在数据库中创建用户记录: {}", user_id);
-    sqlx::query(
-        r#"
-        INSERT INTO users (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&user_id)
-    .bind(&name)
-    .bind(&account)
-    .bind(&password_hash)
-    .bind(&db_id_number)
-    .bind(None::<String>)
-    .bind(&now)
-    .bind(&now)
-    .execute(&state.pool)
+    let new_user = NewUser {
+        user_id: &user_id,
+        name: &name,
+        account: &account,
+        password_hash: &password_hash,
+        id_number: &db_id_number,
+        avatar_url: None,
+        now: &now,
+    };
+    UserRepository::insert_user(&state.pool, &new_user)
     .await
     .map_err(|e| {
         tracing::error!("数据库错误: {}", e);
-        let err_msg = e.to_string();
-        if err_msg.contains("users.account") || err_msg.contains("idx_users_account_unique") {
-            AppError::AccountConflict
-        } else {
-            AppError::DatabaseError(e.to_string())
-        }
+        e
     })?;
 
     tracing::info!("用户记录创建成功");
@@ -179,27 +170,23 @@ pub async fn register(
     );
 
     tracing::info!("正在数据库中创建Bot记录: {}", bot_id);
-    sqlx::query(
-        r#"
-        INSERT INTO bots (bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&bot_id)
-    .bind(&user_id)
-    .bind(format!("{}的默认Bot", name))
-    .bind(Some("用户注册时自动创建的默认Bot"))
-    .bind(None::<String>)
-    .bind("active")
-    .bind(&bot_token)
-    .bind(&bot_secret)
-    .bind(&now)
-    .bind(&now)
-    .execute(&state.pool)
+    let default_bot_name = format!("{}的默认Bot", name);
+    let new_bot = NewBot {
+        bot_id: &bot_id,
+        owner_id: &user_id,
+        name: &default_bot_name,
+        description: Some("用户注册时自动创建的默认Bot"),
+        avatar_url: None,
+        status: "active",
+        token: &bot_token,
+        secret: &bot_secret,
+        now: &now,
+    };
+    BotRepository::insert(&state.pool, &new_bot)
     .await
     .map_err(|e| {
         tracing::error!("创建Bot时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
+        e
     })?;
 
     tracing::info!("Bot记录创建成功");
@@ -218,13 +205,6 @@ pub async fn register(
     ))
 }
 
-#[derive(sqlx::FromRow)]
-struct UserLoginRow {
-    user_id: String,
-    name: String,
-    password_hash: Option<String>,
-}
-
 #[tracing::instrument(skip_all)]
 pub async fn get_user_by_id(
     pool: &crate::db::DbPool,
@@ -232,20 +212,16 @@ pub async fn get_user_by_id(
 ) -> AppResult<crate::models::User> {
     tracing::debug!("查询用户信息: {}", user_id);
 
-    let user = sqlx::query_as(
-        "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?"
-    )
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询用户时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("用户不存在: {}", user_id);
-        AppError::UserNotFound
-    })?;
+    let user = UserRepository::find_by_id(pool, user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询用户时数据库错误: {}", e);
+            e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("用户不存在: {}", user_id);
+            AppError::UserNotFound
+        })?;
 
     tracing::debug!("用户查询成功: {}", user_id);
     Ok(user)
@@ -288,20 +264,16 @@ pub async fn login(
 
     // 查询用户
     tracing::info!("正在查询用户...");
-    let user = sqlx::query_as::<_, UserLoginRow>(
-        "SELECT user_id, name, password_hash FROM users WHERE account = ?",
-    )
-    .bind(&account)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询用户时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("登录失败: 账号不存在");
-        AppError::InvalidCredentials
-    })?;
+    let user = UserRepository::find_login_by_account(&state.pool, &account)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询用户时数据库错误: {}", e);
+            e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("登录失败: 账号不存在");
+            AppError::InvalidCredentials
+        })?;
 
     let Some(stored_hash) = user.password_hash.as_deref() else {
         tracing::warn!("登录失败: 账号未设置密码");

@@ -6,12 +6,12 @@ import signal
 import sys
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
 
 import websockets
 
 
-def build_ws_url(base_url: str, token: str) -> str:
+def build_ws_url(base_url: str) -> str:
     parsed = urlparse(base_url)
 
     if parsed.scheme in ("http", "ws"):
@@ -25,8 +25,7 @@ def build_ws_url(base_url: str, token: str) -> str:
     if not path or path == "/":
         path = "/ws"
 
-    query = urlencode({"token": token})
-    return urlunparse((scheme, parsed.netloc, path, "", query, ""))
+    return urlunparse((scheme, parsed.netloc, path, "", "", ""))
 
 
 def pretty_event(raw_message: str) -> str:
@@ -58,7 +57,7 @@ def pretty_event(raw_message: str) -> str:
     return f"[{timestamp}] {event_type}\n{body}"
 
 
-async def monitor(ws_url: str, reconnect_delay: float) -> None:
+async def monitor(ws_url: str, token: str, reconnect_delay: float) -> None:
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
@@ -74,7 +73,23 @@ async def monitor(ws_url: str, reconnect_delay: float) -> None:
     while not stop_event.is_set():
         try:
             print(f"{datetime.now().isoformat(timespec='seconds')} connecting to {ws_url}")
-            async with websockets.connect(ws_url, ping_interval=20, ping_timeout=20) as websocket:
+            headers = {"Authorization": f"Bearer {token}"}
+            try:
+                ws_cm = websockets.connect(
+                    ws_url,
+                    additional_headers=headers,
+                    ping_interval=20,
+                    ping_timeout=20,
+                )
+            except TypeError:
+                ws_cm = websockets.connect(
+                    ws_url,
+                    extra_headers=headers,
+                    ping_interval=20,
+                    ping_timeout=20,
+                )
+
+            async with ws_cm as websocket:
                 print(f"{datetime.now().isoformat(timespec='seconds')} connected")
 
                 while not stop_event.is_set():
@@ -108,7 +123,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Monitor websocket events for the groups currently joined by a single bot."
     )
-    parser.add_argument("token", help="single bot token used as /ws?token=...")
+    parser.add_argument("token", help="single bot token sent as Authorization: Bearer ...")
     parser.add_argument(
         "--url",
         default="http://127.0.0.1:8080/ws",
@@ -127,13 +142,13 @@ def main() -> int:
     args = parse_args()
 
     try:
-        ws_url = build_ws_url(args.url, args.token)
+        ws_url = build_ws_url(args.url)
     except ValueError as exc:
         print(f"invalid url: {exc}", file=sys.stderr)
         return 2
 
     try:
-        asyncio.run(monitor(ws_url, args.reconnect_delay))
+        asyncio.run(monitor(ws_url, args.token, args.reconnect_delay))
     except KeyboardInterrupt:
         pass
 

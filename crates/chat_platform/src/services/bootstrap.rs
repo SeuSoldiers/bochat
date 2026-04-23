@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::{
     db::DbPool,
     error::{AppError, AppResult},
+    repositories::{BootstrapRepository, NewBot, SeedUserInsert},
     utils::{generate_bot_id, generate_token, generate_user_id},
 };
 
@@ -58,39 +59,26 @@ pub async fn ensure_super_admin_account(
     let candidate_id_number = placeholder_identifier("id_number", &candidate_user_id);
     let candidate_hash = hash_password(&password, jwt_secret);
 
-    let user_insert_result = sqlx::query(
-        r#"
-        INSERT INTO users (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(account) DO NOTHING
-        "#,
+    let user_insert_result = BootstrapRepository::insert_user_ignore_account_conflict(
+        pool,
+        &SeedUserInsert {
+            user_id: &candidate_user_id,
+            name: SUPER_ADMIN_NAME,
+            account: &account,
+            password_hash: &candidate_hash,
+            id_number: &candidate_id_number,
+            now: &now,
+        },
     )
-    .bind(&candidate_user_id)
-    .bind(SUPER_ADMIN_NAME)
-    .bind(&account)
-    .bind(&candidate_hash)
-    .bind(&candidate_id_number)
-    .bind(None::<String>)
-    .bind(&now)
-    .bind(&now)
-    .execute(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .await?;
 
-    let user_id: String = sqlx::query_scalar("SELECT user_id FROM users WHERE account = ?")
-        .bind(&account)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+    let user_id: String = BootstrapRepository::find_user_id_by_account(pool, &account)
+        .await?
         .ok_or_else(|| AppError::InternalError("超级管理员账号创建后未找到记录".to_string()))?;
 
     let bot_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bots WHERE owner_id = ? AND name = ?)")
-            .bind(&user_id)
-            .bind(SUPER_ADMIN_BOT_NAME)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        BootstrapRepository::bot_exists_by_owner_and_name(pool, &user_id, SUPER_ADMIN_BOT_NAME)
+            .await?;
 
     let mut bot_created = false;
     if !bot_exists {
@@ -98,31 +86,27 @@ pub async fn ensure_super_admin_account(
         let bot_secret = Uuid::new_v4().to_string();
         let bot_token = generate_token(&bot_id, &bot_secret)?;
 
-        sqlx::query(
-            r#"
-            INSERT INTO bots (bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
+        crate::repositories::BotRepository::insert(
+            pool,
+            &NewBot {
+                bot_id: &bot_id,
+                owner_id: &user_id,
+                name: SUPER_ADMIN_BOT_NAME,
+                description: Some(SUPER_ADMIN_BOT_DESCRIPTION),
+                avatar_url: None,
+                status: "active",
+                token: &bot_token,
+                secret: &bot_secret,
+                now: &now,
+            },
         )
-        .bind(&bot_id)
-        .bind(&user_id)
-        .bind(SUPER_ADMIN_BOT_NAME)
-        .bind(Some(SUPER_ADMIN_BOT_DESCRIPTION))
-        .bind(None::<String>)
-        .bind("active")
-        .bind(&bot_token)
-        .bind(&bot_secret)
-        .bind(&now)
-        .bind(&now)
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
         bot_created = true;
     }
 
     Ok(SuperAdminSeedResult {
-        user_created: user_insert_result.rows_affected() > 0,
+        user_created: user_insert_result > 0,
         bot_created,
         account,
         password_source_env,

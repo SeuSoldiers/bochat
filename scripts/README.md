@@ -6,6 +6,7 @@
 说明：
 
 - 传入的是单个 `bot_token`
+- 握手时会自动加 `Authorization: Bearer <bot_token>`
 - 脚本监听的是“这个 Bot 当前所在群”的消息推送
 - 不是监听这个用户名下所有 Bot
 

@@ -8,14 +8,14 @@ from bochat_sdk.ws import WsSessionHandle, _parse_event, _to_ws_url
 class WsUtilsTests(unittest.TestCase):
     def test_to_ws_url_http(self):
         self.assertEqual(
-            _to_ws_url("http://127.0.0.1:8080", "abc"),
-            "ws://127.0.0.1:8080/ws?token=abc",
+            _to_ws_url("http://127.0.0.1:8080"),
+            "ws://127.0.0.1:8080/ws",
         )
 
     def test_to_ws_url_https(self):
         self.assertEqual(
-            _to_ws_url("https://example.com", "abc"),
-            "wss://example.com/ws?token=abc",
+            _to_ws_url("https://example.com"),
+            "wss://example.com/ws",
         )
 
     def test_parse_event(self):

@@ -1,19 +1,17 @@
 use axum::{
-    extract::Json,
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, Json, State},
+    http::StatusCode,
     response::Response,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::utils::verify_user_token;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_user_bearer_token, token_user_id},
+    middlewares::UserAuth,
     models::{UpdateUserRequest, UserResponse},
-    services::authz::ensure_user_exists,
+    repositories::UserRepository,
     AppState,
 };
 
@@ -46,21 +44,13 @@ fn hash_password(password: &str, pepper: &str) -> String {
 #[tracing::instrument(skip_all)]
 pub async fn get_current_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
+    let user_id = auth.user_id;
 
-    let user: crate::models::User = sqlx::query_as(
-        "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
-    )
-    .bind(&user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::InvalidUserToken)?;
+    let user: crate::models::User = UserRepository::find_by_id(&state.pool, &user_id)
+        .await?
+        .ok_or(AppError::InvalidUserToken)?;
 
     Ok(json_response(
         StatusCode::OK,
@@ -71,22 +61,14 @@ pub async fn get_current_user(
 #[tracing::instrument(skip_all)]
 pub async fn update_current_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<UserAuth>,
     Json(req): Json<UpdateUserRequest>,
 ) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
+    let user_id = auth.user_id;
 
-    let current_user: crate::models::User = sqlx::query_as(
-        "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
-    )
-    .bind(&user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-    .ok_or(AppError::InvalidUserToken)?;
+    let current_user: crate::models::User = UserRepository::find_by_id(&state.pool, &user_id)
+        .await?
+        .ok_or(AppError::InvalidUserToken)?;
 
     let next_name = match req.name.as_deref().map(str::trim) {
         Some("") => {
@@ -118,21 +100,15 @@ pub async fn update_current_user(
 
     let now = chrono::Utc::now().to_rfc3339();
 
-    sqlx::query(
-        r#"
-        UPDATE users
-        SET name = ?, avatar_url = ?, password_hash = COALESCE(?, password_hash), updated_at = ?
-        WHERE user_id = ?
-        "#,
+    UserRepository::update_profile(
+        &state.pool,
+        &user_id,
+        &next_name,
+        next_avatar_url.as_deref(),
+        next_password_hash.as_deref(),
+        &now,
     )
-    .bind(&next_name)
-    .bind(&next_avatar_url)
-    .bind(&next_password_hash)
-    .bind(&now)
-    .bind(&user_id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    .await?;
 
     Ok(json_response(
         StatusCode::OK,
@@ -148,25 +124,17 @@ pub async fn update_current_user(
 
 /// Delete user account (requires user token)
 #[tracing::instrument(skip_all)]
-pub async fn delete_user(State(state): State<AppState>, headers: HeaderMap) -> AppResult<Response> {
-    let token = require_user_bearer_token(&headers)?;
-    let user_id = token_user_id(&token)?.to_string();
-    let _token_payload = verify_user_token(&token, &state.config.security.jwt_secret, 86400)?;
-    ensure_user_exists(&state.pool, &user_id).await?;
+pub async fn delete_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+) -> AppResult<Response> {
+    let user_id = auth.user_id;
 
     // Delete all bots owned by this user
-    sqlx::query("DELETE FROM bots WHERE owner_id = ?")
-        .bind(&user_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    UserRepository::delete_bots_by_owner(&state.pool, &user_id).await?;
 
     // Delete the user
-    sqlx::query("DELETE FROM users WHERE user_id = ?")
-        .bind(&user_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    UserRepository::delete_user_by_id(&state.pool, &user_id).await?;
 
     tracing::info!("User account deleted: {}", user_id);
 

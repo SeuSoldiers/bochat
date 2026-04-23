@@ -1,6 +1,6 @@
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Extension, State},
+    http::StatusCode,
     response::Response,
     Json,
 };
@@ -8,20 +8,23 @@ use serde_json::json;
 use std::collections::HashSet;
 
 use crate::models::CreateMessageRequest;
+use crate::repositories::{
+    GroupMemberLink, GroupRepository, MessageIdempotencyQuery, MessageRepository,
+    MessageWithSenderRow, NewMessage,
+};
 use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
 use crate::services::FileService;
-use crate::utils::verify_token;
 use crate::ws::WsEvent;
 use crate::{
     error::{json_response, AppError, AppResult},
-    http::{require_bot_bearer_token, token_bot_id},
+    middlewares::BotAuth,
     AppState,
 };
 
 #[tracing::instrument(skip_all)]
 pub async fn send_message(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(auth): Extension<BotAuth>,
     Json(msg_req): Json<CreateMessageRequest>,
 ) -> AppResult<Response> {
     tracing::info!("=== 开始处理消息发送请求 ===");
@@ -31,67 +34,17 @@ pub async fn send_message(
         msg_req.content
     );
 
-    // 从 Authorization 头提取 Bearer token
-    let token = require_bot_bearer_token(&headers).map_err(|err| {
-        tracing::warn!("消息发送失败: {}", err);
-        err
-    })?;
-
-    tracing::debug!("Token 提取成功");
-
-    // 解析 token 获取 bot_id
-    let requester_bot_id = if let Ok(bot_id) = token_bot_id(&token) {
-        bot_id
-    } else {
-        tracing::warn!("消息发送失败: Token 格式无效");
-        return Err(AppError::InvalidBotToken);
-    };
+    let requester_bot_id = auth.bot_id;
     tracing::debug!("从 token 解析出请求者 Bot ID: {}", requester_bot_id);
-
-    // 查询请求者 bot 并使用其 secret 验证 token
-    tracing::debug!("正在查询发送者 Bot...");
-    let requester_bot: crate::models::Bot = sqlx::query_as(
-        "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?"
-    )
-    .bind(requester_bot_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("查询发送者 Bot 时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?
-    .ok_or_else(|| {
-        tracing::warn!("发送者 Bot 不存在: {}", requester_bot_id);
-        AppError::InvalidBotToken
-    })?;
-
-    tracing::debug!("发送者 Bot 查询成功，所有者: {}", requester_bot.owner_id);
-
-    // 使用 bot 的 secret 验证 token
-    tracing::debug!("正在验证 token...");
-    let _token_payload = verify_token(&token, &requester_bot.secret, 86400)?;
-    tracing::debug!("Token 验证成功");
-    let sender_bot = requester_bot;
-
-    // 检查发送者 bot 是否活跃
-    if sender_bot.status != "active" {
-        tracing::warn!("消息发送失败: 发送者 Bot 状态非活跃: {}", sender_bot.status);
-        return Err(AppError::BotInactive);
-    }
-
-    tracing::debug!("发送者 Bot 状态检查通过");
 
     // 验证群聊存在
     tracing::debug!("正在检查群聊是否存在: {}", msg_req.group_id);
-    let group_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE group_id = ?)")
-            .bind(&msg_req.group_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("检查群聊存在性时数据库错误: {}", e);
-                AppError::DatabaseError(e.to_string())
-            })?;
+    let group_exists: bool = GroupRepository::exists(&state.pool, &msg_req.group_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("检查群聊存在性时数据库错误: {}", e);
+            e
+        })?;
 
     if !group_exists {
         tracing::warn!("消息发送失败: 群聊不存在: {}", msg_req.group_id);
@@ -102,22 +55,23 @@ pub async fn send_message(
 
     // 验证 bot 是群聊的成员
     tracing::debug!("正在检查 Bot 是否为群聊成员...");
-    let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ?)",
+    let is_member: bool = GroupRepository::is_member(
+        &state.pool,
+        &GroupMemberLink {
+            group_id: &msg_req.group_id,
+            member_id: &requester_bot_id,
+        },
     )
-    .bind(&msg_req.group_id)
-    .bind(&sender_bot.bot_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("检查群聊成员时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("检查群聊成员时数据库错误: {}", e);
+            e
+        })?;
 
-    if !is_member && !bot_has_global_group_access(&state.pool, &sender_bot.bot_id).await? {
+    if !is_member && !bot_has_global_group_access(&state.pool, &requester_bot_id).await? {
         tracing::warn!(
             "消息发送失败: Bot 不是群聊成员 - Bot ID: {}, 群聊 ID: {}",
-            sender_bot.bot_id,
+            requester_bot_id,
             msg_req.group_id
         );
         return Err(AppError::BotNotInGroup);
@@ -132,42 +86,18 @@ pub async fn send_message(
     }
     let content = msg_req.content.to_string();
 
-    #[derive(sqlx::FromRow)]
-    struct MessageRow {
-        msg_id: i64,
-        group_id: String,
-        sender_id: String,
-        sender_name: Option<String>,
-        sender_avatar_url: Option<String>,
-        content: String,
-        msg_type: String,
-        created_at: String,
-    }
-
-    let existing_message: Option<MessageRow> = sqlx::query_as(
-        r#"
-        SELECT
-            m.msg_id,
-            m.group_id,
-            m.sender_id,
-            b.name as sender_name,
-            b.avatar_url as sender_avatar_url,
-            m.content,
-            m.msg_type,
-            m.created_at
-        FROM messages m
-        LEFT JOIN bots b ON b.bot_id = m.sender_id
-        WHERE m.sender_id = ? AND m.group_id = ? AND m.idempotency_key = ?
-        "#,
+    let existing_message: Option<MessageWithSenderRow> = MessageRepository::find_idempotent_message(
+        &state.pool,
+        &MessageIdempotencyQuery {
+            sender_bot_id: &requester_bot_id,
+            group_id: &msg_req.group_id,
+            idempotency_key,
+        },
     )
-    .bind(&sender_bot.bot_id)
-    .bind(&msg_req.group_id)
-    .bind(idempotency_key)
-    .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("查询幂等消息时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
+        e
     })?;
 
     if let Some(existing_message) = existing_message {
@@ -201,34 +131,23 @@ pub async fn send_message(
     tracing::info!("所有验证通过，正在保存消息到数据库");
     tracing::debug!("消息类型: {}, 时间戳: {}", msg_type, now);
 
-    let inserted_message: MessageRow = sqlx::query_as(
-        r#"
-        INSERT INTO messages (group_id, sender_id, content, msg_type, idempotency_key, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        RETURNING
-            msg_id,
-            group_id,
-            sender_id,
-            ? as sender_name,
-            ? as sender_avatar_url,
-            content,
+    let inserted_message: MessageWithSenderRow = MessageRepository::insert_message_returning(
+        &state.pool,
+        &NewMessage {
+            group_id: &msg_req.group_id,
+            sender_id: &requester_bot_id,
+            content: &content,
             msg_type,
-            created_at
-        "#,
+            idempotency_key,
+            created_at: &now,
+            sender_name: &auth.name,
+            sender_avatar_url: auth.avatar_url.as_deref(),
+        },
     )
-    .bind(&msg_req.group_id)
-    .bind(&sender_bot.bot_id)
-    .bind(&content)
-    .bind(msg_type)
-    .bind(idempotency_key)
-    .bind(&now)
-    .bind(&sender_bot.name)
-    .bind(&sender_bot.avatar_url)
-    .fetch_one(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("保存消息时数据库错误: {}", e);
-        AppError::DatabaseError(e.to_string())
+        e
     })?;
 
     let response_content = serde_json::from_str(&inserted_message.content)
@@ -252,11 +171,7 @@ pub async fn send_message(
     .await?;
 
     let member_bot_ids: Vec<String> =
-        sqlx::query_scalar("SELECT member_id FROM group_members WHERE group_id = ?")
-            .bind(&msg_req.group_id)
-            .fetch_all(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        MessageRepository::list_member_bot_ids(&state.pool, &msg_req.group_id).await?;
 
     let super_admin_bot_ids = list_super_admin_bot_ids(&state.pool).await?;
 
@@ -280,7 +195,7 @@ pub async fn send_message(
         "✅ 消息发送成功 - 消息ID: {}, 群聊ID: {}, 发送者: {}",
         inserted_message.msg_id,
         msg_req.group_id,
-        sender_bot.bot_id
+        requester_bot_id
     );
 
     Ok(json_response(StatusCode::CREATED, response_payload))

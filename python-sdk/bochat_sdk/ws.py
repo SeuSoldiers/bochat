@@ -4,7 +4,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
 
 from .error import MissingBotToken, TransportError, WebSocketError
 from .models import MessageResponse, WsConnectionPayload, WsEvent
@@ -90,7 +90,7 @@ class WsSession:
         self._config = config
 
     def websocket_url(self) -> str:
-        return _to_ws_url(self._client.base_url(), self._config.bot_token)
+        return _to_ws_url(self._client.base_url())
 
     async def spawn(self) -> "WsSessionHandle":
         handle = WsSessionHandle(event_buffer=self._config.event_buffer)
@@ -123,7 +123,22 @@ class WsSession:
         ws_url = self.websocket_url()
         assert websockets is not None
         try:
-            async with websockets.connect(ws_url, ping_interval=None) as ws:
+            headers = {"Authorization": f"Bearer {self._config.bot_token}"}
+            connect_kwargs = {"ping_interval": None}
+            try:
+                ws_cm = websockets.connect(
+                    ws_url,
+                    additional_headers=headers,
+                    **connect_kwargs,
+                )
+            except TypeError:
+                ws_cm = websockets.connect(
+                    ws_url,
+                    extra_headers=headers,
+                    **connect_kwargs,
+                )
+
+            async with ws_cm as ws:
                 last_seen = asyncio.get_running_loop().time()
                 while not handle._stop.is_set():
                     try:
@@ -351,13 +366,13 @@ class WsDispatcher:
         return await self._handle.wait_connection_payload(timeout=timeout)
 
 
-def _to_ws_url(base_url: str, token: str) -> str:
+def _to_ws_url(base_url: str) -> str:
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"}:
         raise WebSocketError(f"不支持的 base_url 协议: {parsed.scheme}")
     ws_scheme = "wss" if parsed.scheme == "https" else "ws"
     root = f"{ws_scheme}://{parsed.netloc}"
-    return f"{root}/ws?token={quote(token)}"
+    return f"{root}/ws"
 
 
 def _parse_event(raw: Any) -> WsEvent | None:
