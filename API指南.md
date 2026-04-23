@@ -19,8 +19,38 @@
 }
 ```
 
+## 接口目录（可跳转）
+
+| 模块 | 接口 URL | 作用 | 快速跳转 |
+| --- | --- | --- | --- |
+| 认证与用户 | `POST /api/v1/auth/register` | 注册账号并返回 user token | [1.1 注册](#api-auth-register) |
+| 认证与用户 | `POST /api/v1/auth/login` | 账号登录并返回 user token | [1.2 登录](#api-auth-login) |
+| 认证与用户 | `GET /api/v1/users/me` | 获取当前用户资料 | [1.3 获取当前用户信息](#api-users-me-get) |
+| 认证与用户 | `PUT /api/v1/users/me` | 更新当前用户资料/密码/头像 | [1.4 更新当前用户信息](#api-users-me-put) |
+| 认证与用户 | `DELETE /api/v1/users/delete` | 删除当前用户及其名下 Bot | [1.5 删除当前用户](#api-users-delete) |
+| Bot | `POST /api/v1/bots` | 创建 Bot | [2.1 创建 Bot](#api-bots-create) |
+| Bot | `GET /api/v1/bots` | 列出可见 Bot | [2.2 列出 Bot](#api-bots-list) |
+| Bot | `GET /api/v1/bots/:bot_id` | 获取 Bot 详情 | [2.3 获取 Bot 详情](#api-bots-get) |
+| Bot | `PUT /api/v1/bots/:bot_id` | 更新 Bot 信息 | [2.4 更新 Bot](#api-bots-update) |
+| Bot | `DELETE /api/v1/bots/:bot_id` | 删除 Bot | [2.5 删除 Bot](#api-bots-delete) |
+| 群聊 | `POST /api/v1/groups` | 创建群并可选拉 Bot 入群 | [3.1 创建群](#api-groups-create) |
+| 群聊 | `GET /api/v1/groups` | 查询当前用户可见群 | [3.2 查询当前用户可见的群](#api-groups-list) |
+| 群聊 | `GET /api/v1/groups/:group_id` | 获取群详情 | [3.3 获取群详情](#api-groups-get) |
+| 群聊 | `POST /api/v1/groups/join` | Bot 通过 `group_id/group_code` 加群 | [3.4 加群](#api-groups-join) |
+| 群聊 | `DELETE /api/v1/groups/:group_id/leave?bot_id=b_xxx` | 指定 Bot 退群 | [3.5 退群](#api-groups-leave) |
+| 群聊 | `DELETE /api/v1/groups/:group_id/members/:bot_id` | 从群中移除指定 Bot | [3.6 移除指定 Bot](#api-groups-remove-member) |
+| 群聊 | `GET /api/v1/groups/:group_id/members` | 查询群成员 | [3.7 查询群成员](#api-groups-members) |
+| 群聊 | `DELETE /api/v1/groups/:group_id` | 删除群 | [3.8 删除群](#api-groups-delete) |
+| 消息 | `POST /api/v1/message/send` | 发送消息（支持幂等） | [4.1 发送消息](#api-message-send) |
+| 消息 | `GET /api/v1/groups/:group_id/messages` | 拉取群消息历史 | [4.2 拉取群消息](#api-groups-messages) |
+| 文件 | `POST /api/v1/file/upload` | 上传文件 | [5.1 上传文件](#api-file-upload) |
+| 文件 | `GET /api/v1/file/download/:file_id/:filename` | 下载文件 | [5.2 下载文件](#api-file-download) |
+| 文件 | `DELETE /api/v1/file/:file_id` | 删除文件 | [5.3 删除文件](#api-file-delete) |
+| WebSocket | `GET /ws?token={bot_token}` | 建立 Bot 事件连接 | [6.1 建立连接](#api-ws-connect) |
+
 ## 1. 认证与用户
 
+<a id="api-auth-register"></a>
 ### 1.1 注册
 
 `POST /api/v1/auth/register`
@@ -55,6 +85,7 @@
 }
 ```
 
+<a id="api-auth-login"></a>
 ### 1.2 登录
 
 `POST /api/v1/auth/login`
@@ -83,6 +114,7 @@
 - 返回的是用户级 token
 - Bot token 需要后续调用 `GET /api/v1/bots` 获取
 
+<a id="api-users-me-get"></a>
 ### 1.3 获取当前用户信息
 
 `GET /api/v1/users/me`
@@ -98,6 +130,7 @@
 }
 ```
 
+<a id="api-users-me-put"></a>
 ### 1.4 更新当前用户信息
 
 `PUT /api/v1/users/me`
@@ -130,6 +163,7 @@
 }
 ```
 
+<a id="api-users-delete"></a>
 ### 1.5 删除当前用户
 
 `DELETE /api/v1/users/delete`
@@ -149,6 +183,7 @@
 
 ## 2. Bot 接口
 
+<a id="api-bots-create"></a>
 ### 2.1 创建 Bot
 
 `POST /api/v1/bots`
@@ -180,6 +215,7 @@
 }
 ```
 
+<a id="api-bots-list"></a>
 ### 2.2 列出 Bot
 
 `GET /api/v1/bots`
@@ -209,6 +245,7 @@
 }
 ```
 
+<a id="api-bots-get"></a>
 ### 2.3 获取 Bot 详情
 
 `GET /api/v1/bots/:bot_id`
@@ -218,6 +255,7 @@
 - 公开接口
 - 返回单个 Bot 信息
 
+<a id="api-bots-update"></a>
 ### 2.4 更新 Bot
 
 `PUT /api/v1/bots/:bot_id`
@@ -237,6 +275,7 @@
 - 仅 Bot 所有者可更新
 - 超级管理员可跨用户管理
 
+<a id="api-bots-delete"></a>
 ### 2.5 删除 Bot
 
 `DELETE /api/v1/bots/:bot_id`
@@ -257,6 +296,7 @@
 
 ## 3. 群聊接口
 
+<a id="api-groups-create"></a>
 ### 3.1 创建群
 
 `POST /api/v1/groups`
@@ -295,6 +335,7 @@
 }
 ```
 
+<a id="api-groups-list"></a>
 ### 3.2 查询当前用户可见的群
 
 `GET /api/v1/groups`
@@ -324,6 +365,7 @@
 }
 ```
 
+<a id="api-groups-get"></a>
 ### 3.3 获取群详情
 
 `GET /api/v1/groups/:group_id`
@@ -333,6 +375,7 @@
 - 当前实现为公开读取接口
 - 群不存在时返回 `400`，消息文本为 `Group not found`
 
+<a id="api-groups-join"></a>
 ### 3.4 加群
 
 `POST /api/v1/groups/join`
@@ -371,6 +414,7 @@
 }
 ```
 
+<a id="api-groups-leave"></a>
 ### 3.5 退群
 
 `DELETE /api/v1/groups/:group_id/leave?bot_id=b_xxx`
@@ -391,6 +435,7 @@
 }
 ```
 
+<a id="api-groups-remove-member"></a>
 ### 3.6 移除指定 Bot
 
 `DELETE /api/v1/groups/:group_id/members/:bot_id`
@@ -410,6 +455,7 @@
 }
 ```
 
+<a id="api-groups-members"></a>
 ### 3.7 查询群成员
 
 `GET /api/v1/groups/:group_id/members`
@@ -437,6 +483,7 @@
 }
 ```
 
+<a id="api-groups-delete"></a>
 ### 3.8 删除群
 
 `DELETE /api/v1/groups/:group_id`
@@ -458,6 +505,7 @@
 
 ## 4. 消息接口
 
+<a id="api-message-send"></a>
 ### 4.1 发送消息
 
 `POST /api/v1/message/send`
@@ -500,6 +548,7 @@
 }
 ```
 
+<a id="api-groups-messages"></a>
 ### 4.2 拉取群消息
 
 `GET /api/v1/groups/:group_id/messages`
@@ -550,6 +599,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 
 ## 5. 文件接口
 
+<a id="api-file-upload"></a>
 ### 5.1 上传文件
 
 `POST /api/v1/file/upload`
@@ -572,6 +622,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 }
 ```
 
+<a id="api-file-download"></a>
 ### 5.2 下载文件
 
 `GET /api/v1/file/download/:file_id/:filename`
@@ -581,6 +632,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 - 公开接口
 - `filename` 必须与服务端记录一致，否则返回错误
 
+<a id="api-file-delete"></a>
 ### 5.3 删除文件
 
 `DELETE /api/v1/file/:file_id`
@@ -603,6 +655,7 @@ curl "http://127.0.0.1:8080/api/v1/groups/g_xxx/messages?base_id=1000&limit=50" 
 
 ## 6. WebSocket
 
+<a id="api-ws-connect"></a>
 ### 6.1 建立连接
 
 `GET /ws?token={bot_token}`
