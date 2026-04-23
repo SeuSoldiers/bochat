@@ -2,13 +2,13 @@
   <div class="modal-overlay" @click="$emit('close')">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>编辑 Bot</h2>
+        <h2>编辑机器人</h2>
         <button class="close-btn" @click="$emit('close')">✕</button>
       </div>
 
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="form-group">
-          <label for="edit-bot-name">Bot 名称</label>
+          <label for="edit-bot-name">机器人名称</label>
           <input id="edit-bot-name" v-model="form.name" type="text" maxlength="50" required :disabled="loading" />
         </div>
 
@@ -18,10 +18,10 @@
         </div>
 
         <div class="form-group">
-          <label for="edit-bot-avatar-url">头像 URL</label>
+          <label for="edit-bot-avatar-url">头像链接</label>
           <input id="edit-bot-avatar-url" v-model="form.avatarUrl" type="url" :disabled="loading || uploading" />
           <div v-if="form.avatarUrl" class="avatar-preview">
-            <img :src="form.avatarUrl" alt="Bot avatar preview" />
+            <img :src="form.avatarUrl" alt="机器人头像预览" />
           </div>
           <div class="upload-row">
             <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="handleFileChange" />
@@ -29,7 +29,7 @@
               {{ uploading ? '上传中...' : '上传头像' }}
             </button>
           </div>
-          <p class="help-text">可以直接填写 URL，也可以先上传文件再自动回填 URL</p>
+          <p class="help-text">可以直接填写链接，也可以先上传文件再自动回填链接</p>
         </div>
 
         <div v-if="error" class="error-message">{{ error }}</div>
@@ -70,7 +70,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 const handleSubmit = async () => {
   if (!form.value.name.trim()) {
-    error.value = '请输入 Bot 名称'
+    error.value = '请输入机器人名称'
     return
   }
 

@@ -23,10 +23,7 @@ body {
   height: 100%;
   min-height: 100%;
   width: 100%;
-  background:
-    radial-gradient(circle at 85% 16%, rgba(166, 215, 46, 0.18) 0, rgba(166, 215, 46, 0) 32%),
-    radial-gradient(circle at 6% 2%, rgba(14, 60, 47, 0.16) 0, rgba(14, 60, 47, 0) 38%),
-    linear-gradient(160deg, #eceeeb, #eaebe8 46%, #e4e7e1 100%);
+  background: #e8e9e8;
   color: var(--color-text, #17221e);
 }
 
@@ -37,19 +34,6 @@ body {
   position: relative;
   background: transparent;
   overflow-x: hidden;
-}
-
-#app::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.14) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
-  background-size: 32px 32px;
-  opacity: 0.18;
-  z-index: 0;
 }
 
 a {
@@ -90,19 +74,18 @@ img {
 .page-shell {
   position: relative;
   z-index: 1;
-  width: min(1280px, 96vw);
-  min-height: calc(100vh - 40px);
-  min-height: calc(100dvh - 40px);
-  max-height: 920px;
-  height: min(calc(100vh - 40px), 920px);
-  height: min(calc(100dvh - 40px), 920px);
-  margin: 20px auto;
-  padding: 22px;
-  border-radius: 30px;
-  background: rgba(247, 248, 246, 0.74);
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 24px 60px rgba(9, 30, 22, 0.14);
+  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  box-shadow: none;
 }
 
 ::-webkit-scrollbar {
@@ -131,12 +114,13 @@ img {
   .page-shell {
     width: 100%;
     height: auto;
-    max-height: none;
+    min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
+    padding: 0;
     border-radius: 0;
     border: none;
     box-shadow: none;
-    padding: 14px;
-    background: rgba(247, 248, 246, 0.9);
+    background: transparent;
   }
 }

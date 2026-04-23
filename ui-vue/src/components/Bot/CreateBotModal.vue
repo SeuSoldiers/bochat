@@ -2,18 +2,18 @@
   <div class="modal-overlay" @click="$emit('close')">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>创建新 Bot</h2>
+        <h2>创建新机器人</h2>
         <button class="close-btn" @click="$emit('close')">✕</button>
       </div>
 
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="form-group">
-          <label for="bot-name">Bot 名称</label>
+          <label for="bot-name">机器人名称</label>
           <input
             id="bot-name"
             v-model="form.name"
             type="text"
-            placeholder="请输入 Bot 名称"
+            placeholder="请输入机器人名称"
             maxlength="50"
             required
             :disabled="loading"
@@ -22,11 +22,11 @@
         </div>
 
         <div class="form-group">
-          <label for="bot-description">描述 (可选)</label>
+          <label for="bot-description">描述（可选）</label>
           <textarea
             id="bot-description"
             v-model="form.description"
-            placeholder="描述此 Bot 的功能和用途"
+            placeholder="描述此机器人的功能和用途"
             maxlength="200"
             rows="3"
             :disabled="loading"
@@ -35,16 +35,16 @@
         </div>
 
         <div class="form-group">
-          <label for="bot-avatar-url">头像 URL (可选)</label>
+          <label for="bot-avatar-url">头像链接（可选）</label>
           <input
             id="bot-avatar-url"
             v-model="form.avatarUrl"
             type="url"
-            placeholder="https://example.com/avatar.png"
+            placeholder="请输入头像链接"
             :disabled="loading || uploading"
           />
           <div v-if="form.avatarUrl" class="avatar-preview">
-            <img :src="form.avatarUrl" alt="Bot avatar preview" />
+            <img :src="form.avatarUrl" alt="机器人头像预览" />
           </div>
           <div class="upload-row">
             <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="handleFileChange" />
@@ -52,7 +52,7 @@
               {{ uploading ? '上传中...' : '上传头像' }}
             </button>
           </div>
-          <p class="help-text">可以直接填写 URL，也可以先上传文件再自动回填 URL</p>
+          <p class="help-text">可以直接填写链接，也可以先上传文件再自动回填链接</p>
         </div>
 
         <div v-if="error" class="error-message">
@@ -98,7 +98,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 const handleSubmit = async () => {
   if (!form.value.name.trim()) {
-    error.value = '请输入 Bot 名称'
+    error.value = '请输入机器人名称'
     return
   }
 
@@ -116,7 +116,7 @@ const handleSubmit = async () => {
 
 const triggerUpload = () => {
   if (!props.uploadToken) {
-    error.value = '暂无可用 Bot Token，请先创建或选择一个 Bot 后再上传'
+    error.value = '暂无可用机器人令牌，请先创建或选择一个机器人后再上传'
     return
   }
   fileInput.value?.click()
@@ -134,7 +134,7 @@ const handleFileChange = async (event: Event) => {
 
   try {
     if (!props.uploadToken) {
-      error.value = '暂无可用 Bot Token，请先创建或选择一个 Bot 后再上传'
+      error.value = '暂无可用机器人令牌，请先创建或选择一个机器人后再上传'
       return
     }
 

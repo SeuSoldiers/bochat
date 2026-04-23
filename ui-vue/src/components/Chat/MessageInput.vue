@@ -3,7 +3,7 @@
     <form @submit.prevent="handleSend" class="message-input-form">
       <div class="input-toolbar">
         <select v-model="selectedBotId" class="bot-select" :disabled="sending">
-          <option value="">选择发送 Bot</option>
+          <option value="">选择发送机器人</option>
           <option v-for="bot in bots" :key="bot.bot_id" :value="bot.bot_id">
             {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
           </option>
@@ -13,7 +13,7 @@
       <div class="input-wrapper">
         <textarea
           v-model="messageText"
-          placeholder="输入消息... (Shift + Enter 换行, Enter 发送)"
+          placeholder="输入消息...（按回车发送，按组合键换行）"
           class="message-input"
           :disabled="sending"
           @keydown.enter="handleKeydown"
@@ -99,7 +99,7 @@ const handleSend = async () => {
   }
 
   if (!props.groupId || !selectedBotId.value) {
-    error.value = '请选择 Bot 和群'
+    error.value = '请选择机器人和群'
     return
   }
 
@@ -118,7 +118,7 @@ const handleSend = async () => {
 
 const triggerFilePicker = () => {
   if (!props.groupId || !selectedBotId.value) {
-    error.value = '请选择 Bot 和群'
+    error.value = '请选择机器人和群'
     return
   }
 
@@ -133,7 +133,7 @@ const handleFileChange = async (event: Event) => {
   }
 
   if (!props.groupId || !selectedBotId.value) {
-    error.value = '请选择 Bot 和群'
+    error.value = '请选择机器人和群'
     input.value = ''
     return
   }

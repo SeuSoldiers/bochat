@@ -1,51 +1,53 @@
 <template>
   <div class="page-shell chat-shell">
-    <TopNav />
+    <div class="shell-body">
+      <TopNav />
 
-    <div class="chat-main">
-      <div class="chat-header">
-        <BotGroupSelector
-          :groups="groupStore.groups"
-          :selected-group="groupStore.selectedGroup"
-          @select-group="groupStore.selectGroup"
-        />
+      <div class="chat-main">
+        <div class="chat-header">
+          <BotGroupSelector
+            :groups="groupStore.groups"
+            :selected-group="groupStore.selectedGroup"
+            @select-group="groupStore.selectGroup"
+          />
 
-        <div v-if="groupStore.selectedGroup" class="group-summary">
-          <div class="group-info">
-            <h3>{{ groupStore.selectedGroup.name }}</h3>
-            <p>Group Code: {{ groupStore.selectedGroup.group_code || 'Not Set' }}</p>
+          <div v-if="groupStore.selectedGroup" class="group-summary">
+            <div class="group-info">
+              <h3>{{ groupStore.selectedGroup.name }}</h3>
+              <p>群号：{{ groupStore.selectedGroup.group_code || '未设置' }}</p>
+            </div>
+            <button class="view-members-btn" @click="openMembersModal">
+              群成员
+            </button>
           </div>
-          <button class="view-members-btn" @click="openMembersModal">
-            Members
-          </button>
-        </div>
-      </div>
-
-      <div class="message-area">
-        <div v-if="messageError" class="page-error">
-          {{ messageError }}
         </div>
 
-        <MessageList
+        <div class="message-area">
+          <div v-if="messageError" class="page-error">
+            {{ messageError }}
+          </div>
+
+          <MessageList
+            v-if="groupStore.selectedGroup"
+            :messages="chatStore.groupMessages"
+            :loading="chatStore.loading"
+            @view-bot="openBotInfo"
+          />
+
+          <div v-else class="empty-chat">
+            <p>请选择群聊开始消息会话</p>
+          </div>
+        </div>
+
+        <MessageInput
           v-if="groupStore.selectedGroup"
-          :messages="chatStore.groupMessages"
-          :loading="chatStore.loading"
-          @view-bot="openBotInfo"
+          :group-id="groupStore.selectedGroup.group_id"
+          :bots="botStore.bots"
+          :initial-bot-id="activeBotId"
+          @send="handleSendMessage"
+          @send-file="handleSendFile"
         />
-
-        <div v-else class="empty-chat">
-          <p>请选择群聊开始消息会话</p>
-        </div>
       </div>
-
-      <MessageInput
-        v-if="groupStore.selectedGroup"
-        :group-id="groupStore.selectedGroup.group_id"
-        :bots="botStore.bots"
-        :initial-bot-id="activeBotId"
-        @send="handleSendMessage"
-        @send-file="handleSendFile"
-      />
     </div>
 
     <MembersModal
@@ -143,7 +145,7 @@ const handleSendMessage = async (content: string, botId: string) => {
   }
 
   if (!botId) {
-    messageError.value = '请先选择一个 Bot'
+    messageError.value = '请先选择一个机器人'
     return
   }
 
@@ -152,7 +154,7 @@ const handleSendMessage = async (content: string, botId: string) => {
     activeBotId.value = botId
     const botToken = getBotToken(botId)
     if (!botToken) {
-      throw new Error('未找到对应 Bot Token')
+      throw new Error('未找到对应机器人令牌')
     }
     await chatStore.addMessage({
       group_id: groupStore.selectedGroup.group_id,
@@ -173,7 +175,7 @@ const handleSendFile = async (file: File, botId: string) => {
   }
 
   if (!botId) {
-    messageError.value = '请先选择一个 Bot'
+    messageError.value = '请先选择一个机器人'
     return
   }
 
@@ -182,7 +184,7 @@ const handleSendFile = async (file: File, botId: string) => {
     activeBotId.value = botId
     const botToken = getBotToken(botId)
     if (!botToken) {
-      throw new Error('未找到对应 Bot Token')
+      throw new Error('未找到对应机器人令牌')
     }
 
     const uploaded = await uploadFile(file, botToken)
@@ -258,6 +260,17 @@ const openBotInfo = async (botId: string) => {
 </script>
 
 <style scoped>
+.chat-shell {
+  min-height: 0;
+}
+
+.shell-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  gap: 20px;
+}
+
 .chat-main {
   flex: 1;
   display: flex;
@@ -269,11 +282,7 @@ const openBotInfo = async (botId: string) => {
   border: 1px solid #e4eae3;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 16px 30px rgba(12, 36, 29, 0.1);
-}
-
-.chat-shell {
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-header {
@@ -357,6 +366,11 @@ const openBotInfo = async (botId: string) => {
 @media (max-width: 768px) {
   .chat-shell {
     padding: 12px;
+  }
+
+  .shell-body {
+    flex-direction: column;
+    gap: 12px;
   }
 
   .chat-main {

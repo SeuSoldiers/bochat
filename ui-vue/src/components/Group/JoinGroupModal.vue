@@ -8,9 +8,9 @@
 
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="form-group">
-          <label for="join-group-bot">加入群聊的 Bot</label>
+          <label for="join-group-bot">加入群聊的机器人</label>
           <select id="join-group-bot" v-model="botId" :disabled="loading">
-            <option value="">请选择 Bot</option>
+            <option value="">请选择机器人</option>
             <option v-for="bot in bots" :key="bot.bot_id" :value="bot.bot_id">
               {{ bot.name }} ({{ bot.bot_id.slice(0, 8) }}...)
             </option>
@@ -67,7 +67,7 @@ const error = ref<string | null>(null)
 
 const handleSubmit = async () => {
   if (!botId.value) {
-    error.value = '请选择一个 Bot'
+    error.value = '请选择一个机器人'
     return
   }
 

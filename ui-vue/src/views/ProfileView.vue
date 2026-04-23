@@ -1,60 +1,62 @@
 <template>
   <div class="page-shell profile-page">
-    <TopNav />
+    <div class="shell-body">
+      <TopNav />
 
-    <main class="profile-main">
-      <section class="profile-card">
-        <header class="card-header">
-          <div>
-            <h2>Profile Settings</h2>
-            <p>管理昵称、密码与账户资料</p>
-          </div>
-        </header>
+      <main class="profile-main">
+        <section class="profile-card">
+          <header class="card-header">
+            <div>
+              <h2>个人资料设置</h2>
+              <p>管理昵称、密码与账户资料</p>
+            </div>
+          </header>
 
-        <div v-if="loadError" class="error-box">{{ loadError }}</div>
+          <div v-if="loadError" class="error-box">{{ loadError }}</div>
 
-        <form class="profile-form" @submit.prevent="handleSave">
-          <div class="form-group">
-            <label for="name">昵称</label>
-            <input id="name" v-model="form.name" type="text" placeholder="请输入昵称" :disabled="saving || loading" />
-          </div>
+          <form class="profile-form" @submit.prevent="handleSave">
+            <div class="form-group">
+              <label for="name">昵称</label>
+              <input id="name" v-model="form.name" type="text" placeholder="请输入昵称" :disabled="saving || loading" />
+            </div>
 
-          <div class="form-group">
-            <label for="password">新密码</label>
-            <input
-              id="password"
-              v-model="form.password"
-              type="password"
-              placeholder="留空表示不修改密码"
-              :disabled="saving || loading"
-            />
-          </div>
+            <div class="form-group">
+              <label for="password">新密码</label>
+              <input
+                id="password"
+                v-model="form.password"
+                type="password"
+                placeholder="留空表示不修改密码"
+                :disabled="saving || loading"
+              />
+            </div>
 
-          <div class="form-group">
-            <label for="confirmPassword">确认新密码</label>
-            <input
-              id="confirmPassword"
-              v-model="form.confirmPassword"
-              type="password"
-              placeholder="再次输入新密码"
-              :disabled="saving || loading"
-            />
-          </div>
+            <div class="form-group">
+              <label for="confirmPassword">确认新密码</label>
+              <input
+                id="confirmPassword"
+                v-model="form.confirmPassword"
+                type="password"
+                placeholder="再次输入新密码"
+                :disabled="saving || loading"
+              />
+            </div>
 
-          <div v-if="saveError" class="error-box">{{ saveError }}</div>
-          <div v-if="saveSuccess" class="success-box">{{ saveSuccess }}</div>
+            <div v-if="saveError" class="error-box">{{ saveError }}</div>
+            <div v-if="saveSuccess" class="success-box">{{ saveSuccess }}</div>
 
-          <div class="actions">
-            <button type="button" class="btn btn-secondary" :disabled="saving || loading" @click="resetForm">
-              重置
-            </button>
-            <button type="submit" class="btn btn-primary" :disabled="saving || loading">
-              {{ saving ? '保存中...' : '保存修改' }}
-            </button>
-          </div>
-        </form>
-      </section>
-    </main>
+            <div class="actions">
+              <button type="button" class="btn btn-secondary" :disabled="saving || loading" @click="resetForm">
+                重置
+              </button>
+              <button type="submit" class="btn btn-primary" :disabled="saving || loading">
+                {{ saving ? '保存中...' : '保存修改' }}
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -141,10 +143,19 @@ onMounted(fetchProfile)
   min-height: calc(100vh - 40px);
 }
 
+.shell-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  gap: 20px;
+}
+
 .profile-main {
-  max-width: 920px;
-  margin: 0 auto 8px;
-  padding: 8px 8px 22px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
 }
 
 .profile-card {
@@ -252,6 +263,11 @@ onMounted(fetchProfile)
 }
 
 @media (max-width: 768px) {
+  .shell-body {
+    flex-direction: column;
+    gap: 12px;
+  }
+
   .profile-main {
     padding: 18px 12px 28px;
   }

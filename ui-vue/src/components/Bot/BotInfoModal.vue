@@ -2,7 +2,7 @@
   <div class="modal-overlay" @click="$emit('close')">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>Bot 信息</h2>
+        <h2>机器人信息</h2>
         <button class="close-btn" @click="$emit('close')">✕</button>
       </div>
 
@@ -19,7 +19,7 @@
 
         <p v-if="bot.description" class="description">{{ bot.description }}</p>
       </div>
-      <div v-else class="state">未找到 Bot 信息</div>
+      <div v-else class="state">未找到机器人信息</div>
     </div>
   </div>
 </template>

@@ -1,8 +1,8 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <p class="eyebrow">BOT OPERATIONS HUB</p>
-      <h1 class="login-title">BoChat Dashboard</h1>
+      <p class="eyebrow">智能运营中心</p>
+      <h1 class="login-title">BoChat</h1>
       <p class="login-subtitle">智能聊天机器人管理平台</p>
 
       <form @submit.prevent="handleSubmit">
@@ -13,14 +13,14 @@
             :class="['tab', { active: isLogin }]"
             @click="isLogin = true"
           >
-            Sign In
+            登录
           </button>
           <button
             type="button"
             :class="['tab', { active: !isLogin }]"
             @click="isLogin = false"
           >
-            Register
+            注册
           </button>
         </div>
 
