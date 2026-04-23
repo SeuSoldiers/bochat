@@ -1,8 +1,10 @@
 <template>
   <aside class="side-nav">
     <div class="brand">
-      <span class="brand-mark">✶</span>
       <h1>BoChat</h1>
+      <div class="brand-status" role="status" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+      </div>
     </div>
 
     <nav class="main-menu">
@@ -34,20 +36,6 @@
       </router-link>
     </nav>
 
-    <div class="side-deco" aria-hidden="true"></div>
-
-    <div class="status-card">
-      <p class="status-label">系统状态</p>
-      <p class="status-title">运行正常</p>
-      <p class="status-desc">所有系统运行良好</p>
-      <div class="status-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M12 2 20.5 5.1v6.1c0 5.3-3.8 9.6-8.5 10.8C7.3 20.8 3.5 16.5 3.5 11.2V5.1L12 2Z" />
-          <path d="m8.3 12.2 2.3 2.3 5-5" />
-        </svg>
-      </div>
-    </div>
-
     <div ref="profileWrapRef" class="profile-wrap">
       <div class="user-card">
         <span class="avatar">{{ userInitial }}</span>
@@ -55,20 +43,15 @@
           <p class="user-name">{{ authStore.userName || 'BoChat Admin' }}</p>
           <p class="user-role">管理员</p>
         </div>
-        <button
-          type="button"
-          class="arrow-btn"
-          :aria-expanded="showProfileActions ? 'true' : 'false'"
-          @click="showProfileActions = !showProfileActions"
-        >
-          <svg viewBox="0 0 24 24" fill="none" :class="{ open: showProfileActions }">
-            <path d="m7 14 5-5 5 5" />
+        <button type="button" class="arrow-btn" aria-haspopup="menu" aria-label="打开用户菜单">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="m9 6 6 6-6 6" />
           </svg>
         </button>
       </div>
 
-      <div v-if="showProfileActions" class="actions-popover dashboard-surface">
-        <router-link to="/profile" class="popover-action" @click="showProfileActions = false">
+      <div class="actions-popover dashboard-surface" role="menu">
+        <router-link to="/profile" class="popover-action">
           个人资料
         </router-link>
         <button class="popover-action danger" @click="handleLogout">
@@ -80,33 +63,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const showProfileActions = ref(false)
-const profileWrapRef = ref<HTMLElement | null>(null)
 
 const userInitial = computed(() => {
   const source = authStore.userName || 'B'
   return source.trim().slice(0, 1).toUpperCase()
 })
 
-const onGlobalPointerDown = (event: MouseEvent) => {
-  if (!showProfileActions.value || !profileWrapRef.value) {
-    return
-  }
-  if (!profileWrapRef.value.contains(event.target as Node)) {
-    showProfileActions.value = false
-  }
-}
-
 const handleLogout = async () => {
   if (confirm('确定要登出吗？')) {
     try {
-      showProfileActions.value = false
       await authStore.handleLogout()
       await router.push('/login')
     } catch (error) {
@@ -114,54 +85,33 @@ const handleLogout = async () => {
     }
   }
 }
-
-onMounted(() => {
-  document.addEventListener('mousedown', onGlobalPointerDown)
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onGlobalPointerDown)
-})
 </script>
 
 <style scoped>
 .side-nav {
   position: relative;
   z-index: 5;
-  width: 306px;
-  flex: 0 0 306px;
+  width: 248px;
+  flex: 0 0 248px;
   height: 100%;
   min-height: 0;
-  border-radius: 0;
+  border-radius: 10px;
   padding: 22px 18px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  color: #ebf4ef;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(36, 103, 79, 0.35) 0, rgba(36, 103, 79, 0) 42%),
-    radial-gradient(circle at 90% 96%, rgba(166, 215, 46, 0.16) 0, rgba(166, 215, 46, 0) 40%),
-    linear-gradient(180deg, #023c2e 0%, #032f24 46%, #022319 100%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 36px rgba(5, 22, 16, 0.3);
+  color: #1f1f1f;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 2px 8px 16px;
-}
-
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #173329;
-  background: #a6d72e;
-  font-size: 19px;
-  box-shadow: 0 10px 20px rgba(8, 33, 25, 0.32);
 }
 
 .brand h1 {
@@ -169,7 +119,21 @@ onBeforeUnmount(() => {
   font-size: 24px;
   line-height: 1;
   font-weight: 700;
-  color: #f2f8f4;
+  color: #1a1a1a;
+}
+
+.brand-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2f8f4e;
+  box-shadow: 0 0 0 3px rgba(47, 143, 78, 0.2);
 }
 
 .main-menu {
@@ -182,29 +146,29 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #d7e9e0;
+  color: #2d2d2d;
   text-decoration: none;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  padding: 14px 14px;
-  border-radius: 14px;
+  padding: 9px 12px;
+  border-radius: 12px;
   border: 1px solid transparent;
   transition: var(--transition-base);
 }
 
 .item-icon {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
-  color: #0f2e24;
-  background: rgba(166, 215, 46, 0.9);
+  border-radius: 8px;
+  color: #4a4a4a;
+  background: transparent;
 }
 
 .item-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
@@ -212,96 +176,32 @@ onBeforeUnmount(() => {
 }
 
 .item-icon.ghost {
-  color: #e4eee8;
+  color: #4a4a4a;
   background: transparent;
 }
 
 .menu-item:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: #c8c8c8;
+  background: #efefef;
 }
 
 .menu-item.active {
-  color: #f2fbf5;
-  border-color: rgba(197, 228, 127, 0.32);
-  background: rgba(9, 62, 47, 0.75);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: #f3f3f3;
+  border-color: #2f2f2f;
+  background: #2f2f2f;
+  box-shadow: none;
 }
 
-.side-deco {
-  width: 148px;
-  height: 86px;
-  margin: 20px 0 6px;
-  background: linear-gradient(150deg, rgba(16, 79, 60, 0.48) 0%, rgba(7, 45, 34, 0.42) 100%);
-  clip-path: polygon(0 0, 100% 0, 100% 72%, 78% 100%, 0 100%);
-  border-radius: 4px;
-}
-
-.status-card {
-  margin-top: 8px;
-  position: relative;
-  border-radius: 18px;
-  padding: 18px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(135deg, rgba(12, 79, 59, 0.65) 0%, rgba(17, 62, 48, 0.45) 100%);
-}
-
-.status-label {
-  margin: 0;
-  font-size: 20px;
-  color: #a9e1be;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.status-label::before {
-  content: '';
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #21c372;
-  box-shadow: 0 0 0 6px rgba(33, 195, 114, 0.14);
-}
-
-.status-title {
-  margin: 4px 0 2px;
-  font-size: 34px;
-  font-weight: 700;
-}
-
-.status-desc {
-  margin: 0;
-  font-size: 14px;
-  color: rgba(230, 244, 235, 0.85);
-}
-
-.status-mark {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 106px;
-  height: 106px;
-  display: grid;
-  place-items: center;
-  color: rgba(207, 229, 215, 0.82);
-  background: rgba(120, 164, 143, 0.2);
-  border-radius: 20px;
-}
-
-.status-mark svg {
-  width: 78px;
-  height: 78px;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.menu-item.active .item-icon {
+  color: #f3f3f3;
 }
 
 .profile-wrap {
   position: relative;
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .user-card {
@@ -309,20 +209,20 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(4, 34, 26, 0.48);
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  background: #f5f5f5;
 }
 
 .avatar {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #a6d72e;
-  color: #173329;
-  font-size: 26px;
+  background: #ebebeb;
+  color: #2f2f2f;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -334,7 +234,7 @@ onBeforeUnmount(() => {
 .user-name {
   margin: 0;
   font-size: 17px;
-  color: #f2f8f4;
+  color: #1f1f1f;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -343,7 +243,7 @@ onBeforeUnmount(() => {
 .user-role {
   margin: 2px 0 0;
   font-size: 13px;
-  color: #b6c9bf;
+  color: #6c6c6c;
 }
 
 .arrow-btn {
@@ -353,7 +253,7 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  color: #eef6f1;
+  color: #2f2f2f;
   background: transparent;
 }
 
@@ -364,37 +264,42 @@ onBeforeUnmount(() => {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: transform 0.2s ease;
-}
-
-.arrow-btn svg.open {
-  transform: rotate(180deg);
 }
 
 .arrow-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: #ebebeb;
 }
 
 .actions-popover {
   position: absolute;
-  left: 12px;
-  bottom: calc(100% + 10px);
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
   width: 196px;
   padding: 8px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(circle at 0 100%, rgba(166, 215, 46, 0.18) 0, rgba(166, 215, 46, 0) 65%),
-    linear-gradient(150deg, rgba(3, 55, 42, 0.94) 0%, rgba(3, 46, 35, 0.96) 100%);
-  box-shadow: 0 18px 30px rgba(6, 21, 16, 0.34);
-  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  background: #f5f5f5;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  backdrop-filter: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: var(--transition-base);
+}
+
+.profile-wrap:hover .actions-popover,
+.profile-wrap:focus-within .actions-popover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .popover-action {
   width: 100%;
   border: none;
   background: transparent;
-  color: #dcede5;
+  color: #2f2f2f;
   text-decoration: none;
   border-radius: 12px;
   padding: 10px 12px;
@@ -406,22 +311,22 @@ onBeforeUnmount(() => {
 }
 
 .popover-action:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f4fbf7;
+  background: #ebebeb;
+  color: #1f1f1f;
 }
 
 .popover-action.danger {
-  color: #f3d6d4;
+  color: #7a2e2a;
 }
 
 .popover-action.danger:hover {
-  background: rgba(226, 92, 76, 0.16);
+  background: #efefef;
 }
 
 @media (max-width: 1200px) {
   .side-nav {
-    width: 240px;
-    flex-basis: 240px;
+    width: 208px;
+    flex-basis: 208px;
   }
 
   .brand h1 {
@@ -432,18 +337,6 @@ onBeforeUnmount(() => {
     font-size: 19px;
   }
 
-  .status-title {
-    font-size: 18px;
-  }
-
-  .status-label {
-    font-size: 14px;
-  }
-
-  .status-desc {
-    font-size: 13px;
-  }
-
   .user-name {
     font-size: 16px;
   }
@@ -452,16 +345,6 @@ onBeforeUnmount(() => {
     font-size: 13px;
   }
 
-  .status-mark {
-    width: 68px;
-    height: 68px;
-    font-size: 22px;
-  }
-
-  .side-deco {
-    width: 118px;
-    height: 64px;
-  }
 }
 
 @media (max-width: 768px) {
@@ -470,7 +353,7 @@ onBeforeUnmount(() => {
     flex-basis: auto;
     padding: 14px;
     gap: 12px;
-    border-radius: 18px;
+    border-radius: 8px;
     height: auto;
   }
 
@@ -485,13 +368,11 @@ onBeforeUnmount(() => {
     padding: 10px;
   }
 
-  .status-card {
-    margin-top: 0;
-  }
-
   .actions-popover {
     left: 0;
+    top: calc(100% + 8px);
     right: 0;
+    transform: none;
     width: auto;
   }
 }

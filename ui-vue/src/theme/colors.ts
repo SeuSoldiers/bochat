@@ -1,25 +1,25 @@
 export const morandiColors = {
-  primary: '#A6D72E',
-  primaryDark: '#0E3C2F',
-  success: '#2E8A5C',
-  warning: '#F1A33D',
+  primary: '#2f2f2f',
+  primaryDark: '#111111',
+  success: '#4f4f4f',
+  warning: '#6a6a6a',
   error: '#C94D45',
-  info: '#2E6E5D',
+  info: '#5a5a5a',
 
-  bg: '#ECEDEC',
-  bgLight: '#F7F8F6',
-  bgDark: '#E2E5DF',
-  panel: '#FFFFFF',
-  sidebar: '#012F23',
-  sidebarHover: '#0A4735',
+  bg: '#f2f2f2',
+  bgLight: '#f5f5f5',
+  bgDark: '#ebebeb',
+  panel: '#f5f5f5',
+  sidebar: '#f5f5f5',
+  sidebarHover: '#efefef',
 
-  text: '#17221E',
-  textLight: '#5E6B66',
-  textLighter: '#96A09A',
-  textOnDark: '#EAF0EC',
+  text: '#141414',
+  textLight: '#5f5f5f',
+  textLighter: '#8f8f8f',
+  textOnDark: '#f2f2f2',
 
-  border: '#D8DFD8',
-  borderLight: '#E8ECE8',
+  border: '#d0d0d0',
+  borderLight: '#e4e4e4',
 }
 
 /**
@@ -45,16 +45,17 @@ export const naiveUITheme = {
 
     borderColor: morandiColors.border,
 
-    fontFamily: '"Space Grotesk", "Manrope", "Noto Sans SC", sans-serif',
+    fontFamily:
+      '"ui-sans-serif", "-apple-system", "system-ui", "Segoe UI", "Helvetica", "Apple Color Emoji", "Arial", "sans-serif", "Segoe UI Emoji", "Segoe UI Symbol"',
     fontSize: '14px',
     fontSizeSmall: '12px',
     fontSizeLarge: '16px',
   },
   Button: {
     colorPrimary: morandiColors.primary,
-    textColorPrimary: '#132019',
-    colorPrimaryHover: '#B9E349',
-    colorPrimaryPressed: '#98C52C',
+    textColorPrimary: '#f5f5f5',
+    colorPrimaryHover: '#434343',
+    colorPrimaryPressed: '#262626',
   },
   Input: {
     borderRadius: '10px',
@@ -62,8 +63,8 @@ export const naiveUITheme = {
     colorTarget: morandiColors.bgLight,
   },
   Modal: {
-    borderRadius: '16px',
-    boxShadow: '0 24px 48px rgba(9, 30, 22, 0.16)',
+    borderRadius: '10px',
+    boxShadow: '0 10px 18px rgba(0, 0, 0, 0.08)',
   },
 }
 
@@ -84,16 +85,16 @@ export const generateCSSVariables = () => {
   vars['--spacing-xl'] = '24px'
   vars['--spacing-2xl'] = '36px'
 
-  vars['--radius-sm'] = '8px'
-  vars['--radius-md'] = '12px'
-  vars['--radius-lg'] = '18px'
-  vars['--radius-xl'] = '24px'
+  vars['--radius-sm'] = '6px'
+  vars['--radius-md'] = '8px'
+  vars['--radius-lg'] = '10px'
+  vars['--radius-xl'] = '12px'
 
-  vars['--shadow-sm'] = '0 6px 14px rgba(7, 27, 19, 0.06)'
-  vars['--shadow-md'] = '0 12px 30px rgba(7, 27, 19, 0.1)'
-  vars['--shadow-lg'] = '0 28px 48px rgba(7, 27, 19, 0.18)'
-  vars['--shadow-inset'] = 'inset 0 1px 0 rgba(255, 255, 255, 0.55)'
-  vars['--surface-outline'] = '0 0 0 1px rgba(255, 255, 255, 0.66), inset 0 0 0 1px #dce4db'
+  vars['--shadow-sm'] = '0 4px 10px rgba(0, 0, 0, 0.05)'
+  vars['--shadow-md'] = '0 8px 16px rgba(0, 0, 0, 0.08)'
+  vars['--shadow-lg'] = '0 12px 24px rgba(0, 0, 0, 0.1)'
+  vars['--shadow-inset'] = 'none'
+  vars['--surface-outline'] = 'none'
 
   vars['--transition-base'] = 'all 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)'
 

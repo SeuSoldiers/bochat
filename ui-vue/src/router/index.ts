@@ -80,7 +80,7 @@ router.beforeEach((to, _from, next) => {
     // 已认证但访问登录页，跳转到首页
     next('/home')
   } else {
-    // 正常跳转
+    // 允许跳转
     next()
   }
 })

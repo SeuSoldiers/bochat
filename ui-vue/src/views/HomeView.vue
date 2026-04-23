@@ -44,11 +44,6 @@
         </div>
 
         <section v-if="activeTab === 'bots'" class="tab-content">
-          <div class="section-header bot-header">
-            <h2>我的机器人</h2>
-            <p class="section-subtitle">管理和配置您的机器人，轻松连接与自动化。</p>
-          </div>
-
           <div class="stats-panel">
             <div class="stat-item">
               <div class="stat-icon icon-bot">
@@ -111,13 +106,6 @@
         </section>
 
         <section v-if="activeTab === 'groups'" class="tab-content">
-          <div class="section-header">
-            <div>
-              <h2>我的群组</h2>
-              <p class="section-tip">选择群后可在成员弹窗中添加或移除机器人</p>
-            </div>
-          </div>
-
           <div v-if="groupStore.loading" class="loading">
             加载中...
           </div>
@@ -127,9 +115,7 @@
               v-for="group in groupStore.groups"
               :key="group.group_id"
               :group="group"
-              :selected="group.group_id === groupStore.selectedGroupId"
               :can-delete="group.creator_id === authStore.userId"
-              @select="groupStore.selectGroup(group.group_id)"
               @delete="handleDeleteGroup(group.group_id)"
               @view-members="showGroupMembers(group.group_id)"
             />
@@ -370,10 +356,10 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  background: #f3f4f3;
-  border: 1px solid #e1e6e1;
-  border-radius: 24px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 20px rgba(13, 31, 23, 0.08);
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   padding: 28px 30px;
 }
 
@@ -382,17 +368,18 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
+
 
 .page-tabs {
   display: inline-flex;
   gap: 0;
   padding: 0;
   margin-bottom: 24px;
-  background: #eceeed;
-  border: 1px solid #ced5cf;
-  border-radius: 24px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
 }
 
 .topbar-actions {
@@ -418,9 +405,9 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 .page-tab {
   border: none;
   background: transparent;
-  color: #1a2c25;
+  color: #2f2f2f;
   padding: 12px 28px;
-  border-radius: 999px;
+  border-radius: 6px;
   font-size: 16px;
   font-weight: 700;
   line-height: 1;
@@ -428,9 +415,9 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 }
 
 .page-tab.active {
-  background-color: #074b3b;
-  color: #f4f9f4;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  background-color: #2f2f2f;
+  color: #f3f3f3;
+  box-shadow: none;
 }
 
 .section-header {
@@ -440,33 +427,22 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   margin-bottom: 20px;
 }
 
-.bot-header {
-  display: block;
-  margin-bottom: 22px;
-}
-
 .section-header h2 {
   font-size: 46px;
   font-weight: 700;
-  color: #0c2b21;
+  color: #1a1a1a;
   line-height: 1.15;
   margin-bottom: 12px;
 }
 
-.section-subtitle {
-  font-size: 14px;
-  color: #6f7671;
-  line-height: 1.4;
-}
-
 .stats-panel {
   display: flex;
-  align-items: stretch;
-  border: 1px solid #ccd3cd;
-  border-radius: 28px;
-  background: #f1f3f1;
-  padding: 18px 12px;
-  margin-bottom: 24px;
+  align-items: center;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #f5f5f5;
+  padding: 8px 10px;
+  margin-bottom: 18px;
 }
 
 .stat-item {
@@ -474,66 +450,61 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 6px 18px;
+  gap: 10px;
+  padding: 4px 10px;
 }
 
 .stat-divider {
   width: 1px;
-  background: #d2d8d3;
+  background: #d0d0d0;
 }
 
 .stat-icon {
-  width: 66px;
-  height: 66px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
 }
 
 .stat-icon svg {
-  width: 33px;
-  height: 33px;
-  stroke: #0f2f24;
+  width: 18px;
+  height: 18px;
+  stroke: #2f2f2f;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .icon-bot {
-  background: #d6ecad;
+  background: #ebebeb;
 }
 
 .icon-running {
-  background: #d6ecad;
+  background: #ebebeb;
 }
 
 .icon-disabled {
-  background: #f4e5ca;
+  background: #ebebeb;
 }
 
 .icon-disabled svg {
-  stroke: #dd7000;
+  stroke: #7a7a7a;
 }
 
 .stat-meta p {
-  margin: 0 0 6px 0;
-  font-size: 14px;
+  margin: 0;
+  font-size: 12px;
   color: #5d6661;
   line-height: 1.1;
 }
 
 .stat-meta strong {
   display: block;
-  font-size: 36px;
-  color: #09281f;
+  margin-top: 2px;
+  font-size: 20px;
+  color: #161616;
   line-height: 1;
-}
-
-.section-tip {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #65756f;
 }
 
 .actions {
@@ -544,7 +515,7 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 .btn {
   padding: 14px 26px;
   border: 1px solid transparent;
-  border-radius: 18px;
+  border-radius: 8px;
   font-size: 16px;
   font-weight: 700;
   line-height: 1;
@@ -552,24 +523,24 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 }
 
 .btn-primary {
-  background: #a6d72e;
-  color: #173329;
-  border-color: #9ccf2a;
+  background: #242424;
+  color: #f4f4f4;
+  border-color: #303030;
 }
 
 .btn-primary:hover {
-  background-color: #b5de46;
+  background-color: #3a3a3a;
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background-color: #f5f7f3;
+  background-color: #f5f5f5;
   color: #3f4d47;
-  border-color: #d8dfd8;
+  border-color: #d0d0d0;
 }
 
 .btn-secondary:hover {
-  background-color: #edf3e8;
+  background-color: #ebebeb;
 }
 
 .tab-content {
@@ -577,8 +548,14 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 }
 
 .card-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -619,7 +596,7 @@ const handleRemoveBotFromGroup = async (botId: string) => {
 
   .home-content {
     padding: 16px;
-    border-radius: 16px;
+    border-radius: 8px;
   }
 
   .page-topbar {
@@ -649,10 +626,6 @@ const handleRemoveBotFromGroup = async (botId: string) => {
     font-size: 32px;
   }
 
-  .section-subtitle {
-    font-size: 14px;
-  }
-
   .stats-panel {
     flex-direction: column;
     gap: 10px;
@@ -675,10 +648,20 @@ const handleRemoveBotFromGroup = async (botId: string) => {
     width: 100%;
   }
 
+  .card-list {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
   .btn {
     flex: 1;
     font-size: 14px;
-    border-radius: 12px;
+    border-radius: 8px;
   }
 }
 </style>

@@ -159,11 +159,11 @@ onMounted(fetchProfile)
 }
 
 .profile-card {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid #dde5dd;
-  border-radius: 22px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
   padding: 30px;
-  box-shadow: 0 18px 34px rgba(9, 30, 22, 0.14);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .card-header h2 {
@@ -197,18 +197,18 @@ onMounted(fetchProfile)
 .form-group input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d6dfd6;
-  border-radius: 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
-  color: #22332b;
-  background: #fafdfa;
+  color: #2f2f2f;
+  background: #f5f5f5;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #99cb27;
-  box-shadow: 0 0 0 4px rgba(166, 215, 46, 0.2);
+  border-color: #7a7a7a;
+  box-shadow: 0 0 0 4px rgba(120, 120, 120, 0.2);
 }
 
 .error-box,
@@ -251,15 +251,15 @@ onMounted(fetchProfile)
 }
 
 .btn-primary {
-  background: #a6d72e;
-  color: #123126;
-  border-color: #98c52c;
+  background: #242424;
+  color: #f2f2f2;
+  border-color: #303030;
 }
 
 .btn-secondary {
-  background: #f5f7f3;
+  background: #f5f5f5;
   color: #50605a;
-  border-color: #d8dfd8;
+  border-color: #d0d0d0;
 }
 
 @media (max-width: 768px) {

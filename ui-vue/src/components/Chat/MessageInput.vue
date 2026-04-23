@@ -163,10 +163,10 @@ const handleFileChange = async (event: Event) => {
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-  background: linear-gradient(145deg, #ffffff 0%, #f8fbf6 100%);
-  border-radius: 16px;
-  border: 1px solid #d8dfd8;
-  box-shadow: 0 10px 22px rgba(10, 36, 27, 0.08);
+  background: #f5f5f5;
+  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .input-toolbar {
@@ -176,11 +176,11 @@ const handleFileChange = async (event: Event) => {
 .bot-select {
   min-width: 220px;
   padding: 10px 12px;
-  border: 1px solid #d7e0d7;
-  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   font-size: 13px;
-  color: #23322c;
-  background: #fbfdf9;
+  color: #2f2f2f;
+  background: #f5f5f5;
 }
 
 .input-wrapper {
@@ -191,26 +191,26 @@ const handleFileChange = async (event: Event) => {
 .message-input {
   flex: 1;
   padding: 10px 12px;
-  border: 1px solid #d7e0d7;
-  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   font-size: 13px;
-  color: #23322c;
+  color: #2f2f2f;
   font-family: inherit;
   resize: vertical;
   min-height: 60px;
   max-height: 150px;
   transition: var(--transition-base);
-  background: #fbfdf9;
+  background: #f5f5f5;
 }
 
 .message-input:focus {
   outline: none;
-  border-color: #99cb27;
-  box-shadow: 0 0 0 4px rgba(166, 215, 46, 0.2);
+  border-color: #7a7a7a;
+  box-shadow: 0 0 0 4px rgba(120, 120, 120, 0.2);
 }
 
 .message-input:disabled {
-  background-color: #fafaf8;
+  background-color: #efefef;
   color: #cccccc;
   cursor: not-allowed;
 }
@@ -227,9 +227,9 @@ const handleFileChange = async (event: Event) => {
 
 .file-btn {
   padding: 10px 16px;
-  background-color: #f5f8f2;
-  color: #3f4d47;
-  border: 1px solid #d8dfd8;
+  background-color: #f5f5f5;
+  color: #4f4f4f;
+  border: 1px solid #d0d0d0;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
@@ -238,7 +238,7 @@ const handleFileChange = async (event: Event) => {
 }
 
 .file-btn:hover:not(:disabled) {
-  background-color: #edf3e8;
+  background-color: #ebebeb;
 }
 
 .file-btn:disabled {
@@ -248,9 +248,9 @@ const handleFileChange = async (event: Event) => {
 
 .send-btn {
   padding: 10px 24px;
-  background: #a6d72e;
-  color: #143227;
-  border: 1px solid #98c52c;
+  background: #2f2f2f;
+  color: #f3f3f3;
+  border: 1px solid #2f2f2f;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
@@ -259,8 +259,8 @@ const handleFileChange = async (event: Event) => {
 }
 
 .send-btn:hover:not(:disabled) {
-  background-color: #b5de46;
-  box-shadow: 0 12px 22px rgba(14, 60, 47, 0.18);
+  background-color: #3a3a3a;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
 }
 

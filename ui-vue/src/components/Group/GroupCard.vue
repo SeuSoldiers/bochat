@@ -1,5 +1,5 @@
 <template>
-  <div :class="['group-card', { selected }]" @click="$emit('select')">
+  <div class="group-card">
     <div class="card-header">
       <div>
         <h3 class="group-name">{{ group.name }}</h3>
@@ -38,12 +38,10 @@ import type { Group } from '@/types'
 
 defineProps<{
   group: Group
-  selected?: boolean
   canDelete?: boolean
 }>()
 
 defineEmits<{
-  select: []
   delete: []
   'view-members': []
 }>()
@@ -56,24 +54,19 @@ const formatDate = (dateStr: string) => {
 
 <style scoped>
 .group-card {
-  background: linear-gradient(150deg, #ffffff 0%, #f8fbf6 100%);
-  border: 1px solid #d8dfd8;
-  border-radius: 16px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
   padding: 18px;
-  cursor: pointer;
+  cursor: default;
   transition: var(--transition-base);
-  box-shadow: 0 10px 22px rgba(10, 36, 27, 0.08);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .group-card:hover {
-  border-color: #a9d53c;
-  box-shadow: 0 20px 34px rgba(10, 36, 27, 0.15);
-  transform: translateY(-2px);
-}
-
-.group-card.selected {
-  border-color: #0e3c2f;
-  background: linear-gradient(130deg, #f2fbdf 0%, #f8fcf2 100%);
+  border-color: #bbbbbb;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .card-header {
@@ -86,15 +79,15 @@ const formatDate = (dateStr: string) => {
 .group-name {
   font-size: 16px;
   font-weight: 700;
-  color: #112f25;
+  color: #1f1f1f;
   margin: 0 0 4px 0;
 }
 
 .group-number {
   font-size: 12px;
-  color: #5f6d67;
+  color: #5f5f5f;
   margin: 0;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: inherit;
 }
 
 .card-actions {
@@ -114,11 +107,11 @@ const formatDate = (dateStr: string) => {
 }
 
 .action-btn:hover {
-  background-color: #eef6e4;
+  background-color: #ebebeb;
 }
 
 .view-btn:hover {
-  color: #1f5d4a;
+  color: #2f2f2f;
 }
 
 .delete-btn:hover {
@@ -129,7 +122,7 @@ const formatDate = (dateStr: string) => {
   display: flex;
   gap: 15px;
   padding-top: 12px;
-  border-top: 1px solid #e5ebe4;
+  border-top: 1px solid #d0d0d0;
 }
 
 .stat {
@@ -140,7 +133,7 @@ const formatDate = (dateStr: string) => {
 .stat-label {
   display: block;
   font-size: 11px;
-  color: #87928c;
+  color: #7a7a7a;
   margin-bottom: 4px;
 }
 
@@ -148,6 +141,7 @@ const formatDate = (dateStr: string) => {
   display: block;
   font-size: 14px;
   font-weight: 700;
-  color: #1a5b45;
+  color: #2f2f2f;
 }
+
 </style>

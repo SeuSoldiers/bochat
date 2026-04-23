@@ -278,10 +278,10 @@ const openBotInfo = async (botId: string) => {
   padding: 20px;
   gap: 16px;
   min-height: 0;
-  border-radius: 22px;
-  border: 1px solid #e4eae3;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 16px 30px rgba(12, 36, 29, 0.1);
+  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+  background: #f5f5f5;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
@@ -298,29 +298,29 @@ const openBotInfo = async (botId: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 15px 18px;
-  background: linear-gradient(110deg, #f8fbf6 0%, #eff4eb 100%);
-  border-radius: 16px;
-  border: 1px solid #d8e0d8;
+  background: #f5f5f5;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
 }
 
 .group-info h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #102d23;
+  color: #1f1f1f;
   margin: 0 0 4px 0;
 }
 
 .group-info p {
   font-size: 12px;
-  color: #61716b;
+  color: #5f5f5f;
   margin: 0;
 }
 
 .view-members-btn {
   padding: 9px 14px;
-  background: #0e3c2f;
-  color: #ebf2ee;
-  border: 1px solid #1f5d4a;
+  background: #2f2f2f;
+  color: #f3f3f3;
+  border: 1px solid #2f2f2f;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
@@ -329,7 +329,7 @@ const openBotInfo = async (botId: string) => {
 
 .view-members-btn:hover {
   transform: translateY(-1px);
-  background: #165242;
+  background: #353535;
 }
 
 .message-area {
@@ -346,11 +346,11 @@ const openBotInfo = async (botId: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8d9994;
+  color: #7f7f7f;
   font-size: 16px;
-  border-radius: 16px;
-  border: 1px dashed #cfdbcf;
-  background: rgba(247, 250, 245, 0.64);
+  border-radius: 8px;
+  border: 1px dashed #d0d0d0;
+  background: #f5f5f5;
   min-height: 300px;
 }
 
@@ -375,7 +375,7 @@ const openBotInfo = async (botId: string) => {
 
   .chat-main {
     padding: 14px;
-    border-radius: 16px;
+    border-radius: 8px;
   }
 
   .message-area {

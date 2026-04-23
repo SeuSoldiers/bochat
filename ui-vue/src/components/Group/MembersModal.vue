@@ -181,7 +181,7 @@ const formatDate = (dateStr: string) => {
   font-size: 12px;
   color: #888888;
   margin: 0;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: inherit;
 }
 
 .toolbar {
@@ -266,7 +266,7 @@ const formatDate = (dateStr: string) => {
   font-size: 11px;
   color: #cccccc;
   margin: 0;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: inherit;
 }
 
 .join-time {

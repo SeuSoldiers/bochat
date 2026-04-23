@@ -104,8 +104,8 @@ const formatTime = (dateStr: string) => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: #0e3c2f;
-  color: #ebf2ee;
+  background-color: #ebebeb;
+  color: #2f2f2f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,22 +142,22 @@ const formatTime = (dateStr: string) => {
 .message-sender {
   font-size: 13px;
   font-weight: 700;
-  color: #143127;
+  color: #2f2f2f;
 }
 
 .message-time {
   font-size: 11px;
-  color: #8d9994;
+  color: #7f7f7f;
 }
 
 .message-text {
   font-size: 14px;
-  color: #23322c;
+  color: #2f2f2f;
   line-height: 1.5;
   word-break: break-word;
   white-space: pre-wrap;
-  background: #f3f8ee;
-  border: 1px solid #dde7d8;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
   padding: 8px 12px;
   border-radius: 10px;
 }
@@ -165,14 +165,14 @@ const formatTime = (dateStr: string) => {
 .message-file {
   font-size: 14px;
   line-height: 1.5;
-  background: #f3f8ee;
-  border: 1px solid #dde7d8;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
   padding: 8px 12px;
   border-radius: 10px;
 }
 
 .message-file a {
-  color: #1f5d4a;
+  color: #2f2f2f;
   text-decoration: none;
   font-weight: 700;
 }

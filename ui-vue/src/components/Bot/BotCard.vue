@@ -5,28 +5,26 @@
         <div class="avatar-wrap">
           <img v-if="bot.avatar_url" :src="bot.avatar_url" :alt="bot.name" class="bot-avatar" />
           <div v-else class="bot-avatar fallback">{{ bot.name.charAt(0) }}</div>
-          <span class="avatar-status"></span>
+          <span :class="['avatar-status', { offline: !isBotRunning }]" aria-hidden="true"></span>
         </div>
         <div class="bot-title-wrap">
-          <h3 class="bot-name">{{ bot.name }}</h3>
+          <h3 class="bot-name" :title="bot.name">{{ displayBotName }}</h3>
           <p v-if="bot.description" class="bot-description">{{ bot.description }}</p>
           <p v-else class="bot-description">用户注册时自动创建的默认Bot</p>
         </div>
       </div>
       <div class="card-actions">
-        <button class="action-btn edit-btn" @click.stop="$emit('edit')" title="编辑">
+        <button class="action-btn edit-btn" @click.stop="$emit('edit')">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="m4 20 4.3-.8L19 8.6 15.4 5 4.8 15.6 4 20Z" />
             <path d="m13.8 6.6 3.6 3.6" />
           </svg>
-          编辑
         </button>
-        <button class="action-btn delete-btn" @click.stop="$emit('delete')" title="删除">
+        <button class="action-btn delete-btn" @click.stop="$emit('delete')">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M5 7h14M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7" />
             <path d="M8 7v11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V7M10.5 11v5M13.5 11v5" />
           </svg>
-          删除
         </button>
       </div>
     </div>
@@ -34,7 +32,7 @@
     <div class="card-divider"></div>
 
     <div class="card-footer">
-      <div class="meta-item">
+      <div class="meta-item" :class="{ expanded: showBotId }">
         <div class="meta-label">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <rect x="4" y="4" width="16" height="16" rx="2.5" />
@@ -42,10 +40,35 @@
           </svg>
           <span>编号</span>
         </div>
-        <div class="meta-value">{{ bot.bot_id }}</div>
+        <div class="meta-value id-value" :class="{ expanded: showBotId }">{{ displayBotId }}</div>
         <div class="meta-actions">
-          <button class="mini-action" @click.stop="copyValue(bot.bot_id, '编号')" title="复制编号">
-            复制
+          <button
+            class="mini-action icon-action"
+            @click.stop="showBotId = !showBotId"
+            :title="showBotId ? '隐藏编号' : '显示编号'"
+            :aria-label="showBotId ? '隐藏编号' : '显示编号'"
+          >
+            <svg v-if="showBotId" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m3 3 18 18" />
+              <path d="M10.6 10.7a2 2 0 0 0 2.8 2.8" />
+              <path d="M9.4 5.2A10.8 10.8 0 0 1 12 5c5.5 0 9.4 4.6 10 7-.3 1.2-1.5 3.1-3.5 4.7" />
+              <path d="M6.1 8.2C4 9.9 2.7 11.9 2.3 13c.6 2.4 4.5 7 9.9 7a10.5 10.5 0 0 0 3.4-.5" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2.3 12c.6-2.4 4.5-7 9.7-7s9.1 4.6 9.7 7c-.6 2.4-4.5 7-9.7 7s-9.1-4.6-9.7-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          <button
+            class="mini-action icon-action"
+            @click.stop="copyValue(bot.bot_id, '编号')"
+            title="复制编号"
+            aria-label="复制编号"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="9" y="9" width="10" height="10" rx="2" />
+              <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+            </svg>
           </button>
         </div>
       </div>
@@ -59,32 +82,39 @@
           </svg>
           <span>令牌</span>
         </div>
-        <div class="meta-value">{{ displayToken }}</div>
+        <div class="meta-value token-value" :class="{ expanded: showToken }">{{ displayToken }}</div>
         <div class="meta-actions">
           <button
-            class="mini-action"
+            class="mini-action icon-action"
             @click.stop="showToken = !showToken"
             :title="showToken ? '隐藏令牌' : '显示令牌'"
+            :aria-label="showToken ? '隐藏令牌' : '显示令牌'"
           >
-            {{ showToken ? '隐藏' : '显示' }}
+            <svg v-if="showToken" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m3 3 18 18" />
+              <path d="M10.6 10.7a2 2 0 0 0 2.8 2.8" />
+              <path d="M9.4 5.2A10.8 10.8 0 0 1 12 5c5.5 0 9.4 4.6 10 7-.3 1.2-1.5 3.1-3.5 4.7" />
+              <path d="M6.1 8.2C4 9.9 2.7 11.9 2.3 13c.6 2.4 4.5 7 9.9 7a10.5 10.5 0 0 0 3.4-.5" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2.3 12c.6-2.4 4.5-7 9.7-7s9.1 4.6 9.7 7c-.6 2.4-4.5 7-9.7 7s-9.1-4.6-9.7-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
           </button>
-          <button class="mini-action" @click.stop="copyValue(bot.token, '令牌')" title="复制令牌">
-            复制
+          <button
+            class="mini-action icon-action"
+            @click.stop="copyValue(bot.token, '令牌')"
+            title="复制令牌"
+            aria-label="复制令牌"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="9" y="9" width="10" height="10" rx="2" />
+              <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+            </svg>
           </button>
         </div>
       </div>
 
-      <div class="meta-item">
-        <div class="meta-label">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect x="4" y="5" width="16" height="15" rx="2.5" />
-            <path d="M8 3v4M16 3v4M4 10h16" />
-          </svg>
-          <span>创建时间</span>
-        </div>
-        <div class="meta-value">{{ formatDate(bot.created_at) }}</div>
-        <div class="meta-actions"></div>
-      </div>
     </div>
 
     <div v-if="copyTipText" class="copy-tip">{{ copyTipText }}</div>
@@ -107,21 +137,25 @@ defineEmits<{
 }>()
 
 const showToken = ref(false)
+const showBotId = ref(false)
 const copyTipText = ref('')
 
+const displayBotId = computed(() => (showBotId.value ? props.bot.bot_id : maskSecret(props.bot.bot_id)))
 const displayToken = computed(() => (showToken.value ? props.bot.token : maskToken(props.bot.token)))
-
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    hour12: false,
-  })
-}
+const displayBotName = computed(() =>
+  props.bot.name.length > 5 ? `${props.bot.name.slice(0, 5)}...` : props.bot.name
+)
+const disabledStatuses = new Set(['disabled', 'stopped', 'paused', 'inactive'])
+const isBotRunning = computed(() => !disabledStatuses.has((props.bot.status || '').toLowerCase()))
 
 const maskToken = (token: string) => {
-  if (!token) return '***'
-  if (token.length <= 6) return '***'
-  return `${token.slice(0, 3)}***${token.slice(-3)}`
+  return maskSecret(token)
+}
+
+const maskSecret = (value: string) => {
+  if (!value) return '***'
+  if (value.length <= 12) return '***'
+  return `${value.slice(0, 6)}...${value.slice(-6)}`
 }
 
 const copyValue = async (value: string, label: string) => {
@@ -139,17 +173,19 @@ const copyValue = async (value: string, label: string) => {
 
 <style scoped>
 .bot-card {
-  background: #f3f5f4;
-  border: 1px solid #d2d8d3;
-  border-radius: 22px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
   padding: 24px 28px;
   transition: var(--transition-base);
   position: relative;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 4px 10px rgba(10, 36, 27, 0.05);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
 .bot-card.selected {
-  border-color: #0e3c2f;
+  border-color: #2f2f2f;
+  background: #2f2f2f;
+  color: #f3f3f3;
 }
 
 .card-header {
@@ -173,11 +209,11 @@ const copyValue = async (value: string, label: string) => {
 }
 
 .bot-avatar {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   object-fit: cover;
-  background: #edf2ea;
+  background: #ebebeb;
   flex-shrink: 0;
 }
 
@@ -188,24 +224,27 @@ const copyValue = async (value: string, label: string) => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #12bf78;
-  border: 4px solid #f3f5f4;
+  background: #2f8f4e;
+}
+
+.avatar-status.offline {
+  background: #ba3b3b;
 }
 
 .fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  background: #074b3b;
+  color: #2f2f2f;
+  background: #ebebeb;
   font-size: 30px;
   font-weight: 700;
 }
 
 .bot-name {
-  font-size: 36px;
+  font-size: 24px;
   font-weight: 700;
-  color: #112f25;
+  color: #1f1f1f;
   margin: 0;
   line-height: 1.1;
 }
@@ -225,15 +264,15 @@ const copyValue = async (value: string, label: string) => {
 .action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  background: #f5f7f5;
-  border: 1px solid #ced4ce;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 700;
   transition: all 0.2s ease;
-  border-radius: 16px;
+  border-radius: 8px;
   color: #1a2c25;
 }
 
@@ -252,7 +291,7 @@ const copyValue = async (value: string, label: string) => {
 
 .bot-description {
   font-size: 14px;
-  color: #5f6d67;
+  color: #5f5f5f;
   margin-top: 8px;
   line-height: 1.4;
   overflow: hidden;
@@ -263,30 +302,34 @@ const copyValue = async (value: string, label: string) => {
 .card-footer {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 10px;
+  gap: 8px;
+  padding-top: 6px;
 }
 
 .card-divider {
   width: 100%;
   height: 1px;
-  background: #d5dbd5;
+  background: #d0d0d0;
   margin-bottom: 14px;
 }
 
 .meta-item {
   display: grid;
-  grid-template-columns: 140px 1fr auto;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 14px;
-  min-height: 58px;
+  gap: 8px;
+  min-height: 46px;
+}
+
+.meta-item.expanded {
+  align-items: flex-start;
 }
 
 .meta-label {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #707a75;
+  color: #696969;
   font-size: 14px;
 }
 
@@ -300,32 +343,88 @@ const copyValue = async (value: string, label: string) => {
 }
 
 .meta-value {
-  color: #5f6762;
-  font-family: 'Monaco', 'Courier New', monospace;
+  color: #4f4f4f;
+  font-family: inherit;
   font-size: 16px;
+  text-align: center;
+  justify-self: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.token-value.expanded {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.id-value.expanded {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
 .meta-actions {
-  min-width: 180px;
+  min-width: 0;
+  width: auto;
   display: inline-flex;
   justify-content: flex-end;
   gap: 10px;
+  justify-self: end;
 }
 
 .mini-action {
   min-width: 88px;
   padding: 10px 16px;
-  border: 1px solid #ced4ce;
-  border-radius: 14px;
-  background: #f5f7f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #f5f5f5;
   color: #4f5d58;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.bot-card.selected .bot-name,
+.bot-card.selected .bot-description,
+.bot-card.selected .meta-label,
+.bot-card.selected .meta-value {
+  color: #f3f3f3;
+}
+
+.bot-card.selected .card-divider {
+  background: rgba(243, 243, 243, 0.28);
+}
+
+.bot-card.selected .mini-action,
+.bot-card.selected .action-btn {
+  background: #3a3a3a;
+  border-color: #4a4a4a;
+  color: #f3f3f3;
+}
+
+.icon-action {
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.icon-action svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .copy-tip {
@@ -351,8 +450,8 @@ const copyValue = async (value: string, label: string) => {
   }
 
   .bot-avatar {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
   }
 
   .avatar-status {
