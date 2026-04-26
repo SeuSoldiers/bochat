@@ -17,7 +17,7 @@ use crate::repositories::{
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
 };
-use crate::services::FileService;
+use crate::services::GroupService;
 use crate::utils::generate_group_id;
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -553,7 +553,7 @@ pub async fn delete_group(
         return Err(AppError::Forbidden("只有群创建者才能删除该群".to_string()));
     }
 
-    FileService::on_group_deleted(&state.pool, &group_id_str).await?;
+    GroupService::on_group_deleting(&state.pool, &group_id_str).await?;
 
     // 删除群消息，避免 groups 删除时触发 messages 的外键约束错误。
     GroupRepository::delete_messages_by_group(&state.pool, &group_id_str).await?;

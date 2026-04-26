@@ -31,20 +31,64 @@ defineEmits<{
 
 const senderLabel = computed(() => props.message.sender_name || props.message.sender_id.slice(0, 8))
 
-const fileUrl = computed(() => {
+const normalizedContent = computed(() => {
   const { content } = props.message
-  if (typeof content === 'string') {
-    return null
+  if (typeof content !== 'string') {
+    return content
   }
-  return typeof content.url === 'string' ? content.url : null
+
+  const trimmed = content.trim()
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // 保持原始内容
+    }
+  }
+
+  return null
+})
+
+const fileUrl = computed(() => {
+  const parsed = normalizedContent.value
+  if (parsed && typeof parsed.url === 'string') {
+    return parsed.url
+  }
+  if (parsed && typeof parsed.file_url === 'string') {
+    return parsed.file_url
+  }
+
+  const { content } = props.message
+  if (typeof content !== 'string' && typeof content.url === 'string') {
+    return content.url
+  }
+  if (typeof content !== 'string' && typeof content.file_url === 'string') {
+    return content.file_url
+  }
+
+  return null
 })
 
 const isFileMessage = computed(() => props.message.msg_type === 'file' && !!fileUrl.value)
 
 const fileName = computed(() => {
+  const parsed = normalizedContent.value
+  if (parsed && typeof parsed.filename === 'string' && parsed.filename.trim()) {
+    return parsed.filename
+  }
+  if (parsed && typeof parsed.file_name === 'string' && parsed.file_name.trim()) {
+    return parsed.file_name
+  }
+
   const { content } = props.message
   if (typeof content !== 'string' && typeof content.filename === 'string' && content.filename.trim()) {
     return content.filename
+  }
+  if (typeof content !== 'string' && typeof content.file_name === 'string' && content.file_name.trim()) {
+    return content.file_name
   }
 
   if (!fileUrl.value) {
@@ -64,6 +108,11 @@ const fileName = computed(() => {
 })
 
 const messageText = computed(() => {
+  const parsed = normalizedContent.value
+  if (parsed && typeof parsed.text === 'string') {
+    return parsed.text
+  }
+
   const { content } = props.message
 
   if (typeof content === 'string') {

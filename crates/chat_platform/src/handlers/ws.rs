@@ -1,6 +1,7 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
+        Query,
         State,
     },
     http::HeaderMap,
@@ -13,18 +14,28 @@ use crate::services::authz::bot_has_global_group_access;
 use crate::ws::{WsEvent, WsManager};
 use crate::{
     error::AppResult,
-    middlewares::authenticate_bot_headers,
+    middlewares::{authenticate_bot_headers, authenticate_bot_token},
     repositories::GroupRepository,
     AppState,
 };
+
+#[derive(serde::Deserialize, Default)]
+pub struct WsAuthQuery {
+    pub token: Option<String>,
+}
 
 #[tracing::instrument(skip_all)]
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    Query(query): Query<WsAuthQuery>,
     headers: HeaderMap,
 ) -> AppResult<Response> {
-    let auth = authenticate_bot_headers(&state, &headers).await?;
+    let auth = if let Some(token) = query.token.as_deref() {
+        authenticate_bot_token(&state, token).await?
+    } else {
+        authenticate_bot_headers(&state, &headers).await?
+    };
 
     let group_ids: Vec<String> =
         if bot_has_global_group_access(&state.pool, &auth.bot_id).await? {

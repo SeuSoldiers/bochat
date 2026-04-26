@@ -100,6 +100,13 @@ curl "$BASE_URL/api/v1/bots" \
   -H "Authorization: Bearer $USER_TOKEN"
 ```
 
+按编号精确搜索 Bot（用于邀请场景）：
+
+```bash
+curl "$BASE_URL/api/v1/bots/search?bot_id=b_xxx" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
 ## 4. 管理自己的资料
 
 获取当前用户资料：
@@ -161,6 +168,30 @@ curl -X POST "$BASE_URL/api/v1/groups/join" \
 
 - `group_id` 和 `group_code` 二选一即可
 - `bot_id` 可省略；省略时后端会自动选择当前用户最早创建的活跃 Bot
+- 邀请指定 Bot 入群时，满足以下任一条件即可：
+  - 你是该 Bot 的所有者
+  - 你是该群的创建者（可邀请其他用户的 Bot）
+
+### 按群号前缀搜索群
+
+```bash
+curl "$BASE_URL/api/v1/groups/search?group_code=TECH" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+### 更新群信息
+
+```bash
+curl -X PUT "$BASE_URL/api/v1/groups/{group_id}" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "新群名",
+    "description": "新群简介",
+    "group_code": "TECH002",
+    "avatar_url": "https://example.com/new-group.png"
+  }'
+```
 
 ### 退群
 

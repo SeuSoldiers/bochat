@@ -11,7 +11,7 @@ use crate::{
     error::{json_response, AppError, AppResult},
     middlewares::BotAuth,
     repositories::{FileRepository, NewFile, NewFileUploader},
-    services::FileService,
+    services::FileManager,
     AppState,
 };
 
@@ -236,7 +236,7 @@ pub async fn delete_file(
         .ok_or(AppError::FileNotFound)?;
 
     let (uploader_removed, physical_deleted) =
-        FileService::remove_uploader_and_cleanup(&state.pool, &file_id, &bot_id).await?;
+        FileManager::remove_uploader_and_cleanup(&state.pool, &file_id, &bot_id).await?;
     if !uploader_removed {
         return Err(AppError::Forbidden("只能删除自己上传过的文件".to_string()));
     }

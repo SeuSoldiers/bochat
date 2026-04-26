@@ -5,13 +5,20 @@ BoChat 平台 Python 异步 SDK，接口语义与 `crates/bochat_sdk` Rust 版�
 ## 安装
 
 ```bash
-cd python-sdk
-pip install -e .
+pip install bochat-sdk
 ```
 
 启用 WebSocket 能力：
 
 ```bash
+pip install "bochat-sdk[ws]"
+```
+
+本地开发安装：
+
+```bash
+cd python-sdk
+pip install -e .
 pip install -e ".[ws]"
 ```
 

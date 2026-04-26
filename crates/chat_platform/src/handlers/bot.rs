@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::models::{BotResponse, BotSearchResponse, CreateBotRequest, UpdateBotRequest};
 use crate::repositories::{BotRepository, NewBot};
 use crate::services::authz::{can_manage_target_user, user_is_super_admin};
-use crate::services::FileService;
+use crate::services::BotService;
 use crate::utils::{generate_bot_id, generate_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -84,8 +84,7 @@ pub async fn create_bot(
         e
     })?;
 
-    FileService::on_bot_avatar_changed(&state.pool, &new_bot_id, None, req.avatar_url.as_deref())
-        .await?;
+    BotService::on_bot_created(&state.pool, &new_bot_id, req.avatar_url.as_deref()).await?;
 
     tracing::info!(
         "✅ Bot 创建成功 - Bot ID: {}, 所有者: {}",
@@ -276,13 +275,8 @@ pub async fn delete_bot(
             e
         })?;
 
-    FileService::on_bot_avatar_changed(
-        &state.pool,
-        &target_bot_id,
-        target_bot.avatar_url.as_deref(),
-        None,
-    )
-    .await?;
+    BotService::on_bot_deleted(&state.pool, &target_bot_id, target_bot.avatar_url.as_deref())
+        .await?;
 
     tracing::info!(
         "✅ Bot 删除成功 - Bot ID: {}, 所有者: {}",
@@ -333,7 +327,7 @@ pub async fn update_bot(
     )
     .await?;
 
-    FileService::on_bot_avatar_changed(
+    BotService::on_bot_updated(
         &state.pool,
         &target_bot_id,
         old_avatar_url.as_deref(),

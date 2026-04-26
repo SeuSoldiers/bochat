@@ -1,6 +1,8 @@
 use crate::error::AppResult;
 use crate::models::Message;
 use crate::repositories::{GroupMessagesPage, MessageRepository};
+use crate::services::FileManager;
+use serde_json::Value;
 use sqlx::SqlitePool;
 
 pub struct MessageService;
@@ -27,5 +29,14 @@ impl MessageService {
             },
         )
         .await
+    }
+
+    pub async fn on_message_persisted(
+        pool: &SqlitePool,
+        msg_id: i64,
+        msg_type: &str,
+        content: &Value,
+    ) -> AppResult<()> {
+        FileManager::on_message_persisted(pool, msg_id, msg_type, content).await
     }
 }

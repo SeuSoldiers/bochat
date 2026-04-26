@@ -24,6 +24,55 @@ export const useChatStore = defineStore('chat', () => {
 
   const messagesCount = computed(() => groupMessages.value.length)
 
+  const normalizeMessage = (message: Message): Message => {
+    const normalized = { ...message }
+
+    if (typeof normalized.msg_id !== 'number') {
+      const numericId = Number(normalized.msg_id)
+      if (Number.isFinite(numericId)) {
+        normalized.msg_id = numericId
+      }
+    }
+
+    if (typeof normalized.content === 'string') {
+      const trimmed = normalized.content.trim()
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          const parsed = JSON.parse(trimmed)
+          if (parsed && typeof parsed === 'object') {
+            normalized.content = parsed
+          }
+        } catch {
+          // 保持原始字符串，不中断消息流
+        }
+      }
+    }
+
+    if (typeof normalized.content !== 'string' && normalized.content) {
+      const content = { ...normalized.content } as Record<string, unknown>
+      // 兼容后端/网关可能返回的文件字段别名
+      if (typeof content.file_url === 'string' && typeof content.url !== 'string') {
+        content.url = content.file_url
+      }
+      if (typeof content.file_name === 'string' && typeof content.filename !== 'string') {
+        content.filename = content.file_name
+      }
+
+      normalized.content = content
+    }
+
+    if (
+      normalized.msg_type === 'file' &&
+      typeof normalized.content === 'string' &&
+      normalized.content.trim() &&
+      !normalized.content.trim().startsWith('{')
+    ) {
+      normalized.content = { url: normalized.content.trim() }
+    }
+
+    return normalized
+  }
+
   // 方法：设置当前群
   const setCurrentGroup = (groupId: string | null) => {
     currentGroupId.value = groupId
@@ -46,17 +95,18 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       const newMessages = await getMessages(groupId, baseId, limit, botToken)
+      const normalizedNewMessages = newMessages.map((m: Message) => normalizeMessage(m))
 
       // 合并消息（避免重复）
       const existingIds = new Set(messages.value.map((m: Message) => m.msg_id))
-      const uniqueNewMessages = newMessages.filter((m: Message) => !existingIds.has(m.msg_id))
+      const uniqueNewMessages = normalizedNewMessages.filter((m: Message) => !existingIds.has(m.msg_id))
 
       // 按时间升序排列，便于聊天窗口自然阅读
       messages.value = [...messages.value, ...uniqueNewMessages].sort(
         (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )
 
-      return newMessages
+      return normalizedNewMessages
     } catch (err: any) {
       error.value = getErrorMessage(err, '获取消息失败')
       throw err
@@ -82,10 +132,11 @@ export const useChatStore = defineStore('chat', () => {
 
   // 方法：添加 WebSocket 接收的消息
   const addWebSocketMessage = (message: Message) => {
+    const normalizedMessage = normalizeMessage(message)
     // 检查消息是否已存在
-    const exists = messages.value.some((m) => m.msg_id === message.msg_id)
+    const exists = messages.value.some((m) => m.msg_id === normalizedMessage.msg_id)
     if (!exists) {
-      messages.value.push(message)
+      messages.value.push(normalizedMessage)
       messages.value.sort(
         (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )

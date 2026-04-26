@@ -168,12 +168,14 @@ const handleSendMessage = async (content: string, botId: string) => {
     if (!botToken) {
       throw new Error('未找到对应机器人令牌')
     }
-    await chatStore.addMessage({
+    const savedMessage = await chatStore.addMessage({
       group_id: groupStore.selectedGroup.group_id,
       content: { text: content },
       msg_type: 'text',
       idempotency_key: createIdempotencyKey(),
     }, botToken)
+    // 立即更新页面，避免依赖 WS 回环
+    chatStore.addWebSocketMessage(savedMessage)
   } catch (error: any) {
     messageError.value = getErrorMessage(error, '发送消息失败')
     console.error('Failed to send message:', error)
@@ -200,7 +202,7 @@ const handleSendFile = async (file: File, botId: string) => {
     }
 
     const uploaded = await uploadFile(file, botToken)
-    await chatStore.addMessage({
+    const savedMessage = await chatStore.addMessage({
       group_id: groupStore.selectedGroup.group_id,
       content: {
         url: uploaded.url,
@@ -209,6 +211,8 @@ const handleSendFile = async (file: File, botId: string) => {
       msg_type: 'file',
       idempotency_key: createIdempotencyKey(),
     }, botToken)
+    // 立即更新页面，避免依赖 WS 回环
+    chatStore.addWebSocketMessage(savedMessage)
   } catch (error: any) {
     messageError.value = getErrorMessage(error, '发送文件失败')
     console.error('Failed to send file:', error)

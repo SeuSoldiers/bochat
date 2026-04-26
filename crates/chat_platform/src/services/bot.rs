@@ -1,6 +1,7 @@
 use crate::error::AppResult;
 use crate::models::Bot;
 use crate::repositories::BotRepository;
+use crate::services::FileManager;
 use sqlx::SqlitePool;
 
 pub struct BotService;
@@ -12,5 +13,30 @@ impl BotService {
 
     pub async fn get_user_bots(pool: &SqlitePool, user_id: &str) -> AppResult<Vec<Bot>> {
         BotRepository::list_by_owner(pool, user_id).await
+    }
+
+    pub async fn on_bot_created(
+        pool: &SqlitePool,
+        bot_id: &str,
+        avatar_url: Option<&str>,
+    ) -> AppResult<()> {
+        FileManager::on_bot_created(pool, bot_id, avatar_url).await
+    }
+
+    pub async fn on_bot_updated(
+        pool: &SqlitePool,
+        bot_id: &str,
+        old_avatar_url: Option<&str>,
+        new_avatar_url: Option<&str>,
+    ) -> AppResult<()> {
+        FileManager::on_bot_updated(pool, bot_id, old_avatar_url, new_avatar_url).await
+    }
+
+    pub async fn on_bot_deleted(
+        pool: &SqlitePool,
+        bot_id: &str,
+        old_avatar_url: Option<&str>,
+    ) -> AppResult<()> {
+        FileManager::on_bot_deleted(pool, bot_id, old_avatar_url).await
     }
 }

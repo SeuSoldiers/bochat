@@ -33,6 +33,7 @@
 | Bot | `GET /api/v1/bots/:bot_id` | 获取 Bot 详情 | [2.3 获取 Bot 详情](#api-bots-get) |
 | Bot | `PUT /api/v1/bots/:bot_id` | 更新 Bot 信息 | [2.4 更新 Bot](#api-bots-update) |
 | Bot | `DELETE /api/v1/bots/:bot_id` | 删除 Bot | [2.5 删除 Bot](#api-bots-delete) |
+| Bot | `GET /api/v1/bots/search?bot_id=b_xxx` | 按编号精确搜索 Bot | [2.6 按编号搜索 Bot](#api-bots-search) |
 | 群聊 | `POST /api/v1/groups` | 创建群并可选拉 Bot 入群 | [3.1 创建群](#api-groups-create) |
 | 群聊 | `GET /api/v1/groups` | 查询当前用户可见群 | [3.2 查询当前用户可见的群](#api-groups-list) |
 | 群聊 | `GET /api/v1/groups/:group_id` | 获取群详情 | [3.3 获取群详情](#api-groups-get) |
@@ -41,6 +42,8 @@
 | 群聊 | `DELETE /api/v1/groups/:group_id/members/:bot_id` | 从群中移除指定 Bot | [3.6 移除指定 Bot](#api-groups-remove-member) |
 | 群聊 | `GET /api/v1/groups/:group_id/members` | 查询群成员 | [3.7 查询群成员](#api-groups-members) |
 | 群聊 | `DELETE /api/v1/groups/:group_id` | 删除群 | [3.8 删除群](#api-groups-delete) |
+| 群聊 | `GET /api/v1/groups/search?group_code=TECH` | 按群号前缀搜索群 | [3.9 按群号前缀搜索群](#api-groups-search) |
+| 群聊 | `PUT /api/v1/groups/:group_id` | 更新群信息 | [3.10 更新群](#api-groups-update) |
 | 消息 | `POST /api/v1/message/send` | 发送消息（支持幂等） | [4.1 发送消息](#api-message-send) |
 | 消息 | `GET /api/v1/groups/:group_id/messages` | 拉取群消息历史 | [4.2 拉取群消息](#api-groups-messages) |
 | 文件 | `POST /api/v1/file/upload` | 上传文件 | [5.1 上传文件](#api-file-upload) |
@@ -294,6 +297,33 @@
 }
 ```
 
+<a id="api-bots-search"></a>
+### 2.6 按编号搜索 Bot
+
+`GET /api/v1/bots/search?bot_id=b_xxx`
+
+说明：
+
+- 需要 user token
+- `bot_id` 为精确匹配（非前缀匹配）
+- 找到返回单元素数组，未找到返回空数组
+
+响应：
+
+```json
+{
+  "bots": [
+    {
+      "bot_id": "b_xxx",
+      "owner_id": "u_xxx",
+      "name": "客服 Bot",
+      "avatar_url": "https://example.com/avatar.png",
+      "status": "active"
+    }
+  ]
+}
+```
+
 ## 3. 群聊接口
 
 <a id="api-groups-create"></a>
@@ -329,6 +359,7 @@
   "creator_id": "u_xxx",
   "name": "技术讨论组",
   "description": "讨论技术问题",
+  "avatar_url": "https://example.com/group.png",
   "status": "active",
   "created_at": "2026-03-20T10:00:00Z",
   "updated_at": "2026-03-20T10:00:00Z"
@@ -357,6 +388,7 @@
       "creator_id": "u_xxx",
       "name": "技术讨论组",
       "description": "讨论技术问题",
+      "avatar_url": "https://example.com/group.png",
       "status": "active",
       "created_at": "2026-03-20T10:00:00Z",
       "updated_at": "2026-03-20T10:00:00Z"
@@ -402,7 +434,9 @@
 
 - `group_id` 与 `group_code` 至少提供一个
 - `bot_id` 可选；省略时后端会选择当前用户最早创建的活跃 Bot
-- 只能操作自己名下的 Bot；超级管理员可代管
+- 允许以下任一条件时邀请指定 Bot 入群：
+  - 当前用户是该 Bot 的所有者（超级管理员可代管）
+  - 当前用户是该群创建者（可邀请其他用户的 Bot）
 
 响应：
 
@@ -500,6 +534,75 @@
 {
   "message": "Group deleted successfully",
   "group_id": "g_xxx"
+}
+```
+
+<a id="api-groups-search"></a>
+### 3.9 按群号前缀搜索群
+
+`GET /api/v1/groups/search?group_code=TECH`
+
+说明：
+
+- 当前实现为公开接口
+- `group_code` 必填，按前缀匹配（`LIKE prefix%`）
+
+响应：
+
+```json
+{
+  "groups": [
+    {
+      "group_id": "g_xxx",
+      "group_code": "TECH001",
+      "creator_id": "u_xxx",
+      "name": "技术讨论组",
+      "description": "讨论技术问题",
+      "avatar_url": "https://example.com/group.png",
+      "status": "active",
+      "created_at": "2026-03-20T10:00:00Z",
+      "updated_at": "2026-03-20T10:00:00Z"
+    }
+  ]
+}
+```
+
+<a id="api-groups-update"></a>
+### 3.10 更新群
+
+`PUT /api/v1/groups/:group_id`
+
+请求：
+
+```json
+{
+  "name": "新群名",
+  "description": "新简介",
+  "group_code": "TECH002",
+  "avatar_url": "https://example.com/new-group.png"
+}
+```
+
+规则：
+
+- `name` 必填且不能为空
+- `group_code` 可选；若传空字符串会被视为不设置
+- `group_code` 若与其他群重复会返回 `400`
+- 仅群创建者可编辑；超级管理员可代管
+
+响应：
+
+```json
+{
+  "group_id": "g_xxx",
+  "group_code": "TECH002",
+  "creator_id": "u_xxx",
+  "name": "新群名",
+  "description": "新简介",
+  "avatar_url": "https://example.com/new-group.png",
+  "status": "active",
+  "created_at": "2026-03-20T10:00:00Z",
+  "updated_at": "2026-03-20T11:00:00Z"
 }
 ```
 

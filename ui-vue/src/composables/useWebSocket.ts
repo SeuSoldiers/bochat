@@ -12,6 +12,31 @@ export function useWebSocket(token: Ref<string | null>) {
 
   const chatStore = useChatStore()
 
+  const asMessagePayload = (payload: unknown): Message | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null
+    }
+
+    const candidate = payload as Record<string, unknown>
+
+    if ('msg_id' in candidate && 'group_id' in candidate && 'sender_id' in candidate) {
+      return candidate as unknown as Message
+    }
+
+    if (candidate.message && typeof candidate.message === 'object') {
+      return candidate.message as Message
+    }
+
+    if (candidate.data && typeof candidate.data === 'object') {
+      const data = candidate.data as Record<string, unknown>
+      if ('msg_id' in data && 'group_id' in data && 'sender_id' in data) {
+        return data as unknown as Message
+      }
+    }
+
+    return null
+  }
+
   const connect = () => {
     if (!token.value) {
       return
@@ -29,9 +54,19 @@ export function useWebSocket(token: Ref<string | null>) {
     }
 
     ws.value.onmessage = (event) => {
-      const message = JSON.parse(event.data) as WebSocketMessage
-      if (message.type === 'message') {
-        chatStore.addWebSocketMessage(message.payload as Message)
+      try {
+        const message = JSON.parse(event.data) as WebSocketMessage
+        if (message.type !== 'message') {
+          return
+        }
+
+        const payload = asMessagePayload(message.payload)
+        if (!payload) {
+          return
+        }
+        chatStore.addWebSocketMessage(payload)
+      } catch (error) {
+        console.warn('Invalid WebSocket message payload:', error)
       }
     }
 

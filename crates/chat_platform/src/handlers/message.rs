@@ -13,7 +13,7 @@ use crate::repositories::{
     MessageWithSenderRow, NewMessage,
 };
 use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
-use crate::services::FileService;
+use crate::services::MessageService;
 use crate::ws::WsEvent;
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -103,7 +103,7 @@ pub async fn send_message(
     if let Some(existing_message) = existing_message {
         let existing_content = serde_json::from_str(&existing_message.content)
             .unwrap_or_else(|_| serde_json::Value::String(existing_message.content.clone()));
-        FileService::on_message_saved(
+        MessageService::on_message_persisted(
             &state.pool,
             existing_message.msg_id,
             &existing_message.msg_type,
@@ -162,7 +162,7 @@ pub async fn send_message(
         "msg_type": inserted_message.msg_type,
         "created_at": inserted_message.created_at,
     });
-    FileService::on_message_saved(
+    MessageService::on_message_persisted(
         &state.pool,
         inserted_message.msg_id,
         &inserted_message.msg_type,

@@ -66,7 +66,11 @@ pub async fn authenticate_user_headers(state: &AppState, headers: &HeaderMap) ->
 
 pub async fn authenticate_bot_headers(state: &AppState, headers: &HeaderMap) -> AppResult<BotAuth> {
     let token = require_bot_bearer_token(headers)?;
-    let bot_id = token_bot_id(&token)
+    authenticate_bot_token(state, &token).await
+}
+
+pub async fn authenticate_bot_token(state: &AppState, token: &str) -> AppResult<BotAuth> {
+    let bot_id = token_bot_id(token)
         .map(str::to_string)
         .map_err(|_| AppError::InvalidBotToken)?;
 
@@ -74,7 +78,7 @@ pub async fn authenticate_bot_headers(state: &AppState, headers: &HeaderMap) -> 
         .await?
         .ok_or(AppError::InvalidBotToken)?;
 
-    verify_token(&token, &bot.secret, state.config.security.token_expiry_secs)
+    verify_token(token, &bot.secret, state.config.security.token_expiry_secs)
         .map_err(|_| AppError::InvalidBotToken)?;
 
     if bot.status != "active" {
