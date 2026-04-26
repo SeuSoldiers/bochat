@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct File {
@@ -32,7 +33,8 @@ pub struct FileResponse {
 
 impl From<File> for FileResponse {
     fn from(file: File) -> Self {
-        let url = format!("/api/v1/file/download/{}/{}", file.file_id, file.filename);
+        let encoded_filename = utf8_percent_encode(&file.filename, NON_ALPHANUMERIC).to_string();
+        let url = format!("/api/v1/file/download/{}/{}", file.file_id, encoded_filename);
         FileResponse {
             file_id: file.file_id,
             filename: file.filename,

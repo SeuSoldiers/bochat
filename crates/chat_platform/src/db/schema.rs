@@ -186,7 +186,7 @@ pub async fn init_schema(pool: &PgPool) -> AppResult<()> {
             owner_id TEXT NOT NULL,
             content_hash TEXT,
             filename TEXT NOT NULL,
-            size INTEGER NOT NULL,
+            size BIGINT NOT NULL,
             mime_type TEXT NOT NULL,
             storage_path TEXT NOT NULL,
             created_at TEXT,

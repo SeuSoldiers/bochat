@@ -161,6 +161,7 @@ name = "bochat_sdk"
 version = "0.1.0"
 dependencies = [
  "futures-util",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",
@@ -218,6 +219,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hmac",
+ "percent-encoding",
  "redis",
  "serde",
  "serde_json",

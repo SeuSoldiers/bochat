@@ -1,5 +1,6 @@
 use reqwest::Method;
 use reqwest::multipart::{Form, Part};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::client::{AuthKind, BochatClient};
 use crate::error::{SdkError, SdkResult};
@@ -70,11 +71,12 @@ impl FilesApi {
     ///
     /// 当前后端要求下载路径中同时带上 `file_id` 和 `filename`。
     pub fn download_url(&self, file_id: &str, filename: &str) -> String {
+        let escaped = utf8_percent_encode(filename, NON_ALPHANUMERIC).to_string();
         format!(
             "{}/api/v1/file/download/{}/{}",
             self.client.base_url(),
             file_id,
-            filename
+            escaped
         )
     }
 

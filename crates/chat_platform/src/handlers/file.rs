@@ -3,6 +3,7 @@ use axum::{
     extract::{Extension, Multipart, Path, State},
     http::{header, Response, StatusCode},
 };
+use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
@@ -110,10 +111,7 @@ pub async fn upload_file(
         )
         .await?;
 
-        let file_url = format!(
-            "{}://{}/api/v1/file/download/{}/{}",
-            scheme, host, existing_file.file_id, existing_file.filename
-        );
+        let file_url = build_download_url(&scheme, &host, &existing_file.file_id, &existing_file.filename);
 
         tracing::trace!(
             "文件复用命中: bot_id={}, existing_file_id={}, sha256={}",
@@ -171,10 +169,7 @@ pub async fn upload_file(
     )
     .await?;
 
-    let file_url = format!(
-        "{}://{}/api/v1/file/download/{}/{}",
-        scheme, host, file_id, filename
-    );
+    let file_url = build_download_url(&scheme, &host, &file_id, &filename);
 
     tracing::trace!(
         "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
@@ -208,17 +203,23 @@ pub async fn download_file(
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-    if requested_filename != file.filename {
+    let normalized_requested_filename = decode_filename_segment(&requested_filename);
+    if normalized_requested_filename != file.filename {
         return Err(AppError::BadRequest("文件名不匹配".to_string()));
     }
 
+    let content_type = normalize_content_type(&file.mime_type);
+    let encoded_filename = encode_filename_segment(&file.filename);
+    let ascii_fallback = ascii_fallback_filename(&file.filename);
+    let content_disposition = format!(
+        "inline; filename=\"{}\"; filename*=UTF-8''{}",
+        ascii_fallback, encoded_filename
+    );
+
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, file.mime_type)
-        .header(
-            header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{}\"", file.filename),
-        )
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CONTENT_DISPOSITION, content_disposition)
         .body(Body::from(bytes))
         .map_err(|e| AppError::InternalError(e.to_string()))
 }
@@ -252,13 +253,77 @@ pub async fn delete_file(
 }
 
 fn sanitize_filename(name: &str) -> String {
-    name.chars()
+    let sanitized: String = name
+        .trim()
+        .chars()
         .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+            if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+
+    if sanitized.trim_matches('.').is_empty() {
+        "upload.bin".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn encode_filename_segment(filename: &str) -> String {
+    utf8_percent_encode(filename, NON_ALPHANUMERIC).to_string()
+}
+
+fn decode_filename_segment(filename: &str) -> String {
+    percent_decode_str(filename).decode_utf8_lossy().into_owned()
+}
+
+fn build_download_url(scheme: &str, host: &str, file_id: &str, filename: &str) -> String {
+    format!(
+        "{}://{}/api/v1/file/download/{}/{}",
+        scheme,
+        host,
+        file_id,
+        encode_filename_segment(filename)
+    )
+}
+
+fn ascii_fallback_filename(filename: &str) -> String {
+    let fallback: String = filename
+        .chars()
+        .map(|c| {
+            if c.is_ascii() && !matches!(c, '"' | '\\' | '\r' | '\n') {
                 c
             } else {
                 '_'
             }
         })
-        .collect()
+        .collect();
+
+    if fallback.trim_matches('.').is_empty() {
+        "file.bin".to_string()
+    } else {
+        fallback
+    }
+}
+
+fn normalize_content_type(mime_type: &str) -> String {
+    let lower = mime_type.to_ascii_lowercase();
+    let has_charset = lower.contains("charset=");
+
+    let is_textual = lower.starts_with("text/")
+        || lower == "application/json"
+        || lower == "application/javascript"
+        || lower == "application/xml"
+        || lower == "application/xhtml+xml"
+        || lower == "application/markdown"
+        || lower == "text/markdown";
+
+    if is_textual && !has_charset {
+        format!("{mime_type}; charset=utf-8")
+    } else {
+        mime_type.to_string()
+    }
 }
