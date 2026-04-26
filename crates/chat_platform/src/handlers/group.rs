@@ -7,7 +7,9 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::models::{CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest};
+use crate::models::{
+    CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest, UpdateGroupRequest,
+};
 use crate::repositories::{
     BotRepository, GroupMemberLink, GroupMessagesQuery as RepoGroupMessagesQuery, GroupMessagesRow,
     GroupRepository, NewGroup, NewGroupMember,
@@ -32,6 +34,11 @@ pub struct GroupMessagesQuery {
 #[derive(Debug, Deserialize)]
 pub struct LeaveGroupQuery {
     pub bot_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchGroupQuery {
+    pub group_code: String,
 }
 
 /// 创建新群聊（仅用户可创建）
@@ -114,6 +121,7 @@ pub async fn create_group(
         creator_id: &user_id,
         name: &req.name,
         description: req.description.as_deref(),
+        avatar_url: req.avatar_url.as_deref(),
         status: "active",
         now: &now,
     };
@@ -157,6 +165,7 @@ pub async fn create_group(
             "creator_id": user_id,
             "name": req.name,
             "description": req.description,
+            "avatar_url": req.avatar_url,
             "status": "active",
             "created_at": now,
             "updated_at": now,
@@ -212,6 +221,29 @@ pub async fn list_user_groups(
     ))
 }
 
+/// 按群号前缀搜索群信息
+#[tracing::instrument(skip_all)]
+pub async fn search_group_by_code(
+    State(state): State<AppState>,
+    Query(query): Query<SearchGroupQuery>,
+) -> AppResult<Response> {
+    let group_code = query.group_code.trim();
+    if group_code.is_empty() {
+        return Err(AppError::BadRequest("群号不能为空".to_string()));
+    }
+
+    let groups: Vec<crate::models::Group> =
+        GroupRepository::find_by_code_prefix(&state.pool, group_code).await?;
+
+    let responses: Vec<GroupResponse> = groups.into_iter().map(|group| group.into()).collect();
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "groups": responses,
+        }),
+    ))
+}
+
 /// Get group details
 #[tracing::instrument(skip_all)]
 pub async fn get_group(
@@ -224,6 +256,75 @@ pub async fn get_group(
 
     let response: GroupResponse = group.into();
     Ok(json_response(StatusCode::OK, response))
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn update_group(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+    Path(group_id): Path<String>,
+    Json(req): Json<UpdateGroupRequest>,
+) -> AppResult<Response> {
+    let requester_user_id = auth.user_id;
+
+    let target_group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id)
+        .await?
+        .ok_or(AppError::BadRequest("Group not found".to_string()))?;
+
+    if !can_manage_target_user(&state.pool, &requester_user_id, &target_group.creator_id).await? {
+        return Err(AppError::Forbidden("只有群创建者才能编辑该群".to_string()));
+    }
+
+    let next_name = req.name.trim();
+    if next_name.is_empty() {
+        return Err(AppError::BadRequest("群名称是必需的".to_string()));
+    }
+
+    let next_group_code = req
+        .group_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if let Some(code) = next_group_code {
+        if let Some(existing_group_id) = GroupRepository::find_group_id_by_code(&state.pool, code).await? {
+            if existing_group_id != group_id {
+                return Err(AppError::BadRequest("群号已存在".to_string()));
+            }
+        }
+    }
+
+    let next_description = req
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let next_avatar_url = req
+        .avatar_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let now = chrono::Utc::now().to_rfc3339();
+
+    GroupRepository::update_profile(
+        &state.pool,
+        &group_id,
+        next_name,
+        next_group_code,
+        next_description,
+        next_avatar_url,
+        &now,
+    )
+    .await?;
+
+    let updated_group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id)
+        .await?
+        .ok_or(AppError::BadRequest("Group not found".to_string()))?;
+
+    Ok(json_response(
+        StatusCode::OK,
+        GroupResponse::from(updated_group),
+    ))
 }
 
 /// Join a bot to a group (支持群ID或群号)
@@ -251,40 +352,6 @@ pub async fn join_group(
     let requester_user_id = auth.user_id;
     tracing::debug!("从 token 解析出请求者用户 ID: {}", requester_user_id);
 
-    let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
-        let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, bot_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("查询目标 Bot 时数据库错误: {}", e);
-                e
-            })?
-            .ok_or_else(|| {
-                tracing::warn!("目标 Bot 不存在: {}", bot_id);
-                AppError::BotNotFound
-            })?;
-
-        if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
-            tracing::warn!(
-                "加入群聊失败: 目标 Bot 不属于当前用户, owner_id={}, requester_owner={}",
-                target_bot.owner_id,
-                requester_user_id
-            );
-            return Err(AppError::BotOwnershipMismatch);
-        }
-
-        if target_bot.status != "active" {
-            tracing::warn!("加入群聊失败: 目标 Bot 未激活: {}", target_bot.bot_id);
-            return Err(AppError::BotInactive);
-        }
-
-        target_bot.bot_id
-    } else {
-        let default_bot_id: Option<String> =
-            BotRepository::find_default_active_bot_id(&state.pool, &requester_user_id).await?;
-
-        default_bot_id.ok_or(AppError::NoAvailableBot)?
-    };
-
     // 查找群聊
     let group_id_str = if let Some(ref gid) = req.group_id {
         tracing::debug!("使用 group_id 查找群聊: {}", gid);
@@ -308,18 +375,58 @@ pub async fn join_group(
 
     tracing::debug!("群聊 ID: {}", group_id_str);
 
-    // Verify group exists
-    let group_exists: bool = GroupRepository::exists(&state.pool, &group_id_str)
+    let target_group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id_str)
         .await
         .map_err(|e| {
-            tracing::error!("验证群聊存在时数据库错误: {}", e);
+            tracing::error!("查询群聊时数据库错误: {}", e);
             e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("群聊不存在: {}", group_id_str);
+            AppError::BadRequest("群聊不存在".to_string())
         })?;
 
-    if !group_exists {
-        tracing::warn!("群聊不存在: {}", group_id_str);
-        return Err(AppError::BadRequest("群聊不存在".to_string()));
-    }
+    let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
+        let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, bot_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询目标 Bot 时数据库错误: {}", e);
+                e
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("目标 Bot 不存在: {}", bot_id);
+                AppError::BotNotFound
+            })?;
+
+        let is_target_bot_owner =
+            can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await?;
+        let can_invite_to_group =
+            can_manage_target_user(&state.pool, &requester_user_id, &target_group.creator_id).await?;
+
+        if !is_target_bot_owner && !can_invite_to_group {
+            tracing::warn!(
+                "加入群聊失败: 既不是 Bot 所有者也不是群创建者, bot_owner={}, group_creator={}, requester={}",
+                target_bot.owner_id,
+                target_group.creator_id,
+                requester_user_id
+            );
+            return Err(AppError::Forbidden(
+                "只能邀请自己的 Bot，或由群创建者邀请其他 Bot".to_string(),
+            ));
+        }
+
+        if target_bot.status != "active" {
+            tracing::warn!("加入群聊失败: 目标 Bot 未激活: {}", target_bot.bot_id);
+            return Err(AppError::BotInactive);
+        }
+
+        target_bot.bot_id
+    } else {
+        let default_bot_id: Option<String> =
+            BotRepository::find_default_active_bot_id(&state.pool, &requester_user_id).await?;
+
+        default_bot_id.ok_or(AppError::NoAvailableBot)?
+    };
 
     let now = chrono::Utc::now().to_rfc3339();
 

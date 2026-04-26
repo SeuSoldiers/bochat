@@ -9,17 +9,38 @@
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="form-group">
           <label for="edit-bot-name">机器人名称</label>
-          <input id="edit-bot-name" v-model="form.name" type="text" maxlength="50" required :disabled="loading" />
+          <input
+            id="edit-bot-name"
+            v-model="form.name"
+            type="text"
+            maxlength="50"
+            required
+            placeholder="请输入机器人名称"
+            :disabled="loading"
+          />
         </div>
 
         <div class="form-group">
-          <label for="edit-bot-description">描述</label>
-          <textarea id="edit-bot-description" v-model="form.description" rows="3" maxlength="200" :disabled="loading" />
+          <label for="edit-bot-description">简介（可选）</label>
+          <textarea
+            id="edit-bot-description"
+            v-model="form.description"
+            rows="3"
+            maxlength="200"
+            placeholder="请输入机器人简介"
+            :disabled="loading"
+          />
         </div>
 
         <div class="form-group">
-          <label for="edit-bot-avatar-url">头像链接</label>
-          <input id="edit-bot-avatar-url" v-model="form.avatarUrl" type="url" :disabled="loading || uploading" />
+          <label for="edit-bot-avatar-url">头像链接（可选）</label>
+          <input
+            id="edit-bot-avatar-url"
+            v-model="form.avatarUrl"
+            type="url"
+            placeholder="请输入头像链接"
+            :disabled="loading || uploading"
+          />
           <div v-if="form.avatarUrl" class="avatar-preview">
             <img :src="form.avatarUrl" alt="机器人头像预览" />
           </div>
@@ -29,7 +50,7 @@
               {{ uploading ? '上传中...' : '上传头像' }}
             </button>
           </div>
-          <p class="help-text">可以直接填写链接，也可以先上传文件再自动回填链接</p>
+          <p class="help-text">可直接填写链接，或上传后自动回填</p>
         </div>
 
         <div v-if="error" class="error-message">{{ error }}</div>
@@ -125,62 +146,104 @@ const handleFileChange = async (event: Event) => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 16px;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 8px;
   width: 100%;
-  max-width: 520px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.modal-header,
-.modal-form {
-  padding: 20px;
+  max-width: 540px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #d4cfc8;
+  padding: 16px 18px;
+  border-bottom: 1px solid #d0d0d0;
 }
 
-.close-btn,
-.btn-upload,
-.btn-cancel,
-.btn-submit {
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
+.modal-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2f2f2f;
+  margin: 0;
 }
 
 .close-btn {
-  background: none;
+  background: transparent;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
   font-size: 20px;
+  color: #6f6f6f;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.close-btn:hover {
+  background: #eaeaea;
+  color: #2f2f2f;
+}
+
+.modal-form {
+  padding: 16px 18px 18px;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #4f4f4f;
+  font-weight: 600;
 }
 
 .form-group input,
 .form-group textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #d4cfc8;
+  padding: 10px 11px;
+  border: 1px solid #d0d0d0;
   border-radius: 6px;
+  font-size: 14px;
+  color: #2f2f2f;
+  background: #f7f7f7;
+  transition: var(--transition-base);
+}
+
+.form-group textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #8f8f8f;
+  box-shadow: 0 0 0 3px rgba(120, 120, 120, 0.12);
+}
+
+.form-group input:disabled,
+.form-group textarea:disabled {
+  background-color: #f0f0f0;
+  color: #9a9a9a;
+  cursor: not-allowed;
 }
 
 .avatar-preview {
   width: 64px;
   height: 64px;
-  margin-bottom: 10px;
+  margin-top: 8px;
   border-radius: 50%;
   overflow: hidden;
-  background: #f5f3f1;
+  background: #ebebeb;
 }
 
 .avatar-preview img {
@@ -199,38 +262,74 @@ const handleFileChange = async (event: Event) => {
 
 .btn-upload {
   padding: 8px 12px;
-  background-color: #d4cfc8;
-  color: #4a4a4a;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #efefef;
+  color: #2f2f2f;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.btn-upload:hover:not(:disabled) {
+  background: #e7e7e7;
 }
 
 .help-text {
-  margin-top: 8px;
+  margin-top: 4px;
   font-size: 12px;
-  color: #888888;
+  color: #767676;
 }
 
 .error-message {
-  padding: 10px 12px;
-  background-color: #f5e6e6;
-  color: #a88b7f;
+  margin-bottom: 14px;
+  padding: 9px 11px;
+  border: 1px solid #e0b7b7;
   border-radius: 6px;
-  margin-bottom: 16px;
+  background-color: #f3e7e7;
+  color: #9b3c3c;
+  font-size: 12px;
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+}
+
+.form-actions button {
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-base);
 }
 
 .btn-cancel {
-  padding: 10px 16px;
-  background-color: #d4cfc8;
+  border-color: #d0d0d0;
+  background: #efefef;
+  color: #2f2f2f;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: #e7e7e7;
 }
 
 .btn-submit {
-  padding: 10px 16px;
-  background-color: #8b9d83;
-  color: white;
+  border-color: #2f2f2f;
+  background: #2f2f2f;
+  color: #f3f3f3;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: #454545;
+}
+
+.btn-cancel:disabled,
+.btn-submit:disabled,
+.btn-upload:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

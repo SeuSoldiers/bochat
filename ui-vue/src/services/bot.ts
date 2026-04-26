@@ -3,7 +3,7 @@
  */
 
 import { apiClient, unwrapCollectionResponse } from './api'
-import type { Bot, CreateBotRequest, UpdateBotRequest } from '@/types'
+import type { Bot, BotSearchItem, CreateBotRequest, UpdateBotRequest } from '@/types'
 
 /**
  * 获取 Bot 列表
@@ -29,6 +29,13 @@ export async function createBot(data: CreateBotRequest) {
 
 export async function updateBot(botId: string, data: UpdateBotRequest) {
   return apiClient.put<Bot>(`/bots/${botId}`, data)
+}
+
+export async function searchBotById(botId: string) {
+  const response = await apiClient.get<BotSearchItem[] | { bots: BotSearchItem[] }>(
+    `/bots/search?bot_id=${encodeURIComponent(botId)}`
+  )
+  return unwrapCollectionResponse(response)
 }
 
 /**

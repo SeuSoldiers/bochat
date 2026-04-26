@@ -86,3 +86,24 @@ impl From<Bot> for BotResponse {
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BotSearchResponse {
+    pub bot_id: String,
+    pub owner_id: String,
+    pub name: String,
+    pub avatar_url: Option<String>,
+    pub status: String,
+}
+
+impl From<Bot> for BotSearchResponse {
+    fn from(bot: Bot) -> Self {
+        BotSearchResponse {
+            bot_id: bot.bot_id,
+            owner_id: bot.owner_id,
+            name: bot.name,
+            avatar_url: bot.avatar_url,
+            status: bot.status,
+        }
+    }
+}

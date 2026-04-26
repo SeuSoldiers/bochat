@@ -1,13 +1,14 @@
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::Response,
     Json,
 };
+use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::models::{BotResponse, CreateBotRequest, UpdateBotRequest};
+use crate::models::{BotResponse, BotSearchResponse, CreateBotRequest, UpdateBotRequest};
 use crate::repositories::{BotRepository, NewBot};
 use crate::services::authz::{can_manage_target_user, user_is_super_admin};
 use crate::services::FileService;
@@ -17,6 +18,11 @@ use crate::{
     middlewares::UserAuth,
     AppState,
 };
+
+#[derive(Debug, Deserialize)]
+pub struct SearchBotQuery {
+    pub bot_id: String,
+}
 
 /// 为已认证的用户创建新 Bot
 ///
@@ -189,6 +195,31 @@ pub async fn get_bot(
 
     let response: BotResponse = bot.into();
     Ok(json_response(StatusCode::OK, response))
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn search_bot_by_id(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<UserAuth>,
+    Query(query): Query<SearchBotQuery>,
+) -> AppResult<Response> {
+    let bot_id = query.bot_id.trim();
+    if bot_id.is_empty() {
+        return Err(AppError::BadRequest("Bot 编号不能为空".to_string()));
+    }
+
+    let bot = BotRepository::find_by_id(&state.pool, bot_id).await?;
+    let bots = bot
+        .map(BotSearchResponse::from)
+        .map(|item| vec![item])
+        .unwrap_or_default();
+
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "bots": bots,
+        }),
+    ))
 }
 
 /// 删除 Bot（仅所有者可删除）

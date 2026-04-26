@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 use tower_http::cors::CorsLayer;
@@ -33,6 +33,7 @@ pub fn app_router(state: AppState) -> Router {
         .route("/api/v1/auth/register", post(handlers::register))
         .route("/api/v1/auth/login", post(handlers::login))
         .route("/api/v1/bots/{bot_id}", get(handlers::get_bot))
+        .route("/api/v1/groups/search", get(handlers::search_group_by_code))
         .route("/api/v1/groups/{group_id}", get(handlers::get_group))
         .route(
             "/api/v1/file/download/{file_id}/{filename}",
@@ -49,6 +50,7 @@ pub fn app_router(state: AppState) -> Router {
             "/api/v1/bots",
             post(handlers::create_bot).get(handlers::list_bots),
         )
+        .route("/api/v1/bots/search", get(handlers::search_bot_by_id))
         .route(
             "/api/v1/bots/{bot_id}",
             axum::routing::put(handlers::update_bot).delete(handlers::delete_bot),
@@ -59,7 +61,7 @@ pub fn app_router(state: AppState) -> Router {
         )
         .route(
             "/api/v1/groups/{group_id}",
-            delete(handlers::delete_group),
+            put(handlers::update_group).delete(handlers::delete_group),
         )
         .route("/api/v1/groups/join", post(handlers::join_group))
         .route(

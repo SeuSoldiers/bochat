@@ -12,13 +12,25 @@
           />
 
           <div v-if="groupStore.selectedGroup" class="group-summary">
-            <div class="group-info">
-              <h3>{{ groupStore.selectedGroup.name }}</h3>
-              <p>群号：{{ groupStore.selectedGroup.group_code || '未设置' }}</p>
+            <div class="group-avatar-wrap">
+              <img
+                v-if="groupStore.selectedGroup.avatar_url"
+                :src="groupStore.selectedGroup.avatar_url"
+                :alt="groupStore.selectedGroup.name"
+                class="group-avatar"
+              />
+              <div v-else class="group-avatar fallback">{{ groupStore.selectedGroup.name.charAt(0) }}</div>
             </div>
-            <button class="view-members-btn" @click="openMembersModal">
-              群成员
-            </button>
+            <div class="group-center">
+              <h3>{{ groupStore.selectedGroup.name }}</h3>
+              <p class="profile-desc">{{ groupStore.selectedGroup.description || '暂无群简介' }}</p>
+            </div>
+            <div class="group-right">
+              <button class="view-members-btn" @click="openMembersModal">
+                群成员
+              </button>
+              <p class="group-number">群号：{{ groupStore.selectedGroup.group_code || '未设置' }}</p>
+            </div>
           </div>
         </div>
 
@@ -297,20 +309,65 @@ const openBotInfo = async (botId: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 15px 18px;
   background: #f5f5f5;
   border-radius: 8px;
   border: 1px solid #d0d0d0;
 }
 
-.group-info h3 {
+.group-center {
+  min-width: 0;
+  flex: 1;
+}
+
+.group-avatar-wrap {
+  flex-shrink: 0;
+}
+
+.group-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #ebebeb;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2f2f2f;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.group-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.profile-desc {
+  margin: 0;
+  color: #2f2f2f;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-center h3 {
   font-size: 18px;
   font-weight: 700;
   color: #1f1f1f;
   margin: 0 0 4px 0;
 }
 
-.group-info p {
+.group-number {
   font-size: 12px;
   color: #5f5f5f;
   margin: 0;
@@ -391,8 +448,13 @@ const openBotInfo = async (botId: string) => {
 
   .group-summary {
     flex-direction: column;
-    align-items: flex-start;
     gap: 10px;
+    align-items: flex-start;
+  }
+
+  .group-right {
+    width: 100%;
+    align-items: stretch;
   }
 
   .view-members-btn {

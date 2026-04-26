@@ -4,9 +4,18 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getGroupList, createGroup, deleteGroup, getGroupMembers, joinGroup, getGroup, removeGroupMember } from '@/services/group'
+import {
+  getGroupList,
+  createGroup,
+  deleteGroup,
+  getGroupMembers,
+  joinGroup,
+  getGroup,
+  removeGroupMember,
+  updateGroup,
+} from '@/services/group'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
-import type { Group, CreateGroupRequest, GroupMember } from '@/types'
+import type { Group, CreateGroupRequest, UpdateGroupRequest, GroupMember } from '@/types'
 import { getErrorMessage } from '@/utils/error'
 
 export const useGroupStore = defineStore('groups', () => {
@@ -106,6 +115,25 @@ export const useGroupStore = defineStore('groups', () => {
   }
 
   // 方法：更新群信息
+  const updateGroupInfo = async (groupId: string, data: UpdateGroupRequest) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const updatedGroup = await updateGroup(groupId, data)
+      const index = groups.value.findIndex((group) => group.group_id === groupId)
+      if (index >= 0) {
+        groups.value[index] = updatedGroup
+      }
+      return updatedGroup
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '更新群信息失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 方法：获取群成员
   const fetchGroupMembers = async (groupId: string) => {
     loading.value = true
@@ -139,6 +167,27 @@ export const useGroupStore = defineStore('groups', () => {
 
     try {
       const result = await joinGroup({ groupCode: groupNumber, botId })
+      const joinedGroup = await getGroup(result.group_id)
+
+      if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
+        groups.value.unshift(joinedGroup)
+      }
+
+      return joinedGroup
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '加入群失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const joinGroupById = async (groupId: string, botId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const result = await joinGroup({ groupId, botId })
       const joinedGroup = await getGroup(result.group_id)
 
       if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
@@ -209,9 +258,11 @@ export const useGroupStore = defineStore('groups', () => {
     fetchGroups,
     addGroup,
     removeGroupById,
+    updateGroupInfo,
     fetchGroupMembers,
     selectGroup,
     joinGroupByNumber,
+    joinGroupById,
     addBotToGroup,
     removeBotFromGroup,
     clearError,

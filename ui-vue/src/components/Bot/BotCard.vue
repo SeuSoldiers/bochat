@@ -14,6 +14,13 @@
         </div>
       </div>
       <div class="card-actions">
+        <button class="action-btn join-btn" @click.stop="$emit('join-group')">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M8 12h8" />
+            <path d="M12 8v8" />
+            <path d="M5 5.5h14A1.5 1.5 0 0 1 20.5 7v10a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 17V7A1.5 1.5 0 0 1 5 5.5Z" />
+          </svg>
+        </button>
         <button class="action-btn edit-btn" @click.stop="$emit('edit')">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="m4 20 4.3-.8L19 8.6 15.4 5 4.8 15.6 4 20Z" />
@@ -133,6 +140,7 @@ const props = defineProps<{
 defineEmits<{
   select: []
   edit: []
+  'join-group': []
   delete: []
 }>()
 
@@ -287,6 +295,10 @@ const copyValue = async (value: string, label: string) => {
 
 .delete-btn {
   color: #f0413e;
+}
+
+.join-btn {
+  color: #2f2f2f;
 }
 
 .bot-description {

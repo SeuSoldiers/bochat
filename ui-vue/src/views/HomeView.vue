@@ -8,83 +8,7 @@
           {{ actionError }}
         </div>
 
-        <div class="page-topbar">
-          <div class="page-tabs">
-            <button
-              :class="['page-tab', { active: activeTab === 'bots' }]"
-              @click="activeTab = 'bots'"
-            >
-              机器人控制台
-            </button>
-            <button
-              :class="['page-tab', { active: activeTab === 'groups' }]"
-              @click="activeTab = 'groups'"
-            >
-              群组空间
-            </button>
-          </div>
-
-          <div class="topbar-actions">
-            <button
-              v-if="activeTab === 'bots'"
-              class="btn btn-primary"
-              @click="showCreateBotModal = true"
-            >
-              + 新建机器人
-            </button>
-            <div v-else class="actions">
-              <button class="btn btn-primary" @click="showCreateGroupModal = true">
-                + 新建群组
-              </button>
-              <button class="btn btn-secondary" @click="showJoinGroupModal = true">
-                加入群组
-              </button>
-            </div>
-          </div>
-        </div>
-
         <section v-if="activeTab === 'bots'" class="tab-content">
-          <div class="stats-panel">
-            <div class="stat-item">
-              <div class="stat-icon icon-bot">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <rect x="5" y="7" width="14" height="12" rx="3" />
-                  <path d="M12 4v3M9 12h.01M15 12h.01M9 16h6" />
-                </svg>
-              </div>
-              <div class="stat-meta">
-                <p>机器人总数</p>
-                <strong>{{ botStore.bots.length }}</strong>
-              </div>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <div class="stat-icon icon-running">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="m8.7 12.3 2.2 2.2 4.4-4.4" />
-                </svg>
-              </div>
-              <div class="stat-meta">
-                <p>运行中</p>
-                <strong>{{ runningBotsCount }}</strong>
-              </div>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <div class="stat-icon icon-disabled">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M10.2 8v8M13.8 8v8" />
-                </svg>
-              </div>
-              <div class="stat-meta">
-                <p>已停用</p>
-                <strong>{{ disabledBotsCount }}</strong>
-              </div>
-            </div>
-          </div>
-
           <div v-if="botStore.loading" class="loading">
             加载中...
           </div>
@@ -95,6 +19,7 @@
               :key="bot.bot_id"
               :bot="bot"
               @edit="openEditBot(bot)"
+              @join-group="openJoinGroup(bot)"
               @delete="handleDeleteBot(bot.bot_id)"
             />
           </div>
@@ -115,7 +40,9 @@
               v-for="group in groupStore.groups"
               :key="group.group_id"
               :group="group"
+              :can-edit="group.creator_id === authStore.userId"
               :can-delete="group.creator_id === authStore.userId"
+              @edit="openEditGroup(group)"
               @delete="handleDeleteGroup(group.group_id)"
               @view-members="showGroupMembers(group.group_id)"
             />
@@ -126,6 +53,14 @@
             <p class="text-muted">创建新群或通过群号加入</p>
           </div>
         </section>
+
+        <button
+          class="fab-create-btn"
+          :aria-label="activeTab === 'bots' ? '新建机器人' : '新建群聊'"
+          @click="activeTab === 'bots' ? (showCreateBotModal = true) : (showCreateGroupModal = true)"
+        >
+          <span class="fab-plus" aria-hidden="true">+</span>
+        </button>
       </div>
     </div>
 
@@ -151,10 +86,19 @@
     />
 
     <JoinGroupModal
-      v-if="showJoinGroupModal"
-      :bots="botStore.bots"
+      v-if="showJoinGroupModal && joiningBot"
+      :groups="groupStore.groups"
+      :preselected-bot-id="joiningBot?.bot_id"
       @join="handleJoinGroup"
-      @close="showJoinGroupModal = false"
+      @close="closeJoinGroupModal"
+    />
+
+    <EditGroupModal
+      v-if="showEditGroupModal && editingGroup"
+      :group="editingGroup"
+      :upload-token="botStore.bots[0]?.token"
+      @save="handleEditGroup"
+      @close="closeEditGroupModal"
     />
 
     <MembersModal
@@ -172,6 +116,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useBotStore } from '@/stores/bots'
 import { useGroupStore } from '@/stores/groups'
 import { useAuthStore } from '@/stores/auth'
@@ -181,6 +126,7 @@ import EditBotModal from '@/components/Bot/EditBotModal.vue'
 import GroupCard from '@/components/Group/GroupCard.vue'
 import CreateBotModal from '@/components/Bot/CreateBotModal.vue'
 import CreateGroupModal from '@/components/Group/CreateGroupModal.vue'
+import EditGroupModal from '@/components/Group/EditGroupModal.vue'
 import JoinGroupModal from '@/components/Group/JoinGroupModal.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
 import type { Bot, Group } from '@/types'
@@ -188,22 +134,22 @@ import type { Bot, Group } from '@/types'
 const botStore = useBotStore()
 const groupStore = useGroupStore()
 const authStore = useAuthStore()
+const route = useRoute()
 
-const activeTab = ref<'bots' | 'groups'>('bots')
+const activeTab = computed<'bots' | 'groups'>(() =>
+  route.query.tab === 'groups' ? 'groups' : 'bots'
+)
 const showCreateBotModal = ref(false)
 const showEditBotModal = ref(false)
 const showCreateGroupModal = ref(false)
+const showEditGroupModal = ref(false)
 const showJoinGroupModal = ref(false)
 const showMembersModal = ref(false)
 const editingBot = ref<Bot | null>(null)
+const editingGroup = ref<Group | null>(null)
+const joiningBot = ref<Bot | null>(null)
 const selectedGroupForMembers = ref<Group | null>(null)
 const actionError = ref<string | null>(null)
-const disabledStatuses = new Set(['disabled', 'stopped', 'paused', 'inactive'])
-
-const disabledBotsCount = computed(
-  () => botStore.bots.filter((bot) => disabledStatuses.has(bot.status?.toLowerCase())).length
-)
-const runningBotsCount = computed(() => Math.max(0, botStore.bots.length - disabledBotsCount.value))
 
 // 初始化
 onMounted(() => {
@@ -242,6 +188,16 @@ const openEditBot = (bot: Bot) => {
   showEditBotModal.value = true
 }
 
+const openJoinGroup = (bot: Bot) => {
+  joiningBot.value = bot
+  showJoinGroupModal.value = true
+}
+
+const closeJoinGroupModal = () => {
+  showJoinGroupModal.value = false
+  joiningBot.value = null
+}
+
 const handleEditBot = async (payload: { name: string; description: string; avatarUrl: string }) => {
   if (!editingBot.value) {
     return
@@ -263,10 +219,22 @@ const handleEditBot = async (payload: { name: string; description: string; avata
 }
 
 // 创建群
-const handleCreateGroup = async (groupName: string, groupNumber: string, botId: string) => {
+const handleCreateGroup = async (
+  groupName: string,
+  description: string,
+  groupNumber: string,
+  botId: string,
+  avatarUrl: string
+) => {
   try {
     actionError.value = null
-    await groupStore.addGroup({ name: groupName, group_code: groupNumber, bot_id: botId })
+    await groupStore.addGroup({
+      name: groupName,
+      description: description || undefined,
+      group_code: groupNumber,
+      bot_id: botId,
+      avatar_url: avatarUrl || undefined,
+    })
     showCreateGroupModal.value = false
   } catch (error) {
     actionError.value = groupStore.error || '创建群失败'
@@ -287,12 +255,53 @@ const handleDeleteGroup = async (groupId: string) => {
   }
 }
 
-// 加入群
-const handleJoinGroup = async (groupNumber: string, botId: string) => {
+const openEditGroup = (group: Group) => {
+  editingGroup.value = group
+  showEditGroupModal.value = true
+}
+
+const closeEditGroupModal = () => {
+  showEditGroupModal.value = false
+  editingGroup.value = null
+}
+
+const handleEditGroup = async (payload: {
+  name: string
+  description: string
+  groupCode: string
+  avatarUrl: string
+}) => {
+  if (!editingGroup.value) {
+    return
+  }
+
   try {
     actionError.value = null
-    await groupStore.joinGroupByNumber(groupNumber, botId)
-    showJoinGroupModal.value = false
+    await groupStore.updateGroupInfo(editingGroup.value.group_id, {
+      name: payload.name,
+      description: payload.description || undefined,
+      group_code: payload.groupCode || undefined,
+      avatar_url: payload.avatarUrl || undefined,
+    })
+    closeEditGroupModal()
+  } catch (error) {
+    actionError.value = groupStore.error || '更新群失败'
+    console.error('Failed to update group:', error)
+  }
+}
+
+// 加入群
+const handleJoinGroup = async (payload: { groupId?: string; groupCode?: string; botId: string }) => {
+  try {
+    actionError.value = null
+    if (payload.groupId) {
+      await groupStore.joinGroupById(payload.groupId, payload.botId)
+    } else if (payload.groupCode) {
+      await groupStore.joinGroupByNumber(payload.groupCode, payload.botId)
+    } else {
+      throw new Error('未提供群标识')
+    }
+    closeJoinGroupModal()
     await groupStore.fetchGroups()
   } catch (error) {
     actionError.value = groupStore.error || '加入群失败'
@@ -356,40 +365,12 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  position: relative;
   background: #f5f5f5;
   border: 1px solid #d0d0d0;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   padding: 28px 30px;
-}
-
-.page-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-
-.page-tabs {
-  display: inline-flex;
-  gap: 0;
-  padding: 0;
-  margin-bottom: 24px;
-  background: #f5f5f5;
-  border: 1px solid #d0d0d0;
-  border-radius: 8px;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.page-topbar .page-tabs {
-  margin-bottom: 0;
 }
 
 .page-error {
@@ -400,116 +381,6 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   background: #fff2ef;
   color: #a2443c;
   font-size: 13px;
-}
-
-.page-tab {
-  border: none;
-  background: transparent;
-  color: #2f2f2f;
-  padding: 12px 28px;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  transition: var(--transition-base);
-}
-
-.page-tab.active {
-  background-color: #2f2f2f;
-  color: #f3f3f3;
-  box-shadow: none;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.section-header h2 {
-  font-size: 46px;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1.15;
-  margin-bottom: 12px;
-}
-
-.stats-panel {
-  display: flex;
-  align-items: center;
-  border: 1px solid #d0d0d0;
-  border-radius: 8px;
-  background: #f5f5f5;
-  padding: 8px 10px;
-  margin-bottom: 18px;
-}
-
-.stat-item {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 10px;
-}
-
-.stat-divider {
-  width: 1px;
-  background: #d0d0d0;
-}
-
-.stat-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-}
-
-.stat-icon svg {
-  width: 18px;
-  height: 18px;
-  stroke: #2f2f2f;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.icon-bot {
-  background: #ebebeb;
-}
-
-.icon-running {
-  background: #ebebeb;
-}
-
-.icon-disabled {
-  background: #ebebeb;
-}
-
-.icon-disabled svg {
-  stroke: #7a7a7a;
-}
-
-.stat-meta p {
-  margin: 0;
-  font-size: 12px;
-  color: #5d6661;
-  line-height: 1.1;
-}
-
-.stat-meta strong {
-  display: block;
-  margin-top: 2px;
-  font-size: 20px;
-  color: #161616;
-  line-height: 1;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
 }
 
 .btn {
@@ -575,6 +446,35 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   color: #98a39d;
 }
 
+.fab-create-btn {
+  position: absolute;
+  right: 30px;
+  bottom: 30px;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid #2f2f2f;
+  background: #2f2f2f;
+  color: #f3f3f3;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  transition: var(--transition-base);
+}
+
+.fab-plus {
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 500;
+  transform: translateY(-1px);
+}
+
+.fab-create-btn:hover {
+  background: #3a3a3a;
+  transform: translateY(-1px);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -594,6 +494,17 @@ const handleRemoveBotFromGroup = async (botId: string) => {
     gap: 12px;
   }
 
+  .fab-create-btn {
+    right: 20px;
+    bottom: 20px;
+    width: 48px;
+    height: 48px;
+  }
+
+  .fab-plus {
+    font-size: 30px;
+  }
+
   .home-content {
     padding: 16px;
     border-radius: 8px;
@@ -603,49 +514,6 @@ const handleRemoveBotFromGroup = async (botId: string) => {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-  }
-
-  .page-tabs {
-    display: flex;
-    width: 100%;
-  }
-
-  .page-tab {
-    flex: 1;
-    padding: 11px 12px;
-    font-size: 14px;
-  }
-
-  .section-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .section-header h2 {
-    font-size: 32px;
-  }
-
-  .stats-panel {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .stat-divider {
-    width: auto;
-    height: 1px;
-  }
-
-  .stat-meta p {
-    font-size: 14px;
-  }
-
-  .stat-meta strong {
-    font-size: 24px;
-  }
-
-  .actions {
-    width: 100%;
   }
 
   .card-list {

@@ -31,6 +31,18 @@
         </div>
 
         <div class="form-group">
+          <label for="group-description">群简介（可选）</label>
+          <textarea
+            id="group-description"
+            v-model="form.description"
+            rows="3"
+            maxlength="200"
+            placeholder="请输入群简介"
+            :disabled="loading"
+          />
+        </div>
+
+        <div class="form-group">
           <label for="group-number">群号</label>
           <input
             id="group-number"
@@ -42,6 +54,38 @@
             :disabled="loading"
           />
           <p class="help-text">群号必须唯一</p>
+        </div>
+
+        <div class="form-group">
+          <label for="group-avatar-url">群头像（可选）</label>
+          <input
+            id="group-avatar-url"
+            v-model="form.avatarUrl"
+            type="url"
+            placeholder="请输入头像链接"
+            :disabled="loading || uploading"
+          />
+          <div v-if="form.avatarUrl" class="avatar-preview">
+            <img :src="form.avatarUrl" alt="群头像预览" />
+          </div>
+          <div class="upload-row">
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              class="hidden-input"
+              @change="handleFileChange"
+            />
+            <button
+              type="button"
+              class="btn-upload"
+              :disabled="loading || uploading || !selectedBotToken"
+              @click="triggerUpload"
+            >
+              {{ uploading ? '上传中...' : '上传头像' }}
+            </button>
+          </div>
+          <p class="help-text">请选择加入群聊的机器人后再上传头像</p>
         </div>
 
         <div v-if="error" class="error-message">
@@ -62,26 +106,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Bot } from '@/types'
 import { getErrorMessage } from '@/utils/error'
+import { uploadFile } from '@/services/file'
 
-defineProps<{
+const props = defineProps<{
   bots: Bot[]
 }>()
 
 const emit = defineEmits<{
-  create: [groupName: string, groupNumber: string, botId: string]
+  create: [groupName: string, description: string, groupNumber: string, botId: string, avatarUrl: string]
   close: []
 }>()
 
 const form = ref({
   botId: '',
   groupName: '',
+  description: '',
   groupNumber: '',
+  avatarUrl: '',
 })
 const loading = ref(false)
+const uploading = ref(false)
 const error = ref<string | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const selectedBotToken = computed(() => {
+  if (!form.value.botId) {
+    return ''
+  }
+  return props.bots.find((bot) => bot.bot_id === form.value.botId)?.token || ''
+})
 
 const handleSubmit = async () => {
   if (!form.value.groupName.trim()) {
@@ -103,11 +158,47 @@ const handleSubmit = async () => {
   error.value = null
 
   try {
-    emit('create', form.value.groupName, form.value.groupNumber, form.value.botId)
+    emit(
+      'create',
+      form.value.groupName,
+      form.value.description,
+      form.value.groupNumber,
+      form.value.botId,
+      form.value.avatarUrl
+    )
   } catch (err: any) {
     error.value = getErrorMessage(err, '创建失败')
   } finally {
     loading.value = false
+  }
+}
+
+const triggerUpload = () => {
+  if (!selectedBotToken.value) {
+    error.value = '请先选择加入群聊的机器人'
+    return
+  }
+  fileInput.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) {
+    return
+  }
+
+  uploading.value = true
+  error.value = null
+
+  try {
+    const uploaded = await uploadFile(file, selectedBotToken.value)
+    form.value.avatarUrl = uploaded.url
+  } catch (err: any) {
+    error.value = getErrorMessage(err, '头像上传失败')
+  } finally {
+    uploading.value = false
+    target.value = ''
   }
 }
 </script>
@@ -115,159 +206,217 @@ const handleSubmit = async () => {
 <style scoped>
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 16px;
 }
 
 .modal-content {
-  background: white;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
   border-radius: 8px;
   width: 100%;
-  max-width: 500px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 540px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #d4cfc8;
+  padding: 16px 18px;
+  border-bottom: 1px solid #d0d0d0;
 }
 
 .modal-header h2 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: #4a4a4a;
+  color: #2f2f2f;
   margin: 0;
 }
 
+.modal-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
 .close-btn {
-  background: none;
+  background: transparent;
   border: none;
-  font-size: 20px;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 18px;
   cursor: pointer;
-  color: #888888;
-  transition: color 0.3s ease;
+  color: #6f6f6f;
+  transition: var(--transition-base);
 }
 
 .close-btn:hover {
-  color: #4a4a4a;
+  background: #eaeaea;
+  color: #2f2f2f;
 }
 
 .modal-form {
-  padding: 20px;
+  padding: 16px 18px 18px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
+  position: relative;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
-  color: #4a4a4a;
-  font-weight: 500;
+  color: #4f4f4f;
+  font-weight: 600;
 }
 
-.form-group input {
+.form-group input,
+.form-group textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #d4cfc8;
+  padding: 10px 11px;
+  border: 1px solid #d0d0d0;
   border-radius: 6px;
   font-size: 14px;
-  color: #4a4a4a;
-  transition: all 0.3s ease;
+  color: #2f2f2f;
+  background: #f7f7f7;
+  transition: var(--transition-base);
 }
 
 .form-group select {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #d4cfc8;
+  padding: 10px 11px;
+  border: 1px solid #d0d0d0;
   border-radius: 6px;
   font-size: 14px;
-  color: #4a4a4a;
-  background: white;
+  color: #2f2f2f;
+  background: #f7f7f7;
+  transition: var(--transition-base);
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group textarea:focus {
   outline: none;
-  border-color: #8b9d83;
-  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+  border-color: #8f8f8f;
+  box-shadow: 0 0 0 3px rgba(120, 120, 120, 0.12);
 }
 
 .form-group select:focus {
   outline: none;
-  border-color: #8b9d83;
-  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+  border-color: #8f8f8f;
+  box-shadow: 0 0 0 3px rgba(120, 120, 120, 0.12);
 }
 
-.form-group input:disabled {
-  background-color: #fafaf8;
-  color: #cccccc;
+.form-group input:disabled,
+.form-group textarea:disabled {
+  background-color: #f0f0f0;
+  color: #9a9a9a;
   cursor: not-allowed;
 }
 
 .help-text {
   font-size: 12px;
-  color: #cccccc;
+  color: #767676;
   margin: 4px 0 0 0;
 }
 
-.error-message {
-  padding: 10px 12px;
-  background-color: #f5e6e6;
-  color: #a88b7f;
+.avatar-preview {
+  width: 64px;
+  height: 64px;
+  margin-top: 8px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #ebebeb;
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-row {
+  margin-top: 10px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.btn-upload {
+  padding: 8px 12px;
+  border: 1px solid #d0d0d0;
   border-radius: 6px;
-  font-size: 13px;
-  margin-bottom: 20px;
+  background: #efefef;
+  color: #2f2f2f;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.btn-upload:hover:not(:disabled) {
+  background: #e7e7e7;
+}
+
+.error-message {
+  padding: 9px 11px;
+  background-color: #f3e7e7;
+  color: #9b3c3c;
+  border: 1px solid #e0b7b7;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 14px;
 }
 
 .form-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
 .form-actions button {
-  padding: 10px 20px;
-  border: none;
+  padding: 9px 14px;
+  border: 1px solid transparent;
   border-radius: 6px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .btn-cancel {
-  background-color: #d4cfc8;
-  color: #4a4a4a;
+  border-color: #d0d0d0;
+  background-color: #efefef;
+  color: #2f2f2f;
 }
 
 .btn-cancel:hover:not(:disabled) {
-  background-color: #e8e3dd;
+  background-color: #e7e7e7;
 }
 
 .btn-submit {
-  background-color: #8b9d83;
-  color: white;
+  border-color: #2f2f2f;
+  background-color: #2f2f2f;
+  color: #f3f3f3;
 }
 
 .btn-submit:hover:not(:disabled) {
-  background-color: #9caa93;
+  background-color: #454545;
 }
 
 .btn-cancel:disabled,
 .btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-upload:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

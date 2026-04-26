@@ -80,6 +80,7 @@ pub async fn init_schema(pool: &SqlitePool) -> AppResult<()> {
             creator_id TEXT NOT NULL,
             name TEXT NOT NULL,
             description TEXT,
+            avatar_url TEXT,
             status TEXT NOT NULL DEFAULT 'active',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

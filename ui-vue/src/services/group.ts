@@ -3,7 +3,7 @@
  */
 
 import { apiClient, unwrapCollectionResponse } from './api'
-import type { Group, CreateGroupRequest, GroupJoinResult, GroupMember } from '@/types'
+import type { Group, CreateGroupRequest, UpdateGroupRequest, GroupJoinResult, GroupMember } from '@/types'
 
 /**
  * 获取群列表
@@ -21,10 +21,24 @@ export async function getGroup(groupId: string) {
 }
 
 /**
+ * 按群号查询群信息
+ */
+export async function searchGroupByCode(groupCode: string) {
+  const response = await apiClient.get<Group[] | { groups: Group[] }>(
+    `/groups/search?group_code=${encodeURIComponent(groupCode)}`
+  )
+  return unwrapCollectionResponse(response)
+}
+
+/**
  * 创建群
  */
 export async function createGroup(data: CreateGroupRequest) {
   return apiClient.post<Group>('/groups', data)
+}
+
+export async function updateGroup(groupId: string, data: UpdateGroupRequest) {
+  return apiClient.put<Group>(`/groups/${groupId}`, data)
 }
 
 /**

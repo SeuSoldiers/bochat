@@ -26,6 +26,7 @@ pub struct NewGroup<'a> {
     pub creator_id: &'a str,
     pub name: &'a str,
     pub description: Option<&'a str>,
+    pub avatar_url: Option<&'a str>,
     pub status: &'a str,
     pub now: &'a str,
 }
@@ -48,8 +49,8 @@ impl GroupRepository {
     pub async fn insert_group(pool: &SqlitePool, new_group: &NewGroup<'_>) -> AppResult<()> {
         sqlx::query(
             r#"
-            INSERT INTO groups (group_id, group_code, creator_id, name, description, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO groups (group_id, group_code, creator_id, name, description, avatar_url, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(new_group.group_id)
@@ -57,6 +58,7 @@ impl GroupRepository {
         .bind(new_group.creator_id)
         .bind(new_group.name)
         .bind(new_group.description)
+        .bind(new_group.avatar_url)
         .bind(new_group.status)
         .bind(new_group.now)
         .bind(new_group.now)
@@ -85,7 +87,7 @@ impl GroupRepository {
     pub async fn list_all(pool: &SqlitePool) -> AppResult<Vec<Group>> {
         sqlx::query_as(
             r#"
-            SELECT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
+            SELECT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.status, g.created_at, g.updated_at
             FROM groups g
             ORDER BY g.created_at DESC
             "#,
@@ -98,7 +100,7 @@ impl GroupRepository {
     pub async fn list_visible_by_user(pool: &SqlitePool, user_id: &str) -> AppResult<Vec<Group>> {
         sqlx::query_as(
             r#"
-            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.status, g.created_at, g.updated_at
+            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.status, g.created_at, g.updated_at
             FROM groups g
             LEFT JOIN group_members gm ON gm.group_id = g.group_id
             LEFT JOIN bots b ON b.bot_id = gm.member_id
@@ -115,12 +117,41 @@ impl GroupRepository {
 
     pub async fn find_by_id(pool: &SqlitePool, group_id: &str) -> AppResult<Option<Group>> {
         sqlx::query_as(
-            "SELECT group_id, group_code, creator_id, name, description, status, created_at, updated_at FROM groups WHERE group_id = ?",
+            "SELECT group_id, group_code, creator_id, name, description, avatar_url, status, created_at, updated_at FROM groups WHERE group_id = ?",
         )
         .bind(group_id)
         .fetch_optional(pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+
+    pub async fn update_profile(
+        pool: &SqlitePool,
+        group_id: &str,
+        name: &str,
+        group_code: Option<&str>,
+        description: Option<&str>,
+        avatar_url: Option<&str>,
+        updated_at: &str,
+    ) -> AppResult<()> {
+        sqlx::query(
+            r#"
+            UPDATE groups
+            SET name = ?, group_code = ?, description = ?, avatar_url = ?, updated_at = ?
+            WHERE group_id = ?
+            "#,
+        )
+        .bind(name)
+        .bind(group_code)
+        .bind(description)
+        .bind(avatar_url)
+        .bind(updated_at)
+        .bind(group_id)
+        .execute(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(())
     }
 
     pub async fn find_group_id_by_code(pool: &SqlitePool, group_code: &str) -> AppResult<Option<String>> {
@@ -129,6 +160,17 @@ impl GroupRepository {
             .fetch_optional(pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+
+    pub async fn find_by_code_prefix(pool: &SqlitePool, group_code_prefix: &str) -> AppResult<Vec<Group>> {
+        let like_pattern = format!("{}%", group_code_prefix);
+        sqlx::query_as(
+            "SELECT group_id, group_code, creator_id, name, description, avatar_url, status, created_at, updated_at FROM groups WHERE group_code IS NOT NULL AND group_code LIKE ? ORDER BY created_at DESC",
+        )
+        .bind(like_pattern)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
     pub async fn exists(pool: &SqlitePool, group_id: &str) -> AppResult<bool> {

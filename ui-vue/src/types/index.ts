@@ -23,6 +23,14 @@ export interface Bot {
   updated_at: string
 }
 
+export interface BotSearchItem {
+  bot_id: string
+  owner_id: string
+  name: string
+  avatar_url?: string
+  status: string
+}
+
 export interface CreateBotRequest {
   name: string
   description?: string
@@ -44,6 +52,7 @@ export interface Group {
   creator_id: string
   name: string
   description?: string
+  avatar_url?: string
   status: string
   created_at: string
   updated_at: string
@@ -53,7 +62,15 @@ export interface CreateGroupRequest {
   name: string
   group_code?: string
   description?: string
+  avatar_url?: string
   bot_id?: string
+}
+
+export interface UpdateGroupRequest {
+  name: string
+  group_code?: string
+  description?: string
+  avatar_url?: string
 }
 
 export interface GroupJoinResult {

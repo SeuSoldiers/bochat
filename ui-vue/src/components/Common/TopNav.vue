@@ -9,9 +9,9 @@
 
     <nav class="main-menu">
       <router-link
-        to="/home"
+        :to="{ path: '/home', query: { tab: 'bots' } }"
         class="menu-item"
-        :class="{ active: $route.path === '/home' }"
+        :class="{ active: isHomeTab('bots') }"
       >
         <span class="item-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
@@ -19,7 +19,22 @@
             <path d="M9 10.5h6M12 8v5" />
           </svg>
         </span>
-        <span>总览</span>
+        <span class="menu-label">控制面板</span>
+        <span class="menu-meta">{{ activeBotsCount }}/{{ botStore.bots.length }}</span>
+      </router-link>
+      <router-link
+        :to="{ path: '/home', query: { tab: 'groups' } }"
+        class="menu-item"
+        :class="{ active: isHomeTab('groups') }"
+      >
+        <span class="item-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="4.5" y="6.5" width="15" height="11" rx="2.8" />
+            <path d="M9 10.5h6M9 13.5h4" />
+          </svg>
+        </span>
+        <span class="menu-label">群组空间</span>
+        <span class="menu-meta">{{ groupStore.groups.length }}</span>
       </router-link>
       <router-link
         to="/chat"
@@ -64,16 +79,32 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useBotStore } from '@/stores/bots'
+import { useGroupStore } from '@/stores/groups'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+const botStore = useBotStore()
+const groupStore = useGroupStore()
+const disabledStatuses = new Set(['disabled', 'stopped', 'paused', 'inactive'])
 
 const userInitial = computed(() => {
   const source = authStore.userName || 'B'
   return source.trim().slice(0, 1).toUpperCase()
 })
+
+const inactiveBotsCount = computed(
+  () => botStore.bots.filter((bot) => disabledStatuses.has(bot.status?.toLowerCase())).length
+)
+const activeBotsCount = computed(() => Math.max(0, botStore.bots.length - inactiveBotsCount.value))
+const currentHomeTab = computed<'bots' | 'groups'>(() =>
+  route.query.tab === 'groups' ? 'groups' : 'bots'
+)
+
+const isHomeTab = (tab: 'bots' | 'groups') => route.path === '/home' && currentHomeTab.value === tab
 
 const handleLogout = async () => {
   if (confirm('确定要登出吗？')) {
@@ -139,29 +170,50 @@ const handleLogout = async () => {
 .main-menu {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .menu-item {
+  --meta-bg: #e7e7e7;
+  --meta-color: #6a6a6a;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: #2d2d2d;
   text-decoration: none;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
-  padding: 9px 12px;
-  border-radius: 12px;
+  min-height: 46px;
+  padding: 11px 10px;
+  border-radius: 8px;
   border: 1px solid transparent;
   transition: var(--transition-base);
 }
 
+.menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-meta {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--meta-color);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--meta-bg);
+  line-height: 1.2;
+}
+
 .item-icon {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 6px;
   color: #4a4a4a;
   background: transparent;
 }
@@ -181,11 +233,14 @@ const handleLogout = async () => {
 }
 
 .menu-item:hover {
+  --meta-bg: #dddddd;
   border-color: #c8c8c8;
   background: #efefef;
 }
 
 .menu-item.active {
+  --meta-bg: #5a5a5a;
+  --meta-color: #f3f3f3;
   color: #f3f3f3;
   border-color: #2f2f2f;
   background: #2f2f2f;
@@ -194,6 +249,11 @@ const handleLogout = async () => {
 
 .menu-item.active .item-icon {
   color: #f3f3f3;
+}
+
+.menu-item.active .menu-meta {
+  color: var(--meta-color);
+  background: var(--meta-bg);
 }
 
 .profile-wrap {
@@ -334,7 +394,7 @@ const handleLogout = async () => {
   }
 
   .menu-item {
-    font-size: 19px;
+    font-size: 15px;
   }
 
   .user-name {
@@ -364,8 +424,12 @@ const handleLogout = async () => {
   .menu-item {
     flex: 1;
     justify-content: center;
-    font-size: 15px;
+    font-size: 13px;
     padding: 10px;
+  }
+
+  .menu-meta {
+    display: none;
   }
 
   .actions-popover {
