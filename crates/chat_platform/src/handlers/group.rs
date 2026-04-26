@@ -11,8 +11,7 @@ use crate::models::{
     CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest, UpdateGroupRequest,
 };
 use crate::repositories::{
-    BotRepository, GroupMemberLink, GroupMessagesQuery as RepoGroupMessagesQuery, GroupMessagesRow,
-    GroupRepository, NewGroup, NewGroupMember,
+    BotRepository, GroupMemberLink, GroupRepository, NewGroup, NewGroupMember,
 };
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
@@ -639,19 +638,14 @@ pub async fn get_group_messages(
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
     let base_id = query.base_id.unwrap_or(i64::MAX);
 
-    let messages: Vec<GroupMessagesRow> = GroupRepository::list_messages(
-        &state.pool,
-        &RepoGroupMessagesQuery {
-            group_id: &group_id_str,
-            base_id,
-            limit,
-        },
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("查询消息历史时数据库错误: {}", e);
-        e
-    })?;
+    let messages = state
+        .message_record_manager
+        .get_group_messages(&group_id_str, base_id, limit)
+        .await
+        .map_err(|e| {
+            tracing::error!("查询消息历史时错误: {}", e);
+            e
+        })?;
 
     tracing::info!("✅ 成功获取 {} 条消息", messages.len());
 

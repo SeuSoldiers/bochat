@@ -3,8 +3,10 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
+use services::message_record_manager::MessageRecordManager;
 use tower_http::cors::CorsLayer;
 
+pub mod cache;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -22,6 +24,7 @@ pub struct AppState {
     pub config: config::Config,
     pub pool: db::DbPool,
     pub ws_manager: ws::WsManager,
+    pub message_record_manager: MessageRecordManager,
 }
 
 pub fn app_router(state: AppState) -> Router {

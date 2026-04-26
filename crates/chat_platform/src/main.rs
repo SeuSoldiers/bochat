@@ -1,4 +1,11 @@
-use chat_platform::{app_router, config::Config, db, ws, AppState};
+use chat_platform::{
+    app_router,
+    config::Config,
+    db,
+    services::message_record_manager::MessageRecordManager,
+    ws,
+    AppState,
+};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -87,10 +94,17 @@ async fn main() -> std::io::Result<()> {
     let ws_manager = ws::WsManager::new();
     tracing::info!("✅ WebSocket 管理器初始化完成");
 
+    tracing::info!("💾 正在初始化消息记录管理器...");
+    let message_record_manager = MessageRecordManager::new(db_pool.clone())
+        .await
+        .expect("❌ 初始化消息记录管理器失败");
+    tracing::info!("✅ 消息记录管理器初始化完成");
+
     let state = AppState {
         config: config.clone(),
         pool: db_pool,
         ws_manager,
+        message_record_manager,
     };
 
     let app = app_router(state);

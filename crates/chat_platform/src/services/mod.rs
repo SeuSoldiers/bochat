@@ -5,6 +5,7 @@ pub mod file;
 pub mod file_manager;
 pub mod group;
 pub mod message;
+pub mod message_record_manager;
 
 pub use bot::BotService;
 pub use file::FileService;

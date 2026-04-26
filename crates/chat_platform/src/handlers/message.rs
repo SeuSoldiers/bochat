@@ -86,19 +86,18 @@ pub async fn send_message(
     }
     let content = msg_req.content.to_string();
 
-    let existing_message: Option<MessageWithSenderRow> = MessageRepository::find_idempotent_message(
-        &state.pool,
-        &MessageIdempotencyQuery {
+    let existing_message: Option<MessageWithSenderRow> = state
+        .message_record_manager
+        .find_idempotent_message(&MessageIdempotencyQuery {
             sender_bot_id: &requester_bot_id,
             group_id: &msg_req.group_id,
             idempotency_key,
-        },
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("查询幂等消息时数据库错误: {}", e);
-        e
-    })?;
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("查询幂等消息时错误: {}", e);
+            e
+        })?;
 
     if let Some(existing_message) = existing_message {
         let existing_content = serde_json::from_str(&existing_message.content)
@@ -127,13 +126,15 @@ pub async fn send_message(
     }
 
     let now = chrono::Utc::now().to_rfc3339();
+    let msg_id = state.message_record_manager.next_id();
 
-    tracing::info!("所有验证通过，正在保存消息到数据库");
-    tracing::debug!("消息类型: {}, 时间戳: {}", msg_type, now);
+    tracing::info!("所有验证通过，正在写入消息缓存并异步落库");
+    tracing::debug!("消息ID: {}, 消息类型: {}, 时间戳: {}", msg_id, msg_type, now);
 
-    let inserted_message: MessageWithSenderRow = MessageRepository::insert_message_returning(
-        &state.pool,
-        &NewMessage {
+    let inserted_message: MessageWithSenderRow = state
+        .message_record_manager
+        .send_message(&NewMessage {
+            msg_id,
             group_id: &msg_req.group_id,
             sender_id: &requester_bot_id,
             content: &content,
@@ -142,13 +143,12 @@ pub async fn send_message(
             created_at: &now,
             sender_name: &auth.name,
             sender_avatar_url: auth.avatar_url.as_deref(),
-        },
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("保存消息时数据库错误: {}", e);
-        e
-    })?;
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("保存消息时错误: {}", e);
+            e
+        })?;
 
     let response_content = serde_json::from_str(&inserted_message.content)
         .unwrap_or_else(|_| serde_json::Value::String(inserted_message.content.clone()));

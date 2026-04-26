@@ -7,6 +7,7 @@ use chat_platform::{
     app_router,
     config::{Config, DatabaseConfig, LoggingConfig, SecurityConfig, ServerConfig, StorageConfig},
     db,
+    services::message_record_manager::MessageRecordManager,
     ws::WsManager,
     AppState,
 };
@@ -90,10 +91,15 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::init_schema(&pool).await.expect("init schema");
 
+    let message_record_manager = MessageRecordManager::new(pool.clone())
+        .await
+        .expect("init message record manager");
+
     let app = app_router(AppState {
         config,
         pool,
         ws_manager: WsManager::new(),
+        message_record_manager,
     });
 
     let (health_status, _) = send_json(&app, "GET", "/health", None, None).await;

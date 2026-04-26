@@ -7,6 +7,7 @@ use chat_platform::{
     app_router,
     config::{Config, DatabaseConfig, LoggingConfig, SecurityConfig, ServerConfig, StorageConfig},
     db,
+    services::message_record_manager::MessageRecordManager,
     ws::WsManager,
     AppState,
 };
@@ -90,10 +91,15 @@ async fn delete_group_cleans_message_file_references() {
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::init_schema(&pool).await.expect("init schema");
 
+    let message_record_manager = MessageRecordManager::new(pool.clone())
+        .await
+        .expect("init message record manager");
+
     let app = app_router(AppState {
         config,
         pool: pool.clone(),
         ws_manager: WsManager::new(),
+        message_record_manager,
     });
 
     let (register_status, _) = send_json(
@@ -235,10 +241,15 @@ async fn bot_avatar_reset_reduces_file_reference() {
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::init_schema(&pool).await.expect("init schema");
 
+    let message_record_manager = MessageRecordManager::new(pool.clone())
+        .await
+        .expect("init message record manager");
+
     let app = app_router(AppState {
         config,
         pool: pool.clone(),
         ws_manager: WsManager::new(),
+        message_record_manager,
     });
 
     let (register_status, _) = send_json(

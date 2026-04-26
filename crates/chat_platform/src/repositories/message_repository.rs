@@ -8,6 +8,7 @@ pub struct GroupMessagesPage<'a> {
     pub limit: i64,
 }
 
+#[derive(Debug)]
 pub struct MessageIdempotencyQuery<'a> {
     pub sender_bot_id: &'a str,
     pub group_id: &'a str,
@@ -15,6 +16,7 @@ pub struct MessageIdempotencyQuery<'a> {
 }
 
 pub struct NewMessage<'a> {
+    pub msg_id: i64,
     pub group_id: &'a str,
     pub sender_id: &'a str,
     pub content: &'a str,
@@ -25,7 +27,7 @@ pub struct NewMessage<'a> {
     pub sender_avatar_url: Option<&'a str>,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(Clone, sqlx::FromRow)]
 pub struct MessageWithSenderRow {
     pub msg_id: i64,
     pub group_id: String,
@@ -34,6 +36,7 @@ pub struct MessageWithSenderRow {
     pub sender_avatar_url: Option<String>,
     pub content: String,
     pub msg_type: String,
+    pub idempotency_key: Option<String>,
     pub created_at: String,
 }
 
@@ -82,6 +85,7 @@ impl MessageRepository {
                 b.avatar_url as sender_avatar_url,
                 m.content,
                 m.msg_type,
+                m.idempotency_key,
                 m.created_at
             FROM messages m
             LEFT JOIN bots b ON b.bot_id = m.sender_id
@@ -102,8 +106,8 @@ impl MessageRepository {
     ) -> AppResult<MessageWithSenderRow> {
         sqlx::query_as(
             r#"
-            INSERT INTO messages (group_id, sender_id, content, msg_type, idempotency_key, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO messages (msg_id, group_id, sender_id, content, msg_type, idempotency_key, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING
                 msg_id,
                 group_id,
@@ -112,9 +116,11 @@ impl MessageRepository {
                 ? as sender_avatar_url,
                 content,
                 msg_type,
+                idempotency_key,
                 created_at
             "#,
         )
+        .bind(new_message.msg_id)
         .bind(new_message.group_id)
         .bind(new_message.sender_id)
         .bind(new_message.content)
@@ -124,6 +130,63 @@ impl MessageRepository {
         .bind(new_message.sender_name)
         .bind(new_message.sender_avatar_url)
         .fetch_one(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+
+    /// 按ID查询消息（带发送者信息）
+    pub async fn find_by_id_enriched(
+        pool: &SqlitePool,
+        msg_id: i64,
+    ) -> AppResult<Option<MessageWithSenderRow>> {
+        sqlx::query_as(
+            r#"
+            SELECT
+                m.msg_id,
+                m.group_id,
+                m.sender_id,
+                b.name as sender_name,
+                b.avatar_url as sender_avatar_url,
+                m.content,
+                m.msg_type,
+                m.idempotency_key,
+                m.created_at
+            FROM messages m
+            LEFT JOIN bots b ON b.bot_id = m.sender_id
+            WHERE m.msg_id = ?
+            "#,
+        )
+        .bind(msg_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+
+    /// 获取群聊全量消息（带发送者信息），用于缓存预加载
+    pub async fn list_all_enriched_by_group(
+        pool: &SqlitePool,
+        group_id: &str,
+    ) -> AppResult<Vec<MessageWithSenderRow>> {
+        sqlx::query_as(
+            r#"
+            SELECT
+                m.msg_id,
+                m.group_id,
+                m.sender_id,
+                b.name as sender_name,
+                b.avatar_url as sender_avatar_url,
+                m.content,
+                m.msg_type,
+                m.idempotency_key,
+                m.created_at
+            FROM messages m
+            LEFT JOIN bots b ON b.bot_id = m.sender_id
+            WHERE m.group_id = ?
+            ORDER BY m.msg_id DESC
+            "#,
+        )
+        .bind(group_id)
+        .fetch_all(pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
