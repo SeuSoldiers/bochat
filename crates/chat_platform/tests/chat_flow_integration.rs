@@ -5,7 +5,11 @@ use axum::{
 };
 use chat_platform::{
     app_router,
-    config::{Config, DatabaseConfig, LoggingConfig, SecurityConfig, ServerConfig, StorageConfig},
+    cache::RedisMessageCache,
+    config::{
+        Config, DatabaseConfig, LoggingConfig, RedisConfig, SecurityConfig, ServerConfig,
+        StorageConfig,
+    },
     db,
     services::message_record_manager::MessageRecordManager,
     ws::WsManager,
@@ -25,9 +29,14 @@ fn test_config(temp_dir: &TempDir) -> Config {
             workers: 1,
         },
         database: DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
-            max_connections: 1,
+            url: std::env::var("TEST_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://chat_user:chat_pass@localhost:5432/chat_platform_test".to_string()),
+            max_connections: 2,
             min_connections: 1,
+        },
+        redis: RedisConfig {
+            url: std::env::var("TEST_REDIS_URL")
+                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
         },
         security: SecurityConfig {
             jwt_secret: "test-secret".to_string(),
@@ -91,7 +100,14 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::init_schema(&pool).await.expect("init schema");
 
-    let message_record_manager = MessageRecordManager::new(pool.clone())
+    let redis_client = redis::Client::open(config.redis.url.as_str())
+        .expect("invalid Redis URL in test");
+    let redis_conn = redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .expect("connect Redis in test");
+    let redis_cache = RedisMessageCache::new(redis_conn);
+    let message_record_manager = MessageRecordManager::new(pool.clone(), redis_cache)
         .await
         .expect("init message record manager");
 

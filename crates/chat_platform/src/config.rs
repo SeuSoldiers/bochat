@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
+    pub redis: RedisConfig,
     pub security: SecurityConfig,
     pub storage: StorageConfig,
     pub logging: LoggingConfig,
@@ -37,6 +38,11 @@ pub struct StorageConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RedisConfig {
+    pub url: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct LoggingConfig {
     pub dir: String,
     pub file_prefix: String,
@@ -60,7 +66,7 @@ impl Config {
 
         let database = DatabaseConfig {
             url: std::env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "sqlite://chat_platform.db".to_string()),
+                .unwrap_or_else(|_| "postgres://chat_user:chat_pass@localhost:5432/chat_platform".to_string()),
             max_connections: std::env::var("DB_MAX_CONNECTIONS")
                 .ok()
                 .and_then(|c| c.parse().ok())
@@ -88,6 +94,11 @@ impl Config {
                 .unwrap_or(10),
         };
 
+        let redis = RedisConfig {
+            url: std::env::var("REDIS_URL")
+                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+        };
+
         let storage = StorageConfig {
             file_storage_path: std::env::var("FILE_STORAGE_PATH")
                 .unwrap_or_else(|_| "./assets/files/".to_string()),
@@ -102,6 +113,7 @@ impl Config {
         Config {
             server,
             database,
+            redis,
             security,
             storage,
             logging,
@@ -118,7 +130,7 @@ impl Default for Config {
                 workers: 4,
             },
             database: DatabaseConfig {
-                url: "sqlite://chat_platform.db".to_string(),
+                url: "postgres://chat_user:chat_pass@localhost:5432/chat_platform".to_string(),
                 max_connections: 10,
                 min_connections: 2,
             },
@@ -127,6 +139,9 @@ impl Default for Config {
                 token_expiry_secs: 86400,
                 max_file_size_mb: 100,
                 rate_limit_per_second: 10,
+            },
+            redis: RedisConfig {
+                url: "redis://localhost:6379".to_string(),
             },
             storage: StorageConfig {
                 file_storage_path: "./assets/files/".to_string(),

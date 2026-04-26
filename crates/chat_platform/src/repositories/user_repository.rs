@@ -1,6 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::models::User;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 pub struct NewUser<'a> {
     pub user_id: &'a str,
@@ -22,11 +22,11 @@ pub struct UserLoginRow {
 pub struct UserRepository;
 
 impl UserRepository {
-    pub async fn insert_user(pool: &SqlitePool, new_user: &NewUser<'_>) -> AppResult<()> {
+    pub async fn insert_user(pool: &PgPool, new_user: &NewUser<'_>) -> AppResult<()> {
         sqlx::query(
             r#"
             INSERT INTO users (user_id, name, account, password_hash, id_number, avatar_url, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
         )
         .bind(new_user.user_id)
@@ -41,7 +41,10 @@ impl UserRepository {
         .await
         .map_err(|e| {
             let err_msg = e.to_string();
-            if err_msg.contains("users.account") || err_msg.contains("idx_users_account_unique") {
+            if err_msg.contains("users_account_unique")
+                || err_msg.contains("users_account_key")
+                || err_msg.contains("users.account")
+            {
                 AppError::AccountConflict
             } else {
                 AppError::DatabaseError(err_msg)
@@ -51,9 +54,9 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn find_by_id(pool: &SqlitePool, user_id: &str) -> AppResult<Option<User>> {
+    pub async fn find_by_id(pool: &PgPool, user_id: &str) -> AppResult<Option<User>> {
         sqlx::query_as(
-            "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = ?",
+            "SELECT user_id, name, id_number, avatar_url, created_at, updated_at FROM users WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(pool)
@@ -62,11 +65,11 @@ impl UserRepository {
     }
 
     pub async fn find_login_by_account(
-        pool: &SqlitePool,
+        pool: &PgPool,
         account: &str,
     ) -> AppResult<Option<UserLoginRow>> {
         sqlx::query_as::<_, UserLoginRow>(
-            "SELECT user_id, name, password_hash FROM users WHERE account = ?",
+            "SELECT user_id, name, password_hash FROM users WHERE account = $1",
         )
         .bind(account)
         .fetch_optional(pool)
@@ -75,7 +78,7 @@ impl UserRepository {
     }
 
     pub async fn update_profile(
-        pool: &SqlitePool,
+        pool: &PgPool,
         user_id: &str,
         name: &str,
         avatar_url: Option<&str>,
@@ -85,8 +88,8 @@ impl UserRepository {
         sqlx::query(
             r#"
             UPDATE users
-            SET name = ?, avatar_url = ?, password_hash = COALESCE(?, password_hash), updated_at = ?
-            WHERE user_id = ?
+            SET name = $1, avatar_url = $2, password_hash = COALESCE($3, password_hash), updated_at = $4
+            WHERE user_id = $5
             "#,
         )
         .bind(name)
@@ -101,8 +104,8 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn delete_bots_by_owner(pool: &SqlitePool, owner_id: &str) -> AppResult<()> {
-        sqlx::query("DELETE FROM bots WHERE owner_id = ?")
+    pub async fn delete_bots_by_owner(pool: &PgPool, owner_id: &str) -> AppResult<()> {
+        sqlx::query("DELETE FROM bots WHERE owner_id = $1")
             .bind(owner_id)
             .execute(pool)
             .await
@@ -110,8 +113,8 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn delete_user_by_id(pool: &SqlitePool, user_id: &str) -> AppResult<()> {
-        sqlx::query("DELETE FROM users WHERE user_id = ?")
+    pub async fn delete_user_by_id(pool: &PgPool, user_id: &str) -> AppResult<()> {
+        sqlx::query("DELETE FROM users WHERE user_id = $1")
             .bind(user_id)
             .execute(pool)
             .await

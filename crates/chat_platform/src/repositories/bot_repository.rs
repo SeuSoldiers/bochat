@@ -1,6 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::models::Bot;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 pub struct NewBot<'a> {
     pub bot_id: &'a str,
@@ -17,9 +17,9 @@ pub struct NewBot<'a> {
 pub struct BotRepository;
 
 impl BotRepository {
-    pub async fn find_by_id(pool: &SqlitePool, bot_id: &str) -> AppResult<Option<Bot>> {
+    pub async fn find_by_id(pool: &PgPool, bot_id: &str) -> AppResult<Option<Bot>> {
         sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = ?",
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE bot_id = $1",
         )
         .bind(bot_id)
         .fetch_optional(pool)
@@ -27,13 +27,13 @@ impl BotRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn find_required_by_id(pool: &SqlitePool, bot_id: &str) -> AppResult<Bot> {
+    pub async fn find_required_by_id(pool: &PgPool, bot_id: &str) -> AppResult<Bot> {
         Self::find_by_id(pool, bot_id)
             .await?
             .ok_or(AppError::BotNotFound)
     }
 
-    pub async fn list_all(pool: &SqlitePool) -> AppResult<Vec<Bot>> {
+    pub async fn list_all(pool: &PgPool) -> AppResult<Vec<Bot>> {
         sqlx::query_as(
             "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots ORDER BY created_at DESC",
         )
@@ -42,9 +42,9 @@ impl BotRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn list_by_owner(pool: &SqlitePool, owner_id: &str) -> AppResult<Vec<Bot>> {
+    pub async fn list_by_owner(pool: &PgPool, owner_id: &str) -> AppResult<Vec<Bot>> {
         sqlx::query_as(
-            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = ? ORDER BY created_at DESC",
+            "SELECT bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at FROM bots WHERE owner_id = $1 ORDER BY created_at DESC",
         )
         .bind(owner_id)
         .fetch_all(pool)
@@ -53,10 +53,10 @@ impl BotRepository {
     }
 
     pub async fn find_secret_and_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         bot_id: &str,
     ) -> AppResult<Option<(String, String)>> {
-        sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = ?")
+        sqlx::query_as("SELECT secret, status FROM bots WHERE bot_id = $1")
             .bind(bot_id)
             .fetch_optional(pool)
             .await
@@ -64,11 +64,11 @@ impl BotRepository {
     }
 
     pub async fn find_default_active_bot_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         owner_id: &str,
     ) -> AppResult<Option<String>> {
         sqlx::query_scalar(
-            "SELECT bot_id FROM bots WHERE owner_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1",
+            "SELECT bot_id FROM bots WHERE owner_id = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1",
         )
         .bind(owner_id)
         .fetch_optional(pool)
@@ -76,11 +76,11 @@ impl BotRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn insert(pool: &SqlitePool, new_bot: &NewBot<'_>) -> AppResult<()> {
+    pub async fn insert(pool: &PgPool, new_bot: &NewBot<'_>) -> AppResult<()> {
         sqlx::query(
             r#"
             INSERT INTO bots (bot_id, owner_id, name, description, avatar_url, status, token, secret, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             "#,
         )
         .bind(new_bot.bot_id)
@@ -101,7 +101,7 @@ impl BotRepository {
     }
 
     pub async fn update_profile(
-        pool: &SqlitePool,
+        pool: &PgPool,
         bot_id: &str,
         name: &str,
         description: Option<&str>,
@@ -111,8 +111,8 @@ impl BotRepository {
         sqlx::query(
             r#"
             UPDATE bots
-            SET name = ?, description = ?, avatar_url = ?, updated_at = ?
-            WHERE bot_id = ?
+            SET name = $1, description = $2, avatar_url = $3, updated_at = $4
+            WHERE bot_id = $5
             "#,
         )
         .bind(name)
@@ -127,8 +127,8 @@ impl BotRepository {
         Ok(())
     }
 
-    pub async fn delete_by_id(pool: &SqlitePool, bot_id: &str) -> AppResult<()> {
-        sqlx::query("DELETE FROM bots WHERE bot_id = ?")
+    pub async fn delete_by_id(pool: &PgPool, bot_id: &str) -> AppResult<()> {
+        sqlx::query("DELETE FROM bots WHERE bot_id = $1")
             .bind(bot_id)
             .execute(pool)
             .await

@@ -1,5 +1,6 @@
 use chat_platform::{
     app_router,
+    cache::RedisMessageCache,
     config::Config,
     db,
     services::message_record_manager::MessageRecordManager,
@@ -53,6 +54,7 @@ async fn main() -> std::io::Result<()> {
         config.server.workers
     );
     tracing::debug!("数据库配置: DATABASE_URL={}", config.database.url);
+    tracing::debug!("Redis 配置: REDIS_URL={}", config.redis.url);
     tracing::info!(
         "📝 日志落盘已启用: dir={}, file_prefix={} (按天切分)",
         config.logging.dir,
@@ -94,8 +96,18 @@ async fn main() -> std::io::Result<()> {
     let ws_manager = ws::WsManager::new();
     tracing::info!("✅ WebSocket 管理器初始化完成");
 
+    tracing::info!("🔗 正在连接 Redis...");
+    let redis_client =
+        redis::Client::open(config.redis.url.as_str()).expect("❌ 无效的 Redis URL");
+    let redis_conn = redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .expect("❌ 连接 Redis 失败");
+    tracing::info!("✅ Redis 连接成功");
+
     tracing::info!("💾 正在初始化消息记录管理器...");
-    let message_record_manager = MessageRecordManager::new(db_pool.clone())
+    let redis_cache = RedisMessageCache::new(redis_conn);
+    let message_record_manager = MessageRecordManager::new(db_pool.clone(), redis_cache)
         .await
         .expect("❌ 初始化消息记录管理器失败");
     tracing::info!("✅ 消息记录管理器初始化完成");

@@ -1,11 +1,11 @@
 use crate::config::DatabaseConfig;
 use crate::error::AppResult;
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 
-pub type DbPool = SqlitePool;
+pub type DbPool = PgPool;
 
 pub async fn init_pool(config: &DatabaseConfig) -> AppResult<DbPool> {
-    let pool = SqlitePoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(config.max_connections)
         .min_connections(config.min_connections)
         .connect(&config.url)

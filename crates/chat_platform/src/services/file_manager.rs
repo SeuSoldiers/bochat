@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::repositories::{FileRepository, UploaderRelation};
 use serde_json::Value;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 /// 独立文件管理器：
 /// 统一处理文件引用/清理，不在业务 handler 中散落引用计数逻辑。
@@ -9,7 +9,7 @@ pub struct FileManager;
 
 impl FileManager {
     pub async fn on_bot_created(
-        pool: &SqlitePool,
+        pool: &PgPool,
         bot_id: &str,
         avatar_url: Option<&str>,
     ) -> AppResult<()> {
@@ -17,7 +17,7 @@ impl FileManager {
     }
 
     pub async fn on_bot_updated(
-        pool: &SqlitePool,
+        pool: &PgPool,
         bot_id: &str,
         old_avatar_url: Option<&str>,
         new_avatar_url: Option<&str>,
@@ -62,7 +62,7 @@ impl FileManager {
     }
 
     pub async fn on_bot_deleted(
-        pool: &SqlitePool,
+        pool: &PgPool,
         bot_id: &str,
         old_avatar_url: Option<&str>,
     ) -> AppResult<()> {
@@ -70,7 +70,7 @@ impl FileManager {
     }
 
     pub async fn on_message_persisted(
-        pool: &SqlitePool,
+        pool: &PgPool,
         msg_id: i64,
         msg_type: &str,
         content: &Value,
@@ -99,7 +99,7 @@ impl FileManager {
         Ok(())
     }
 
-    pub async fn on_group_deleting(pool: &SqlitePool, group_id: &str) -> AppResult<()> {
+    pub async fn on_group_deleting(pool: &PgPool, group_id: &str) -> AppResult<()> {
         let affected_file_ids = refs::remove_message_references_for_group(pool, group_id).await?;
         for file_id in affected_file_ids {
             let _ = refs::cleanup_file_if_unreferenced(pool, &file_id).await?;
@@ -108,7 +108,7 @@ impl FileManager {
     }
 
     pub async fn remove_uploader_and_cleanup(
-        pool: &SqlitePool,
+        pool: &PgPool,
         file_id: &str,
         uploader_bot_id: &str,
     ) -> AppResult<(bool, bool)> {
@@ -144,7 +144,7 @@ mod refs {
     use crate::repositories::{
         FileReferenceKey, FileReferenceRepository, MessageReferenceCleanup, NewFileReference,
     };
-    use sqlx::SqlitePool;
+    use sqlx::PgPool;
 
     pub const REF_TYPE_MESSAGE: &str = "message";
     pub const REF_TYPE_BOT_AVATAR: &str = "bot_avatar";
@@ -182,7 +182,7 @@ mod refs {
     }
 
     pub async fn add_reference(
-        pool: &SqlitePool,
+        pool: &PgPool,
         file_id: &str,
         reference_type: &str,
         reference_id: &str,
@@ -203,7 +203,7 @@ mod refs {
     }
 
     pub async fn remove_reference(
-        pool: &SqlitePool,
+        pool: &PgPool,
         file_id: &str,
         reference_type: &str,
         reference_id: &str,
@@ -220,12 +220,12 @@ mod refs {
         Ok(affected > 0)
     }
 
-    pub async fn file_exists(pool: &SqlitePool, file_id: &str) -> AppResult<bool> {
+    pub async fn file_exists(pool: &PgPool, file_id: &str) -> AppResult<bool> {
         FileReferenceRepository::file_exists(pool, file_id).await
     }
 
     pub async fn remove_message_references_for_group(
-        pool: &SqlitePool,
+        pool: &PgPool,
         group_id: &str,
     ) -> AppResult<Vec<String>> {
         let cleanup = MessageReferenceCleanup {
@@ -240,7 +240,7 @@ mod refs {
         Ok(affected_file_ids)
     }
 
-    pub async fn cleanup_file_if_unreferenced(pool: &SqlitePool, file_id: &str) -> AppResult<bool> {
+    pub async fn cleanup_file_if_unreferenced(pool: &PgPool, file_id: &str) -> AppResult<bool> {
         let Some(storage_path) = FileReferenceRepository::find_storage_path(pool, file_id).await? else {
             return Ok(false);
         };

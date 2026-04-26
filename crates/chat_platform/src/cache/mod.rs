@@ -1,3 +1,3 @@
-pub mod message_cache;
+pub mod redis_message_cache;
 
-pub use message_cache::MessageCache;
+pub use redis_message_cache::RedisMessageCache;

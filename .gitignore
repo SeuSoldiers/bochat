@@ -2,6 +2,7 @@
 .env
 *.db
 /.claude
+.cargo
 
 CLAUDE.md
 

@@ -12,7 +12,10 @@ tower-http = { version = "0.6", features = ["cors"] }
 tokio = { version = "1", features = ["full"] }
 
 # Database
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"] }
+
+# Redis
+redis = { version = "0.31", features = ["tokio-comp", "aio"] }
 
 # WebSocket
 tokio-tungstenite = "0.29"
@@ -42,9 +45,6 @@ config = "0.15"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-appender = "0.2"
-
-# Concurrent data structures
-dashmap = "6"
 
 # Error handling
 anyhow = "1"

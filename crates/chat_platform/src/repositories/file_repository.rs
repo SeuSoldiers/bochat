@@ -1,6 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::models::File;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 pub struct UserFilesPage<'a> {
     pub user_id: &'a str,
@@ -33,9 +33,9 @@ pub struct NewFileUploader<'a> {
 pub struct FileRepository;
 
 impl FileRepository {
-    pub async fn find_by_content_hash(pool: &SqlitePool, content_hash: &str) -> AppResult<Option<File>> {
+    pub async fn find_by_content_hash(pool: &PgPool, content_hash: &str) -> AppResult<Option<File>> {
         sqlx::query_as(
-            "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE content_hash = ?",
+            "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE content_hash = $1",
         )
         .bind(content_hash)
         .fetch_optional(pool)
@@ -43,9 +43,9 @@ impl FileRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn find_by_id(pool: &SqlitePool, file_id: &str) -> AppResult<Option<File>> {
+    pub async fn find_by_id(pool: &PgPool, file_id: &str) -> AppResult<Option<File>> {
         sqlx::query_as(
-            "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = ?",
+            "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE file_id = $1",
         )
         .bind(file_id)
         .fetch_optional(pool)
@@ -53,8 +53,8 @@ impl FileRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn exists_file_id(pool: &SqlitePool, file_id: &str) -> AppResult<Option<String>> {
-        sqlx::query_scalar("SELECT file_id FROM files WHERE file_id = ?")
+    pub async fn exists_file_id(pool: &PgPool, file_id: &str) -> AppResult<Option<String>> {
+        sqlx::query_scalar("SELECT file_id FROM files WHERE file_id = $1")
             .bind(file_id)
             .fetch_optional(pool)
             .await
@@ -62,11 +62,11 @@ impl FileRepository {
     }
 
     pub async fn list_by_owner_via_uploaders(
-        pool: &SqlitePool,
+        pool: &PgPool,
         query: &UserFilesPage<'_>,
     ) -> AppResult<Vec<File>> {
         sqlx::query_as::<_, File>(
-            "SELECT f.file_id, f.owner_id, f.content_hash, f.filename, f.size, f.mime_type, f.storage_path, f.created_at\n             FROM files f\n             INNER JOIN file_uploaders fu ON fu.file_id = f.file_id\n             INNER JOIN bots b ON b.bot_id = fu.uploader_id\n             WHERE b.owner_id = ?\n             GROUP BY f.file_id\n             ORDER BY f.created_at DESC\n             LIMIT ? OFFSET ?"
+            "SELECT f.file_id, f.owner_id, f.content_hash, f.filename, f.size, f.mime_type, f.storage_path, f.created_at FROM files f INNER JOIN file_uploaders fu ON fu.file_id = f.file_id INNER JOIN bots b ON b.bot_id = fu.uploader_id WHERE b.owner_id = $1 GROUP BY f.file_id ORDER BY f.created_at DESC LIMIT $2 OFFSET $3",
         )
         .bind(query.user_id)
         .bind(query.limit)
@@ -76,9 +76,9 @@ impl FileRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn uploader_relation_exists(pool: &SqlitePool, relation: &UploaderRelation<'_>) -> AppResult<bool> {
+    pub async fn uploader_relation_exists(pool: &PgPool, relation: &UploaderRelation<'_>) -> AppResult<bool> {
         sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM file_uploaders WHERE file_id = ? AND uploader_id = ?)",
+            "SELECT EXISTS(SELECT 1 FROM file_uploaders WHERE file_id = $1 AND uploader_id = $2)",
         )
         .bind(relation.file_id)
         .bind(relation.uploader_id)
@@ -87,8 +87,8 @@ impl FileRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn remove_uploader(pool: &SqlitePool, relation: &UploaderRelation<'_>) -> AppResult<()> {
-        sqlx::query("DELETE FROM file_uploaders WHERE file_id = ? AND uploader_id = ?")
+    pub async fn remove_uploader(pool: &PgPool, relation: &UploaderRelation<'_>) -> AppResult<()> {
+        sqlx::query("DELETE FROM file_uploaders WHERE file_id = $1 AND uploader_id = $2")
             .bind(relation.file_id)
             .bind(relation.uploader_id)
             .execute(pool)
@@ -97,11 +97,11 @@ impl FileRepository {
         Ok(())
     }
 
-    pub async fn insert_file(pool: &SqlitePool, new_file: &NewFile<'_>) -> AppResult<()> {
+    pub async fn insert_file(pool: &PgPool, new_file: &NewFile<'_>) -> AppResult<()> {
         sqlx::query(
             r#"
             INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
         )
         .bind(new_file.file_id)
@@ -119,9 +119,9 @@ impl FileRepository {
         Ok(())
     }
 
-    pub async fn add_uploader_ignore(pool: &SqlitePool, new_uploader: &NewFileUploader<'_>) -> AppResult<()> {
+    pub async fn add_uploader_ignore(pool: &PgPool, new_uploader: &NewFileUploader<'_>) -> AppResult<()> {
         sqlx::query(
-            "INSERT OR IGNORE INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO file_uploaders (file_id, uploader_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (file_id, uploader_id) DO NOTHING",
         )
         .bind(new_uploader.file_id)
         .bind(new_uploader.uploader_id)
