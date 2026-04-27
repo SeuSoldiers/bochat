@@ -51,7 +51,9 @@
                   <td><code>{{ log.action }}</code></td>
                   <td>{{ log.actor_type }} / {{ log.actor_id }}</td>
                   <td>{{ formatTarget(log) }}</td>
-                  <td class="details-cell">{{ formatDetails(log.details) }}</td>
+                  <td class="details-cell" :title="formatDetails(log.details)">
+                    {{ formatDetailsPreview(log.details) }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -194,6 +196,14 @@ const formatDetails = (details: AuditLogItem['details']) => {
   return JSON.stringify(details)
 }
 
+const formatDetailsPreview = (details: AuditLogItem['details']) => {
+  const raw = formatDetails(details).replace(/\s+/g, ' ').trim()
+  if (raw.length <= 120) {
+    return raw
+  }
+  return `${raw.slice(0, 120)}...`
+}
+
 onMounted(fetchLogs)
 </script>
 
@@ -314,9 +324,10 @@ onMounted(fetchLogs)
 .audit-table th,
 .audit-table td {
   border-bottom: 1px solid #e1e1e1;
-  padding: 8px 10px;
+  padding: 6px 10px;
   text-align: left;
   vertical-align: top;
+  line-height: 1.3;
 }
 
 .audit-table th {
@@ -335,9 +346,10 @@ onMounted(fetchLogs)
 }
 
 .details-cell {
-  max-width: 480px;
-  white-space: normal;
-  word-break: break-all;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .empty-cell {
