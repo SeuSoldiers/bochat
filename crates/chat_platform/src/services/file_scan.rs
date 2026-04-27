@@ -1,13 +1,13 @@
 use serde_json::json;
 
 use crate::{
+    AppState,
     db::DbPool,
     repositories::{FileScanRepository, FileScanResultUpdate, GroupRepository, NewPendingFileScan},
     services::{
-        audit::{record_best_effort, AuditRecord},
-        notification::{create_best_effort as create_notification_best_effort, NotificationRecord},
+        audit::{AuditRecord, record_best_effort},
+        notification::{NotificationRecord, create_best_effort as create_notification_best_effort},
     },
-    AppState,
 };
 
 const SCAN_WORKER_ID: &str = "file_scan_worker";
@@ -22,16 +22,16 @@ pub struct UploadScanInput<'a> {
     pub uploader_user_id: &'a str,
 }
 
-pub async fn enqueue_uploaded_file_scan_best_effort(
-    state: &AppState,
-    input: UploadScanInput<'_>,
-) {
+pub async fn enqueue_uploaded_file_scan_best_effort(state: &AppState, input: UploadScanInput<'_>) {
     if let Err(err) = enqueue_uploaded_file_scan(state, input).await {
         tracing::warn!("文件扫描任务入队失败(已忽略): {}", err);
     }
 }
 
-async fn enqueue_uploaded_file_scan(state: &AppState, input: UploadScanInput<'_>) -> crate::error::AppResult<()> {
+async fn enqueue_uploaded_file_scan(
+    state: &AppState,
+    input: UploadScanInput<'_>,
+) -> crate::error::AppResult<()> {
     let now = chrono::Utc::now().to_rfc3339();
     let inserted = FileScanRepository::insert_pending_ignore(
         &state.pool,
@@ -229,7 +229,11 @@ async fn process_scan_job(pool: DbPool, job: ScanJob) {
     )
     .await
     {
-        tracing::error!("更新文件扫描结果失败: file_id={}, error={}", job.file_id, err);
+        tracing::error!(
+            "更新文件扫描结果失败: file_id={}, error={}",
+            job.file_id,
+            err
+        );
         return;
     }
 
@@ -360,29 +364,25 @@ fn has_double_extension(filename_lower: &str) -> bool {
     const DISGUISED_SAFE_EXT: [&str; 8] = [
         ".jpg.", ".jpeg.", ".png.", ".gif.", ".pdf.", ".doc.", ".docx.", ".txt.",
     ];
-    DISGUISED_SAFE_EXT.iter().any(|pattern| {
-        filename_lower.contains(pattern)
-            && has_suspicious_extension(filename_lower)
-    })
+    DISGUISED_SAFE_EXT
+        .iter()
+        .any(|pattern| filename_lower.contains(pattern) && has_suspicious_extension(filename_lower))
 }
 
 fn contains_filename_risk_keyword(filename_lower: &str) -> bool {
     const KEYWORDS: [&str; 8] = [
-        "keygen",
-        "crack",
-        "hacktool",
-        "trojan",
-        "ransom",
-        "payload",
-        "backdoor",
-        "exploit",
+        "keygen", "crack", "hacktool", "trojan", "ransom", "payload", "backdoor", "exploit",
     ];
     KEYWORDS.iter().any(|word| filename_lower.contains(word))
 }
 
 fn is_executable_magic(bytes: &[u8]) -> bool {
     (bytes.len() >= 2 && &bytes[0..2] == b"MZ")
-        || (bytes.len() >= 4 && bytes[0] == 0x7f && bytes[1] == b'E' && bytes[2] == b'L' && bytes[3] == b'F')
+        || (bytes.len() >= 4
+            && bytes[0] == 0x7f
+            && bytes[1] == b'E'
+            && bytes[2] == b'L'
+            && bytes[3] == b'F')
 }
 
 fn has_illegal_text_content(mime_type: &str, bytes: &[u8]) -> bool {

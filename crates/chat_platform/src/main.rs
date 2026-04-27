@@ -1,14 +1,9 @@
 use chat_platform::{
-    app_router,
-    cache::RedisMessageCache,
-    config::Config,
-    db,
-    services::message_record_manager::MessageRecordManager,
-    ws,
-    AppState,
+    AppState, app_router, cache::RedisMessageCache, config::Config, db,
+    services::message_record_manager::MessageRecordManager, ws,
 };
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 fn init_tracing(config: &Config) -> std::io::Result<WorkerGuard> {
     std::fs::create_dir_all(&config.logging.dir)?;
@@ -17,8 +12,8 @@ fn init_tracing(config: &Config) -> std::io::Result<WorkerGuard> {
         tracing_appender::rolling::daily(&config.logging.dir, &config.logging.file_prefix);
     let (file_writer, file_guard) = tracing_appender::non_blocking(file_appender);
 
-    let env_filter = EnvFilter::from_default_env()
-        .add_directive("chat_platform=debug".parse().unwrap());
+    let env_filter =
+        EnvFilter::from_default_env().add_directive("chat_platform=debug".parse().unwrap());
 
     tracing_subscriber::registry()
         .with(env_filter)
@@ -97,8 +92,7 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("✅ WebSocket 管理器初始化完成");
 
     tracing::info!("🔗 正在连接 Redis...");
-    let redis_client =
-        redis::Client::open(config.redis.url.as_str()).expect("❌ 无效的 Redis URL");
+    let redis_client = redis::Client::open(config.redis.url.as_str()).expect("❌ 无效的 Redis URL");
     let redis_conn = redis_client
         .get_multiplexed_async_connection()
         .await

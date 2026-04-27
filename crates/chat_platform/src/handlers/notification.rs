@@ -1,14 +1,15 @@
 use axum::{
+    Json,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::Response,
-    Json,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
-    error::{json_response, AppError, AppResult},
+    AppState,
+    error::{AppError, AppResult, json_response},
     middlewares::UserAuth,
     models::{NotificationResponse, NotificationStatsResponse},
     repositories::{
@@ -16,11 +17,10 @@ use crate::{
         NotificationListFilter, NotificationRepository,
     },
     services::{
-        audit::{record_best_effort, AuditRecord},
+        audit::{AuditRecord, record_best_effort},
         authz::can_manage_target_user,
-        notification::{create_best_effort as create_notification_best_effort, NotificationRecord},
+        notification::{NotificationRecord, create_best_effort as create_notification_best_effort},
     },
-    AppState,
 };
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +89,8 @@ pub async fn mark_notification_read(
 ) -> AppResult<Response> {
     let user_id = auth.user_id;
     let now = chrono::Utc::now().to_rfc3339();
-    let updated = NotificationRepository::mark_read(&state.pool, &user_id, &notification_id, &now).await?;
+    let updated =
+        NotificationRepository::mark_read(&state.pool, &user_id, &notification_id, &now).await?;
     if !updated {
         return Err(AppError::NotificationNotFound);
     }
@@ -109,7 +110,8 @@ pub async fn approve_notification_join_request(
     Path(notification_id): Path<String>,
     Json(body): Json<ReviewByNotificationBody>,
 ) -> AppResult<Response> {
-    review_notification_join_request(state, auth.user_id, notification_id, "approved", body.note).await
+    review_notification_join_request(state, auth.user_id, notification_id, "approved", body.note)
+        .await
 }
 
 #[tracing::instrument(skip_all)]
@@ -119,7 +121,8 @@ pub async fn reject_notification_join_request(
     Path(notification_id): Path<String>,
     Json(body): Json<ReviewByNotificationBody>,
 ) -> AppResult<Response> {
-    review_notification_join_request(state, auth.user_id, notification_id, "rejected", body.note).await
+    review_notification_join_request(state, auth.user_id, notification_id, "rejected", body.note)
+        .await
 }
 
 async fn review_notification_join_request(
@@ -129,9 +132,10 @@ async fn review_notification_join_request(
     status: &str,
     note: Option<String>,
 ) -> AppResult<Response> {
-    let notification = NotificationRepository::find_by_id(&state.pool, &requester_user_id, &notification_id)
-        .await?
-        .ok_or(AppError::NotificationNotFound)?;
+    let notification =
+        NotificationRepository::find_by_id(&state.pool, &requester_user_id, &notification_id)
+            .await?
+            .ok_or(AppError::NotificationNotFound)?;
 
     if notification.kind != "group_invite_approval" || !notification.requires_action {
         return Err(AppError::BadRequest("该通知不支持审批操作".to_string()));
@@ -158,8 +162,12 @@ async fn review_notification_join_request(
         return Err(AppError::Forbidden("没有权限处理该申请".to_string()));
     }
     if request.status != "pending" {
-        NotificationRepository::resolve_by_request_id(&state.pool, &request_id, &chrono::Utc::now().to_rfc3339())
-            .await?;
+        NotificationRepository::resolve_by_request_id(
+            &state.pool,
+            &request_id,
+            &chrono::Utc::now().to_rfc3339(),
+        )
+        .await?;
         return Err(AppError::BadRequest("该申请已被处理".to_string()));
     }
 
@@ -178,8 +186,14 @@ async fn review_notification_join_request(
     }
 
     let review_note = note.as_deref().map(str::trim).filter(|v| !v.is_empty());
-    let updated =
-        GroupJoinRequestRepository::update_status(&state.pool, &request_id, status, review_note, &now).await?;
+    let updated = GroupJoinRequestRepository::update_status(
+        &state.pool,
+        &request_id,
+        status,
+        review_note,
+        &now,
+    )
+    .await?;
     if !updated {
         return Err(AppError::BadRequest("该申请已被处理".to_string()));
     }
@@ -207,7 +221,11 @@ async fn review_notification_join_request(
                 "Bot {} 的加群申请（群 {}）已被{}",
                 bot_name,
                 group_name,
-                if status == "approved" { "同意" } else { "拒绝" }
+                if status == "approved" {
+                    "同意"
+                } else {
+                    "拒绝"
+                }
             ),
             requires_action: false,
             action_payload: Some(json!({
@@ -226,7 +244,9 @@ async fn review_notification_join_request(
     .await;
 
     NotificationRepository::resolve_by_request_id(&state.pool, &request_id, &now).await?;
-    let _ = NotificationRepository::resolve(&state.pool, &requester_user_id, &notification_id, &now).await?;
+    let _ =
+        NotificationRepository::resolve(&state.pool, &requester_user_id, &notification_id, &now)
+            .await?;
 
     record_best_effort(
         &state.pool,

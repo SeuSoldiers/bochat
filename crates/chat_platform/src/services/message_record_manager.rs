@@ -30,12 +30,10 @@ impl MessageRecordManager {
     ///
     /// 从数据库查询当前最大 `msg_id` 作为原子计数器的起始值。
     pub async fn new(pool: PgPool, cache: RedisMessageCache) -> AppResult<Self> {
-        let max_id: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(MAX(msg_id), 0) FROM messages",
-        )
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let max_id: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(msg_id), 0) FROM messages")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         NEXT_MSG_ID.store(max_id + 1, Ordering::SeqCst);
         tracing::info!("消息ID生成器初始化完成，起始ID: {}", max_id + 1);
@@ -54,7 +52,10 @@ impl MessageRecordManager {
     /// 2. 构造 MessageWithSenderRow 写入 Redis 缓存
     /// 3. spawn 异步任务将消息持久化到 PostgreSQL
     #[tracing::instrument(skip(self, new_message))]
-    pub async fn send_message(&self, new_message: &NewMessage<'_>) -> AppResult<MessageWithSenderRow> {
+    pub async fn send_message(
+        &self,
+        new_message: &NewMessage<'_>,
+    ) -> AppResult<MessageWithSenderRow> {
         let msg = MessageWithSenderRow {
             msg_id: new_message.msg_id,
             group_id: new_message.group_id.to_string(),

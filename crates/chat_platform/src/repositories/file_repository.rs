@@ -33,7 +33,10 @@ pub struct NewFileUploader<'a> {
 pub struct FileRepository;
 
 impl FileRepository {
-    pub async fn find_by_content_hash(pool: &PgPool, content_hash: &str) -> AppResult<Option<File>> {
+    pub async fn find_by_content_hash(
+        pool: &PgPool,
+        content_hash: &str,
+    ) -> AppResult<Option<File>> {
         sqlx::query_as(
             "SELECT file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at FROM files WHERE content_hash = $1",
         )
@@ -76,7 +79,10 @@ impl FileRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn uploader_relation_exists(pool: &PgPool, relation: &UploaderRelation<'_>) -> AppResult<bool> {
+    pub async fn uploader_relation_exists(
+        pool: &PgPool,
+        relation: &UploaderRelation<'_>,
+    ) -> AppResult<bool> {
         sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM file_uploaders WHERE file_id = $1 AND uploader_id = $2)",
         )
@@ -119,7 +125,10 @@ impl FileRepository {
         Ok(())
     }
 
-    pub async fn add_uploader_ignore(pool: &PgPool, new_uploader: &NewFileUploader<'_>) -> AppResult<()> {
+    pub async fn add_uploader_ignore(
+        pool: &PgPool,
+        new_uploader: &NewFileUploader<'_>,
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO file_uploaders (file_id, uploader_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (file_id, uploader_id) DO NOTHING",
         )

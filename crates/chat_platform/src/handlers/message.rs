@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Extension, State},
     http::StatusCode,
     response::Response,
-    Json,
 };
 use serde_json::json;
 use std::collections::HashSet;
@@ -12,15 +12,15 @@ use crate::repositories::{
     GroupMemberLink, GroupRepository, MessageIdempotencyQuery, MessageRepository,
     MessageWithSenderRow, NewMessage,
 };
-use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
-use crate::services::audit::{record_best_effort, AuditRecord};
-use crate::services::file_scan::notify_group_owner_if_file_flagged_best_effort;
 use crate::services::MessageService;
+use crate::services::audit::{AuditRecord, record_best_effort};
+use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
+use crate::services::file_scan::notify_group_owner_if_file_flagged_best_effort;
 use crate::ws::WsEvent;
 use crate::{
-    error::{json_response, AppError, AppResult},
-    middlewares::BotAuth,
     AppState,
+    error::{AppError, AppResult, json_response},
+    middlewares::BotAuth,
 };
 
 #[tracing::instrument(skip_all)]
@@ -64,11 +64,11 @@ pub async fn send_message(
             member_id: &requester_bot_id,
         },
     )
-        .await
-        .map_err(|e| {
-            tracing::error!("检查群聊成员时数据库错误: {}", e);
-            e
-        })?;
+    .await
+    .map_err(|e| {
+        tracing::error!("检查群聊成员时数据库错误: {}", e);
+        e
+    })?;
 
     if !is_member && !bot_has_global_group_access(&state.pool, &requester_bot_id).await? {
         tracing::warn!(
@@ -131,7 +131,12 @@ pub async fn send_message(
     let msg_id = state.message_record_manager.next_id();
 
     tracing::info!("所有验证通过，正在写入消息缓存并异步落库");
-    tracing::debug!("消息ID: {}, 消息类型: {}, 时间戳: {}", msg_id, msg_type, now);
+    tracing::debug!(
+        "消息ID: {}, 消息类型: {}, 时间戳: {}",
+        msg_id,
+        msg_type,
+        now
+    );
 
     let inserted_message: MessageWithSenderRow = state
         .message_record_manager

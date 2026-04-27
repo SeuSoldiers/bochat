@@ -1,18 +1,18 @@
 use axum::{
     extract::{Extension, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    error::{json_response, AppError, AppResult},
+    AppState,
+    error::{AppError, AppResult, json_response},
     middlewares::UserAuth,
     models::AuditLogResponse,
     repositories::{AuditLogRepository, AuditLogsFilter},
     services::authz::user_is_super_admin,
-    AppState,
 };
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +29,9 @@ pub struct AuditLogsQuery {
 
 async fn ensure_super_admin_only(state: &AppState, user_id: &str) -> AppResult<()> {
     if !user_is_super_admin(&state.pool, user_id).await? {
-        return Err(AppError::Forbidden("只有超级管理员可以访问审计日志".to_string()));
+        return Err(AppError::Forbidden(
+            "只有超级管理员可以访问审计日志".to_string(),
+        ));
     }
     Ok(())
 }

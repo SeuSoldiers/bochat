@@ -20,7 +20,7 @@ pub struct CreateGroupRequest {
     pub description: Option<String>,
     pub group_code: Option<String>, // 可选，如果不提供则不设置
     pub avatar_url: Option<String>,
-    pub bot_id: Option<String>,     // 可选，指定自动加入群聊的 Bot
+    pub bot_id: Option<String>, // 可选，指定自动加入群聊的 Bot
     pub is_public: Option<bool>,
 }
 

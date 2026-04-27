@@ -22,7 +22,10 @@ pub struct MessageReferenceCleanup<'a> {
 pub struct FileReferenceRepository;
 
 impl FileReferenceRepository {
-    pub async fn add_reference_ignore(pool: &PgPool, reference: &NewFileReference<'_>) -> AppResult<u64> {
+    pub async fn add_reference_ignore(
+        pool: &PgPool,
+        reference: &NewFileReference<'_>,
+    ) -> AppResult<u64> {
         let result = sqlx::query(
             r#"
             INSERT INTO file_references (file_id, reference_type, reference_id, created_at)
@@ -108,11 +111,12 @@ impl FileReferenceRepository {
     }
 
     pub async fn find_storage_path(pool: &PgPool, file_id: &str) -> AppResult<Option<String>> {
-        let row: Option<(String,)> = sqlx::query_as("SELECT storage_path FROM files WHERE file_id = $1")
-            .bind(file_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT storage_path FROM files WHERE file_id = $1")
+                .bind(file_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(row.map(|(storage_path,)| storage_path))
     }

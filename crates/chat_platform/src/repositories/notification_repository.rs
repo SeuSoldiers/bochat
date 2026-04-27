@@ -197,7 +197,11 @@ impl NotificationRepository {
         Ok(affected > 0)
     }
 
-    pub async fn resolve_by_request_id(pool: &PgPool, request_id: &str, now: &str) -> AppResult<()> {
+    pub async fn resolve_by_request_id(
+        pool: &PgPool,
+        request_id: &str,
+        now: &str,
+    ) -> AppResult<()> {
         sqlx::query(
             r#"
             UPDATE notifications
@@ -213,4 +217,3 @@ impl NotificationRepository {
         Ok(())
     }
 }
-

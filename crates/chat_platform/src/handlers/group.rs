@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::Response,
-    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -12,19 +12,21 @@ use crate::models::{
 };
 use crate::repositories::{
     BotRepository, GroupJoinRequestRepository, GroupMemberLink, GroupRepository, NewGroup,
-    NewGroupJoinRequest, NewGroupMember, UserRepository,
+    NewGroupJoinRequest, NewGroupMember, UpdateGroupProfile, UserRepository,
 };
-use crate::services::audit::{record_best_effort, AuditRecord};
+use crate::services::GroupService;
+use crate::services::audit::{AuditRecord, record_best_effort};
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
 };
-use crate::services::notification::{create_best_effort as create_notification_best_effort, NotificationRecord};
-use crate::services::GroupService;
+use crate::services::notification::{
+    NotificationRecord, create_best_effort as create_notification_best_effort,
+};
 use crate::utils::{generate_group_id, generate_group_join_request_id};
 use crate::{
-    error::{json_response, AppError, AppResult},
-    middlewares::{BotAuth, UserAuth},
     AppState,
+    error::{AppError, AppResult, json_response},
+    middlewares::{BotAuth, UserAuth},
 };
 
 #[derive(Debug, Deserialize)]
@@ -129,11 +131,11 @@ pub async fn create_group(
         now: &now,
     };
     GroupRepository::insert_group(&state.pool, &new_group)
-    .await
-    .map_err(|e| {
-        tracing::error!("创建群聊时数据库错误: {}", e);
-        e
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("创建群聊时数据库错误: {}", e);
+            e
+        })?;
 
     tracing::info!("群聊创建成功，正在添加指定 Bot 到群聊成员...");
 
@@ -147,11 +149,11 @@ pub async fn create_group(
             joined_at: &now,
         },
     )
-        .await
-        .map_err(|e| {
-            tracing::error!("添加 Bot 到群聊成员时数据库错误: {}", e);
-            e
-        })?;
+    .await
+    .map_err(|e| {
+        tracing::error!("添加 Bot 到群聊成员时数据库错误: {}", e);
+        e
+    })?;
 
     tracing::info!(
         "✅ 群聊创建成功 - 群聊ID: {}, 创建者: {}, Bot已自动加入: {}",
@@ -305,12 +307,12 @@ pub async fn update_group(
         .map(str::trim)
         .filter(|value| !value.is_empty());
 
-    if let Some(code) = next_group_code {
-        if let Some(existing_group_id) = GroupRepository::find_group_id_by_code(&state.pool, code).await? {
-            if existing_group_id != group_id {
-                return Err(AppError::BadRequest("群号已存在".to_string()));
-            }
-        }
+    if let Some(code) = next_group_code
+        && let Some(existing_group_id) =
+            GroupRepository::find_group_id_by_code(&state.pool, code).await?
+        && existing_group_id != group_id
+    {
+        return Err(AppError::BadRequest("群号已存在".to_string()));
     }
 
     let next_description = req
@@ -328,13 +330,15 @@ pub async fn update_group(
 
     GroupRepository::update_profile(
         &state.pool,
-        &group_id,
-        next_name,
-        next_group_code,
-        next_description,
-        next_avatar_url,
-        next_is_public,
-        &now,
+        &UpdateGroupProfile {
+            group_id: &group_id,
+            name: next_name,
+            group_code: next_group_code,
+            description: next_description,
+            avatar_url: next_avatar_url,
+            is_public: next_is_public,
+            updated_at: &now,
+        },
     )
     .await?;
 
@@ -397,12 +401,13 @@ pub async fn join_group(
         let gcode = req.group_code.as_ref().unwrap();
         tracing::debug!("使用 group_code 查找群聊: {}", gcode);
 
-        let found_group: Option<String> = GroupRepository::find_group_id_by_code(&state.pool, gcode)
-            .await
-            .map_err(|e| {
-                tracing::error!("查询群聊时数据库错误: {}", e);
-                e
-            })?;
+        let found_group: Option<String> =
+            GroupRepository::find_group_id_by_code(&state.pool, gcode)
+                .await
+                .map_err(|e| {
+                    tracing::error!("查询群聊时数据库错误: {}", e);
+                    e
+                })?;
 
         found_group.ok_or_else(|| {
             tracing::warn!("群号不存在: {}", gcode);
@@ -412,16 +417,17 @@ pub async fn join_group(
 
     tracing::debug!("群聊 ID: {}", group_id_str);
 
-    let target_group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id_str)
-        .await
-        .map_err(|e| {
-            tracing::error!("查询群聊时数据库错误: {}", e);
-            e
-        })?
-        .ok_or_else(|| {
-            tracing::warn!("群聊不存在: {}", group_id_str);
-            AppError::BadRequest("群聊不存在".to_string())
-        })?;
+    let target_group: crate::models::Group =
+        GroupRepository::find_by_id(&state.pool, &group_id_str)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询群聊时数据库错误: {}", e);
+                e
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("群聊不存在: {}", group_id_str);
+                AppError::BadRequest("群聊不存在".to_string())
+            })?;
 
     let target_bot: crate::models::Bot = if let Some(bot_id) = req.bot_id.as_ref() {
         BotRepository::find_by_id(&state.pool, bot_id)
@@ -584,11 +590,12 @@ pub async fn join_group(
         ));
     }
 
-    let (approver_user_id, request_type) = if requester_can_manage_group && !requester_can_manage_bot {
-        (target_bot_owner_id.as_str(), "bot_owner_approval")
-    } else {
-        (target_group.creator_id.as_str(), "group_owner_approval")
-    };
+    let (approver_user_id, request_type) =
+        if requester_can_manage_group && !requester_can_manage_bot {
+            (target_bot_owner_id.as_str(), "bot_owner_approval")
+        } else {
+            (target_group.creator_id.as_str(), "group_owner_approval")
+        };
 
     let request_reason = req
         .request_reason
@@ -680,7 +687,9 @@ pub async fn join_group(
             action: "group.join_request.create",
             resource_type: "group_join_request",
             resource_id: Some(&request_id),
-            details: Some(json!({ "request_type": request_type, "approver_user_id": approver_user_id })),
+            details: Some(
+                json!({ "request_type": request_type, "approver_user_id": approver_user_id }),
+            ),
         },
     )
     .await;
@@ -939,11 +948,11 @@ pub async fn get_group_messages(
             member_id: &requester_bot_id,
         },
     )
-        .await
-        .map_err(|e| {
-            tracing::error!("检查群组成员时数据库错误: {}", e);
-            e
-        })?;
+    .await
+    .map_err(|e| {
+        tracing::error!("检查群组成员时数据库错误: {}", e);
+        e
+    })?;
 
     if !is_member && !bot_has_global_group_access(&state.pool, &requester_bot_id).await? {
         tracing::warn!(
@@ -1020,7 +1029,8 @@ pub async fn list_group_members(
         ));
     }
 
-    let members: Vec<GroupMemberResponse> = GroupRepository::list_members(&state.pool, &group_id_str).await?;
+    let members: Vec<GroupMemberResponse> =
+        GroupRepository::list_members(&state.pool, &group_id_str).await?;
 
     Ok(json_response(
         StatusCode::OK,

@@ -451,7 +451,10 @@ impl WsSession {
         Ok(format!("{}/ws", ws_base))
     }
 
-    fn websocket_request(url: &str, bot_token: &str) -> SdkResult<tokio_tungstenite::tungstenite::http::Request<()>> {
+    fn websocket_request(
+        url: &str,
+        bot_token: &str,
+    ) -> SdkResult<tokio_tungstenite::tungstenite::http::Request<()>> {
         let mut request = url
             .into_client_request()
             .map_err(|e| SdkError::RequestBuild(e.to_string()))?;

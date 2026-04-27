@@ -1,10 +1,10 @@
 use axum::{
-    body::{to_bytes, Body},
-    http::{header, Request, StatusCode},
     Router,
+    body::{Body, to_bytes},
+    http::{Request, StatusCode, header},
 };
 use chat_platform::{
-    app_router,
+    AppState, app_router,
     cache::RedisMessageCache,
     config::{
         Config, DatabaseConfig, LoggingConfig, RedisConfig, SecurityConfig, ServerConfig,
@@ -13,9 +13,8 @@ use chat_platform::{
     db,
     services::message_record_manager::MessageRecordManager,
     ws::WsManager,
-    AppState,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::util::ServiceExt;
 
@@ -29,8 +28,9 @@ fn test_config(temp_dir: &TempDir) -> Config {
             workers: 1,
         },
         database: DatabaseConfig {
-            url: std::env::var("TEST_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://chat_user:chat_pass@localhost:5432/chat_platform_test".to_string()),
+            url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://chat_user:chat_pass@localhost:5432/chat_platform_test".to_string()
+            }),
             max_connections: 2,
             min_connections: 1,
         },
@@ -100,8 +100,8 @@ async fn delete_group_cleans_message_file_references() {
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::init_schema(&pool).await.expect("init schema");
 
-    let redis_client = redis::Client::open(config.redis.url.as_str())
-        .expect("invalid Redis URL in test");
+    let redis_client =
+        redis::Client::open(config.redis.url.as_str()).expect("invalid Redis URL in test");
     let redis_conn = redis_client
         .get_multiplexed_async_connection()
         .await
@@ -257,8 +257,8 @@ async fn bot_avatar_reset_reduces_file_reference() {
     let pool = db::init_pool(&config.database).await.expect("init db pool");
     db::init_schema(&pool).await.expect("init schema");
 
-    let redis_client = redis::Client::open(config.redis.url.as_str())
-        .expect("invalid Redis URL in test");
+    let redis_client =
+        redis::Client::open(config.redis.url.as_str()).expect("invalid Redis URL in test");
     let redis_conn = redis_client
         .get_multiplexed_async_connection()
         .await

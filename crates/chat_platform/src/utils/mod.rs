@@ -6,6 +6,6 @@ pub use id::{
     generate_notification_id, generate_user_id,
 };
 pub use token::{
-    generate_token, generate_user_token, verify_token, verify_user_token, TokenPayload,
-    UserTokenPayload,
+    TokenPayload, UserTokenPayload, generate_token, generate_user_token, verify_token,
+    verify_user_token,
 };

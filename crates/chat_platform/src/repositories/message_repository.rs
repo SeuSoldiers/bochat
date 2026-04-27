@@ -53,7 +53,10 @@ impl MessageRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn list_by_group_before(pool: &PgPool, page: &GroupMessagesPage<'_>) -> AppResult<Vec<Message>> {
+    pub async fn list_by_group_before(
+        pool: &PgPool,
+        page: &GroupMessagesPage<'_>,
+    ) -> AppResult<Vec<Message>> {
         sqlx::query_as::<_, Message>(
             r#"
             SELECT msg_id, group_id, sender_id, content, msg_type, idempotency_key, created_at

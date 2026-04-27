@@ -65,8 +65,9 @@ impl Config {
         };
 
         let database = DatabaseConfig {
-            url: std::env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://chat_user:chat_pass@localhost:5432/chat_platform".to_string()),
+            url: std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://chat_user:chat_pass@localhost:5432/chat_platform".to_string()
+            }),
             max_connections: std::env::var("DB_MAX_CONNECTIONS")
                 .ok()
                 .and_then(|c| c.parse().ok())

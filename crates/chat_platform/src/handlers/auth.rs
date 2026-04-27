@@ -1,16 +1,16 @@
-use axum::{extract::State, http::StatusCode, response::Response, Json};
+use axum::{Json, extract::State, http::StatusCode, response::Response};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::models::RegisterRequest;
 use crate::repositories::{BotRepository, NewBot, NewUser, UserRepository};
-use crate::services::audit::{record_best_effort, AuditRecord};
+use crate::services::audit::{AuditRecord, record_best_effort};
 use crate::services::authz::user_is_super_admin;
 use crate::utils::{generate_bot_id, generate_token, generate_user_id, generate_user_token};
 use crate::{
-    error::{json_response, AppError, AppResult},
     AppState,
+    error::{AppError, AppResult, json_response},
 };
 
 const NONE_PREFIX: &str = "_none_";
@@ -146,11 +146,11 @@ pub async fn register(
         now: &now,
     };
     UserRepository::insert_user(&state.pool, &new_user)
-    .await
-    .map_err(|e| {
-        tracing::error!("数据库错误: {}", e);
-        e
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("数据库错误: {}", e);
+            e
+        })?;
 
     tracing::info!("用户记录创建成功");
 
@@ -185,11 +185,11 @@ pub async fn register(
         now: &now,
     };
     BotRepository::insert(&state.pool, &new_bot)
-    .await
-    .map_err(|e| {
-        tracing::error!("创建Bot时数据库错误: {}", e);
-        e
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("创建Bot时数据库错误: {}", e);
+            e
+        })?;
 
     tracing::info!("Bot记录创建成功");
 

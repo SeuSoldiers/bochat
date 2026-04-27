@@ -79,4 +79,3 @@ pub struct NotificationStatsResponse {
     pub unread_count: i64,
     pub pending_count: i64,
 }
-

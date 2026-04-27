@@ -40,7 +40,10 @@ impl GroupJoinRequestRepository {
         Ok(())
     }
 
-    pub async fn find_by_id(pool: &PgPool, request_id: &str) -> AppResult<Option<GroupJoinRequest>> {
+    pub async fn find_by_id(
+        pool: &PgPool,
+        request_id: &str,
+    ) -> AppResult<Option<GroupJoinRequest>> {
         sqlx::query_as(
             r#"
             SELECT request_id, group_id, bot_id, requester_user_id, approver_user_id, request_type, request_reason, status, review_note, created_at, updated_at, reviewed_at

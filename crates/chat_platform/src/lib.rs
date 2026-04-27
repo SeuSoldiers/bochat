@@ -1,7 +1,6 @@
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, post, put},
-    Router,
 };
 use services::message_record_manager::MessageRecordManager;
 use tower_http::cors::CorsLayer;
@@ -28,8 +27,10 @@ pub struct AppState {
 }
 
 pub fn app_router(state: AppState) -> Router {
-    let user_auth_layer = middleware::from_fn_with_state(state.clone(), middlewares::require_user_auth);
-    let bot_auth_layer = middleware::from_fn_with_state(state.clone(), middlewares::require_bot_auth);
+    let user_auth_layer =
+        middleware::from_fn_with_state(state.clone(), middlewares::require_user_auth);
+    let bot_auth_layer =
+        middleware::from_fn_with_state(state.clone(), middlewares::require_bot_auth);
 
     let public_routes = Router::new()
         .route("/health", get(|| async { "OK" }))

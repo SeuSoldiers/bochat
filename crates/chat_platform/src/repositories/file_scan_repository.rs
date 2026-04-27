@@ -19,7 +19,10 @@ pub struct FileScanResultUpdate<'a> {
 pub struct FileScanRepository;
 
 impl FileScanRepository {
-    pub async fn insert_pending_ignore(pool: &PgPool, input: &NewPendingFileScan<'_>) -> AppResult<bool> {
+    pub async fn insert_pending_ignore(
+        pool: &PgPool,
+        input: &NewPendingFileScan<'_>,
+    ) -> AppResult<bool> {
         let result = sqlx::query(
             r#"
             INSERT INTO file_scan_records (file_id, status, risk_level, scan_result, scanned_at, created_at, updated_at)
@@ -36,7 +39,10 @@ impl FileScanRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn find_by_file_id(pool: &PgPool, file_id: &str) -> AppResult<Option<FileScanRecord>> {
+    pub async fn find_by_file_id(
+        pool: &PgPool,
+        file_id: &str,
+    ) -> AppResult<Option<FileScanRecord>> {
         sqlx::query_as(
             r#"
             SELECT file_id, status, risk_level, scan_result, scanned_at, created_at, updated_at

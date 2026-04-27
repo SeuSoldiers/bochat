@@ -8,13 +8,13 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
-    error::{json_response, AppError, AppResult},
+    AppState,
+    error::{AppError, AppResult, json_response},
     middlewares::UserAuth,
     models::{UpdateUserRequest, UserResponse},
     repositories::UserRepository,
+    services::audit::{AuditRecord, record_best_effort},
     services::authz::user_is_super_admin,
-    services::audit::{record_best_effort, AuditRecord},
-    AppState,
 };
 
 const PASSWORD_MIN_LEN: usize = 8;

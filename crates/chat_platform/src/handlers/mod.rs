@@ -8,8 +8,8 @@ pub mod notification;
 pub mod user;
 pub mod ws;
 
-pub use auth::{login, register};
 pub use audit::{export_audit_logs_csv, list_audit_logs};
+pub use auth::{login, register};
 pub use bot::{create_bot, delete_bot, get_bot, list_bots, search_bot_by_id, update_bot};
 pub use file::{delete_file, download_file, upload_file};
 pub use group::{

@@ -1,8 +1,7 @@
 use axum::{
     extract::{
+        Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query,
-        State,
     },
     http::HeaderMap,
     response::Response,
@@ -13,10 +12,10 @@ use tokio::sync::mpsc;
 use crate::services::authz::bot_has_global_group_access;
 use crate::ws::{WsEvent, WsManager};
 use crate::{
+    AppState,
     error::AppResult,
     middlewares::{authenticate_bot_headers, authenticate_bot_token},
     repositories::GroupRepository,
-    AppState,
 };
 
 #[derive(serde::Deserialize, Default)]
@@ -37,12 +36,11 @@ pub async fn ws_handler(
         authenticate_bot_headers(&state, &headers).await?
     };
 
-    let group_ids: Vec<String> =
-        if bot_has_global_group_access(&state.pool, &auth.bot_id).await? {
-            GroupRepository::list_all_group_ids(&state.pool).await?
-        } else {
-            GroupRepository::list_group_ids_by_member(&state.pool, &auth.bot_id).await?
-        };
+    let group_ids: Vec<String> = if bot_has_global_group_access(&state.pool, &auth.bot_id).await? {
+        GroupRepository::list_all_group_ids(&state.pool).await?
+    } else {
+        GroupRepository::list_group_ids_by_member(&state.pool, &auth.bot_id).await?
+    };
 
     let ws_manager = state.ws_manager.clone();
     let bot_id = auth.bot_id;
@@ -79,10 +77,10 @@ async fn handle_socket(
             maybe_event = rx.recv() => {
                 match maybe_event {
                     Some(event) => {
-                        if let Ok(text) = serde_json::to_string(&event) {
-                            if socket.send(Message::Text(text.into())).await.is_err() {
-                                break;
-                            }
+                        if let Ok(text) = serde_json::to_string(&event)
+                            && socket.send(Message::Text(text.into())).await.is_err()
+                        {
+                            break;
                         }
                     }
                     None => break,

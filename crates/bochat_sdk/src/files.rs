@@ -1,6 +1,6 @@
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::Method;
 use reqwest::multipart::{Form, Part};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::client::{AuthKind, BochatClient};
 use crate::error::{SdkError, SdkResult};

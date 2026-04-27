@@ -20,6 +20,16 @@ pub struct GroupMessagesQuery<'a> {
     pub limit: i64,
 }
 
+pub struct UpdateGroupProfile<'a> {
+    pub group_id: &'a str,
+    pub name: &'a str,
+    pub group_code: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub avatar_url: Option<&'a str>,
+    pub is_public: bool,
+    pub updated_at: &'a str,
+}
+
 pub struct NewGroup<'a> {
     pub group_id: &'a str,
     pub group_code: Option<&'a str>,
@@ -127,16 +137,7 @@ impl GroupRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn update_profile(
-        pool: &PgPool,
-        group_id: &str,
-        name: &str,
-        group_code: Option<&str>,
-        description: Option<&str>,
-        avatar_url: Option<&str>,
-        is_public: bool,
-        updated_at: &str,
-    ) -> AppResult<()> {
+    pub async fn update_profile(pool: &PgPool, input: &UpdateGroupProfile<'_>) -> AppResult<()> {
         sqlx::query(
             r#"
             UPDATE groups
@@ -144,13 +145,13 @@ impl GroupRepository {
             WHERE group_id = $7
             "#,
         )
-        .bind(name)
-        .bind(group_code)
-        .bind(description)
-        .bind(avatar_url)
-        .bind(is_public)
-        .bind(updated_at)
-        .bind(group_id)
+        .bind(input.name)
+        .bind(input.group_code)
+        .bind(input.description)
+        .bind(input.avatar_url)
+        .bind(input.is_public)
+        .bind(input.updated_at)
+        .bind(input.group_id)
         .execute(pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -158,7 +159,10 @@ impl GroupRepository {
         Ok(())
     }
 
-    pub async fn find_group_id_by_code(pool: &PgPool, group_code: &str) -> AppResult<Option<String>> {
+    pub async fn find_group_id_by_code(
+        pool: &PgPool,
+        group_code: &str,
+    ) -> AppResult<Option<String>> {
         sqlx::query_scalar("SELECT group_id FROM groups WHERE group_code = $1")
             .bind(group_code)
             .fetch_optional(pool)
@@ -166,7 +170,10 @@ impl GroupRepository {
             .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn find_by_code_prefix(pool: &PgPool, group_code_prefix: &str) -> AppResult<Vec<Group>> {
+    pub async fn find_by_code_prefix(
+        pool: &PgPool,
+        group_code_prefix: &str,
+    ) -> AppResult<Vec<Group>> {
         let like_pattern = format!("{}%", group_code_prefix);
         sqlx::query_as(
             "SELECT group_id, group_code, creator_id, name, description, avatar_url, is_public, status, created_at, updated_at FROM groups WHERE group_code IS NOT NULL AND group_code LIKE $1 ORDER BY created_at DESC",
@@ -195,12 +202,14 @@ impl GroupRepository {
     }
 
     pub async fn is_member(pool: &PgPool, link: &GroupMemberLink<'_>) -> AppResult<bool> {
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = $1 AND member_id = $2)")
-            .bind(link.group_id)
-            .bind(link.member_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = $1 AND member_id = $2)",
+        )
+        .bind(link.group_id)
+        .bind(link.member_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
     pub async fn remove_member(pool: &PgPool, link: &GroupMemberLink<'_>) -> AppResult<()> {
@@ -274,7 +283,11 @@ impl GroupRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn can_user_view_members(pool: &PgPool, group_id: &str, user_id: &str) -> AppResult<bool> {
+    pub async fn can_user_view_members(
+        pool: &PgPool,
+        group_id: &str,
+        user_id: &str,
+    ) -> AppResult<bool> {
         sqlx::query_scalar(
             r#"
             SELECT EXISTS(
@@ -294,7 +307,10 @@ impl GroupRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn list_members(pool: &PgPool, group_id: &str) -> AppResult<Vec<GroupMemberResponse>> {
+    pub async fn list_members(
+        pool: &PgPool,
+        group_id: &str,
+    ) -> AppResult<Vec<GroupMemberResponse>> {
         sqlx::query_as(
             r#"
             SELECT gm.group_id, gm.member_id, gm.member_type, gm.joined_at, b.name as bot_name, b.owner_id
@@ -317,11 +333,16 @@ impl GroupRepository {
             .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn list_group_ids_by_member(pool: &PgPool, member_id: &str) -> AppResult<Vec<String>> {
-        sqlx::query_scalar("SELECT group_id FROM group_members WHERE member_id = $1 ORDER BY joined_at ASC")
-            .bind(member_id)
-            .fetch_all(pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+    pub async fn list_group_ids_by_member(
+        pool: &PgPool,
+        member_id: &str,
+    ) -> AppResult<Vec<String>> {
+        sqlx::query_scalar(
+            "SELECT group_id FROM group_members WHERE member_id = $1 ORDER BY joined_at ASC",
+        )
+        .bind(member_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 }

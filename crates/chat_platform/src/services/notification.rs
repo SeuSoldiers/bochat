@@ -51,4 +51,3 @@ pub async fn create_best_effort(pool: &DbPool, record: NotificationRecord<'_>) {
         );
     }
 }
-

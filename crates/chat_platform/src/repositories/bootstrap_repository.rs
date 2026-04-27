@@ -39,7 +39,10 @@ impl BootstrapRepository {
         Ok(result.rows_affected())
     }
 
-    pub async fn find_user_id_by_account(pool: &PgPool, account: &str) -> AppResult<Option<String>> {
+    pub async fn find_user_id_by_account(
+        pool: &PgPool,
+        account: &str,
+    ) -> AppResult<Option<String>> {
         sqlx::query_scalar("SELECT user_id FROM users WHERE account = $1")
             .bind(account)
             .fetch_optional(pool)
@@ -47,7 +50,11 @@ impl BootstrapRepository {
             .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
-    pub async fn bot_exists_by_owner_and_name(pool: &PgPool, owner_id: &str, name: &str) -> AppResult<bool> {
+    pub async fn bot_exists_by_owner_and_name(
+        pool: &PgPool,
+        owner_id: &str,
+        name: &str,
+    ) -> AppResult<bool> {
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bots WHERE owner_id = $1 AND name = $2)")
             .bind(owner_id)
             .bind(name)

@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::Response,
-    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -10,14 +10,14 @@ use uuid::Uuid;
 
 use crate::models::{BotResponse, BotSearchResponse, CreateBotRequest, UpdateBotRequest};
 use crate::repositories::{BotRepository, NewBot};
-use crate::services::audit::{record_best_effort, AuditRecord};
-use crate::services::authz::{can_manage_target_user, user_is_super_admin};
 use crate::services::BotService;
+use crate::services::audit::{AuditRecord, record_best_effort};
+use crate::services::authz::{can_manage_target_user, user_is_super_admin};
 use crate::utils::{generate_bot_id, generate_token};
 use crate::{
-    error::{json_response, AppError, AppResult},
-    middlewares::UserAuth,
     AppState,
+    error::{AppError, AppResult, json_response},
+    middlewares::UserAuth,
 };
 
 #[derive(Debug, Deserialize)]
@@ -79,11 +79,11 @@ pub async fn create_bot(
         now: &now,
     };
     BotRepository::insert(&state.pool, &new_bot)
-    .await
-    .map_err(|e| {
-        tracing::error!("创建 Bot 时数据库错误: {}", e);
-        e
-    })?;
+        .await
+        .map_err(|e| {
+            tracing::error!("创建 Bot 时数据库错误: {}", e);
+            e
+        })?;
 
     BotService::on_bot_created(&state.pool, &new_bot_id, req.avatar_url.as_deref()).await?;
 
@@ -292,8 +292,12 @@ pub async fn delete_bot(
             e
         })?;
 
-    BotService::on_bot_deleted(&state.pool, &target_bot_id, target_bot.avatar_url.as_deref())
-        .await?;
+    BotService::on_bot_deleted(
+        &state.pool,
+        &target_bot_id,
+        target_bot.avatar_url.as_deref(),
+    )
+    .await?;
 
     tracing::info!(
         "✅ Bot 删除成功 - Bot ID: {}, 所有者: {}",

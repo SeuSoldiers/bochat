@@ -1,5 +1,5 @@
-use redis::aio::MultiplexedConnection;
 use redis::AsyncCommands;
+use redis::aio::MultiplexedConnection;
 
 use crate::error::{AppError, AppResult};
 use crate::repositories::MessageWithSenderRow;

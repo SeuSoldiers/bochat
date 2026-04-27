@@ -6,12 +6,12 @@ use axum::{
 };
 
 use crate::{
+    AppState,
     error::{AppError, AppResult},
     http::{require_bot_bearer_token, require_user_bearer_token, token_bot_id, token_user_id},
     repositories::BotRepository,
     services::authz::ensure_user_exists,
     utils::{verify_token, verify_user_token},
-    AppState,
 };
 
 #[derive(Clone, Debug)]
@@ -47,7 +47,10 @@ pub async fn require_bot_auth(
     Ok(next.run(req).await)
 }
 
-pub async fn authenticate_user_headers(state: &AppState, headers: &HeaderMap) -> AppResult<UserAuth> {
+pub async fn authenticate_user_headers(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> AppResult<UserAuth> {
     let token = require_user_bearer_token(headers)?;
     let user_id = token_user_id(&token)
         .map(str::to_string)

@@ -1,25 +1,22 @@
 use axum::{
     body::Body,
     extract::{Extension, Multipart, Path, State},
-    http::{header, Response, StatusCode},
+    http::{Response, StatusCode, header},
 };
-use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    error::{json_response, AppError, AppResult},
+    AppState,
+    error::{AppError, AppResult, json_response},
     middlewares::BotAuth,
     repositories::{FileRepository, NewFile, NewFileUploader},
-    services::audit::{record_best_effort, AuditRecord},
-    services::file_scan::{enqueue_uploaded_file_scan_best_effort, UploadScanInput},
     services::FileManager,
-    AppState,
+    services::audit::{AuditRecord, record_best_effort},
+    services::file_scan::{UploadScanInput, enqueue_uploaded_file_scan_best_effort},
 };
-
-#[allow(dead_code)]
-const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 
 #[tracing::instrument(skip_all)]
 pub async fn upload_file(
@@ -113,7 +110,12 @@ pub async fn upload_file(
         )
         .await?;
 
-        let file_url = build_download_url(&scheme, &host, &existing_file.file_id, &existing_file.filename);
+        let file_url = build_download_url(
+            &scheme,
+            &host,
+            &existing_file.file_id,
+            &existing_file.filename,
+        );
 
         tracing::trace!(
             "文件复用命中: bot_id={}, existing_file_id={}, sha256={}",
@@ -356,7 +358,9 @@ fn encode_filename_segment(filename: &str) -> String {
 }
 
 fn decode_filename_segment(filename: &str) -> String {
-    percent_decode_str(filename).decode_utf8_lossy().into_owned()
+    percent_decode_str(filename)
+        .decode_utf8_lossy()
+        .into_owned()
 }
 
 fn build_download_url(scheme: &str, host: &str, file_id: &str, filename: &str) -> String {

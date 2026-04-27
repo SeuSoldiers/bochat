@@ -30,25 +30,15 @@ impl FileManager {
         }
 
         if let Some(old_file_id) = old_file_id {
-            let _ = refs::remove_reference(
-                pool,
-                &old_file_id,
-                refs::REF_TYPE_BOT_AVATAR,
-                bot_id,
-            )
-            .await?;
+            let _ = refs::remove_reference(pool, &old_file_id, refs::REF_TYPE_BOT_AVATAR, bot_id)
+                .await?;
             let _ = refs::cleanup_file_if_unreferenced(pool, &old_file_id).await?;
         }
 
         if let Some(new_file_id) = new_file_id {
             if refs::file_exists(pool, &new_file_id).await? {
-                let _ = refs::add_reference(
-                    pool,
-                    &new_file_id,
-                    refs::REF_TYPE_BOT_AVATAR,
-                    bot_id,
-                )
-                .await?;
+                let _ = refs::add_reference(pool, &new_file_id, refs::REF_TYPE_BOT_AVATAR, bot_id)
+                    .await?;
             } else {
                 tracing::warn!(
                     "Bot 头像引用的文件不存在，跳过引用计数: bot_id={}, file_id={}",
@@ -75,8 +65,7 @@ impl FileManager {
         msg_type: &str,
         content: &Value,
     ) -> AppResult<()> {
-        let Some(file_id) = refs::extract_file_id_from_message_content(msg_type, content)
-        else {
+        let Some(file_id) = refs::extract_file_id_from_message_content(msg_type, content) else {
             return Ok(());
         };
 
@@ -89,13 +78,8 @@ impl FileManager {
             return Ok(());
         }
 
-        let _ = refs::add_reference(
-            pool,
-            &file_id,
-            refs::REF_TYPE_MESSAGE,
-            &msg_id.to_string(),
-        )
-        .await?;
+        let _ = refs::add_reference(pool, &file_id, refs::REF_TYPE_MESSAGE, &msg_id.to_string())
+            .await?;
         Ok(())
     }
 
@@ -233,7 +217,8 @@ mod refs {
             group_id,
         };
         let affected_file_ids: Vec<String> =
-            FileReferenceRepository::list_affected_file_ids_by_group_messages(pool, &cleanup).await?;
+            FileReferenceRepository::list_affected_file_ids_by_group_messages(pool, &cleanup)
+                .await?;
 
         FileReferenceRepository::remove_message_references_by_group(pool, &cleanup).await?;
 
@@ -241,7 +226,8 @@ mod refs {
     }
 
     pub async fn cleanup_file_if_unreferenced(pool: &PgPool, file_id: &str) -> AppResult<bool> {
-        let Some(storage_path) = FileReferenceRepository::find_storage_path(pool, file_id).await? else {
+        let Some(storage_path) = FileReferenceRepository::find_storage_path(pool, file_id).await?
+        else {
             return Ok(false);
         };
 
@@ -255,20 +241,18 @@ mod refs {
         FileReferenceRepository::delete_references_by_file_id(pool, file_id).await?;
         FileReferenceRepository::delete_file_by_id(pool, file_id).await?;
 
-        if let Err(err) = tokio::fs::remove_file(&storage_path).await {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                return Err(AppError::InternalError(err.to_string()));
-            }
+        if let Err(err) = tokio::fs::remove_file(&storage_path).await
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(AppError::InternalError(err.to_string()));
         }
 
-        if let Some(parent_dir) = std::path::Path::new(&storage_path).parent() {
-            if let Err(err) = tokio::fs::remove_dir(parent_dir).await {
-                if err.kind() != std::io::ErrorKind::NotFound
-                    && err.kind() != std::io::ErrorKind::DirectoryNotEmpty
-                {
-                    return Err(AppError::InternalError(err.to_string()));
-                }
-            }
+        if let Some(parent_dir) = std::path::Path::new(&storage_path).parent()
+            && let Err(err) = tokio::fs::remove_dir(parent_dir).await
+            && err.kind() != std::io::ErrorKind::NotFound
+            && err.kind() != std::io::ErrorKind::DirectoryNotEmpty
+        {
+            return Err(AppError::InternalError(err.to_string()));
         }
 
         Ok(true)
