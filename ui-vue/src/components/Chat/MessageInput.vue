@@ -44,6 +44,37 @@
           {{ sending ? '发送中...' : '发送' }}
         </button>
       </div>
+
+      <div v-if="pendingFile" class="file-preview-card">
+        <div v-if="pendingFileIsImage && pendingFilePreviewUrl" class="file-preview-image-wrap">
+          <img :src="pendingFilePreviewUrl" :alt="pendingFile.name" class="file-preview-image" />
+        </div>
+        <div v-else class="file-preview-icon-wrap" aria-hidden="true">
+          <component :is="pendingFileIconComponent" class="file-preview-icon" />
+        </div>
+        <div class="file-preview-meta">
+          <p class="file-preview-name">{{ pendingFile.name }}</p>
+          <p class="file-preview-size">{{ formatFileSize(pendingFile.size) }}</p>
+        </div>
+        <div class="file-preview-actions">
+          <button
+            type="button"
+            class="preview-send-btn"
+            :disabled="sending || uploading"
+            @click="handleSendPendingFile"
+          >
+            {{ uploading ? '上传中...' : '发送文件' }}
+          </button>
+          <button
+            type="button"
+            class="preview-cancel-btn"
+            :disabled="sending || uploading"
+            @click="clearPendingFile"
+          >
+            取消
+          </button>
+        </div>
+      </div>
     </form>
 
     <div v-if="error" class="error-message">
@@ -53,7 +84,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import type { Component } from 'vue'
+import {
+  File as IconFile,
+  FileArchive as IconFileArchive,
+  FileAudio as IconFileAudio,
+  FileCode2 as IconFileCode,
+  FileImage as IconFileImage,
+  FileSpreadsheet as IconFileSheet,
+  FileText as IconFileText,
+  FileVideo as IconFileVideo,
+} from 'lucide-vue-next'
 import type { Bot } from '@/types'
 
 const props = defineProps<{
@@ -73,6 +115,10 @@ const sending = ref(false)
 const uploading = ref(false)
 const error = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const pendingFile = ref<File | null>(null)
+const pendingFilePreviewUrl = ref<string | null>(null)
+const pendingFileIsImage = ref(false)
+const pendingFileIconComponent = ref<Component>(IconFile)
 
 watch(
   () => props.initialBotId,
@@ -138,17 +184,69 @@ const handleFileChange = async (event: Event) => {
     return
   }
 
+  clearPendingFile()
+  error.value = null
+  pendingFile.value = selectedFile
+  pendingFileIsImage.value = selectedFile.type.startsWith('image/')
+  pendingFileIconComponent.value = resolveFileIconComponent(selectedFile.name)
+  if (pendingFileIsImage.value) {
+    pendingFilePreviewUrl.value = URL.createObjectURL(selectedFile)
+  }
+  input.value = ''
+}
+
+const handleSendPendingFile = async () => {
+  if (!pendingFile.value || !selectedBotId.value || !props.groupId) {
+    return
+  }
+
   uploading.value = true
   error.value = null
   try {
-    emit('send-file', selectedFile, selectedBotId.value)
+    emit('send-file', pendingFile.value, selectedBotId.value)
+    clearPendingFile()
   } catch (err: any) {
     error.value = err.message || '文件发送失败'
   } finally {
     uploading.value = false
-    input.value = ''
   }
 }
+
+const clearPendingFile = () => {
+  if (pendingFilePreviewUrl.value) {
+    URL.revokeObjectURL(pendingFilePreviewUrl.value)
+  }
+  pendingFile.value = null
+  pendingFilePreviewUrl.value = null
+  pendingFileIsImage.value = false
+  pendingFileIconComponent.value = IconFile
+}
+
+const resolveFileIconComponent = (name: string): Component => {
+  const lower = name.toLowerCase()
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|ico)$/.test(lower)) return IconFileImage
+  if (/\.(mp4|mov|mkv|avi|webm)$/.test(lower)) return IconFileVideo
+  if (/\.(mp3|wav|flac|aac|ogg)$/.test(lower)) return IconFileAudio
+  if (/\.(zip|rar|7z|tar|gz)$/.test(lower)) return IconFileArchive
+  if (/\.(xls|xlsx|csv)$/.test(lower)) return IconFileSheet
+  if (/\.(pdf|doc|docx|odt|rtf|ppt|pptx|key)$/.test(lower)) return IconFileText
+  if (/\.(js|ts|tsx|jsx|py|rs|go|java|c|cpp|h|hpp|json|yaml|yml|toml|md)$/.test(lower)) return IconFileCode
+  return IconFile
+}
+
+const formatFileSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes < 1024) return `${Math.max(0, Math.floor(bytes))} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+  const mb = kb / 1024
+  if (mb < 1024) return `${mb.toFixed(1)} MB`
+  const gb = mb / 1024
+  return `${gb.toFixed(1)} GB`
+}
+
+onBeforeUnmount(() => {
+  clearPendingFile()
+})
 </script>
 
 <style scoped>
@@ -280,5 +378,102 @@ const handleFileChange = async (event: Event) => {
   border-radius: 10px;
   font-size: 12px;
   border: 1px solid #efc5bf;
+}
+
+.file-preview-card {
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  background: #f0f0f0;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.file-preview-image-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d0d0d0;
+  background: #f8f8f8;
+  flex-shrink: 0;
+}
+
+.file-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-preview-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d0d0d0;
+  background: #f8f8f8;
+  flex-shrink: 0;
+}
+
+.file-preview-icon {
+  width: 24px;
+  height: 24px;
+  stroke: #3f3f3f;
+  stroke-width: 1.8;
+}
+
+.file-preview-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.file-preview-name {
+  margin: 0;
+  font-size: 13px;
+  color: #2f2f2f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-preview-size {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6f6f6f;
+}
+
+.file-preview-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-send-btn,
+.preview-cancel-btn {
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid #d0d0d0;
+  padding: 0 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.preview-send-btn {
+  border-color: #2f2f2f;
+  background: #2f2f2f;
+  color: #f3f3f3;
+}
+
+.preview-cancel-btn {
+  background: #f5f5f5;
+  color: #4f4f4f;
+}
+
+.preview-send-btn:disabled,
+.preview-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

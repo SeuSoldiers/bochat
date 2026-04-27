@@ -1,7 +1,6 @@
 <template>
   <div class="selector-container">
     <div class="selector-section">
-      <h3>选择群</h3>
       <div v-if="groups.length > 0" class="items-list">
         <button
           v-for="group in groups"

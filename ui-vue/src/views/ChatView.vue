@@ -4,12 +4,14 @@
       <TopNav />
 
       <div class="chat-main">
-        <div class="chat-header">
-          <BotGroupSelector
-            :groups="groupStore.groups"
-            :selected-group="groupStore.selectedGroup"
-            @select-group="groupStore.selectGroup"
-          />
+        <aside class="chat-left">
+          <div class="group-selector-wrap">
+            <BotGroupSelector
+              :groups="groupStore.groups"
+              :selected-group="groupStore.selectedGroup"
+              @select-group="groupStore.selectGroup"
+            />
+          </div>
 
           <div v-if="groupStore.selectedGroup" class="group-summary">
             <div class="group-avatar-wrap">
@@ -32,9 +34,23 @@
               <p class="group-number">群号：{{ groupStore.selectedGroup.group_code || '未设置' }}</p>
             </div>
           </div>
-        </div>
 
-        <div class="message-area">
+          <div v-if="groupStore.selectedGroup" class="input-area">
+            <MessageInput
+              :group-id="groupStore.selectedGroup.group_id"
+              :bots="botStore.bots"
+              :initial-bot-id="activeBotId"
+              @send="handleSendMessage"
+              @send-file="handleSendFile"
+            />
+          </div>
+
+          <div v-else class="left-empty-tip input-area">
+            请选择群聊后发送消息
+          </div>
+        </aside>
+
+        <section class="chat-right">
           <div v-if="messageError" class="page-error">
             {{ messageError }}
           </div>
@@ -49,16 +65,7 @@
           <div v-else class="empty-chat">
             <p>请选择群聊开始消息会话</p>
           </div>
-        </div>
-
-        <MessageInput
-          v-if="groupStore.selectedGroup"
-          :group-id="groupStore.selectedGroup.group_id"
-          :bots="botStore.bots"
-          :initial-bot-id="activeBotId"
-          @send="handleSendMessage"
-          @send-file="handleSendFile"
-        />
+        </section>
       </div>
     </div>
 
@@ -302,25 +309,100 @@ const openBotInfo = async (botId: string) => {
 .chat-main {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  padding: 20px;
-  gap: 16px;
+  flex-direction: row-reverse;
+  gap: 14px;
+  padding: 14px;
   min-height: 0;
   border-radius: 10px;
   border: 1px solid #d0d0d0;
   background: #f5f5f5;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   overflow: hidden;
+  align-items: stretch;
 }
 
-.chat-header {
+.chat-left {
+  width: 360px;
+  flex: 0 0 360px;
+  min-width: 320px;
+  min-height: 0;
   display: flex;
-  align-items: stretch;
-  gap: 14px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-right {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.input-area :deep(.message-input-container) {
+  flex: 1;
+  min-height: 0;
+}
+
+.input-area :deep(.message-input-form) {
+  height: 100%;
+  min-height: 0;
+}
+
+.input-area :deep(.input-wrapper) {
+  flex: 1;
+  min-height: 0;
+}
+
+.input-area :deep(.message-input) {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  resize: none;
+}
+
+.group-selector-wrap {
+  height: 148px;
+  min-height: 148px;
+  max-height: 148px;
+  min-width: 0;
+}
+
+.group-selector-wrap :deep(.selector-container) {
+  height: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding: 10px;
+}
+
+.group-selector-wrap :deep(.selector-section h3) {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.group-selector-wrap :deep(.items-list) {
+  max-height: 90px;
+  overflow: auto;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.group-selector-wrap :deep(.item) {
+  padding: 10px 14px;
+  font-size: 13px;
+  gap: 10px;
+  max-width: 220px;
 }
 
 .group-summary {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   justify-content: space-between;
@@ -405,15 +487,6 @@ const openBotInfo = async (botId: string) => {
   background: #353535;
 }
 
-.message-area {
-  flex: 0 1 68%;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  min-height: 0;
-  max-height: 68%;
-}
-
 .empty-chat {
   flex: 1;
   display: flex;
@@ -425,6 +498,17 @@ const openBotInfo = async (botId: string) => {
   border: 1px dashed #d0d0d0;
   background: #f5f5f5;
   min-height: 300px;
+}
+
+.left-empty-tip {
+  border: 1px dashed #d0d0d0;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #7f7f7f;
+  font-size: 13px;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
 }
 
 .page-error {
@@ -449,17 +533,27 @@ const openBotInfo = async (botId: string) => {
   .chat-main {
     padding: 14px;
     border-radius: 8px;
+    flex-direction: column;
   }
 
-  .message-area {
-    flex: 1;
+  .chat-left {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .group-selector-wrap {
+    height: auto;
+    min-height: 0;
     max-height: none;
   }
 
-  .chat-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+  .group-selector-wrap :deep(.items-list) {
+    max-height: 160px;
+  }
+
+  .chat-right {
+    min-height: 420px;
   }
 
   .group-summary {

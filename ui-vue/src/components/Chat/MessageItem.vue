@@ -10,7 +10,20 @@
         <span class="message-time">{{ formatTime(message.created_at) }}</span>
       </div>
       <div v-if="isFileMessage && fileUrl" class="message-file">
-        <a :href="fileUrl" target="_blank" rel="noopener noreferrer">{{ fileName }}</a>
+        <a
+          v-if="isImageFile"
+          :href="fileUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="image-file-link"
+        >
+          <img :src="fileUrl" :alt="fileName" class="image-preview" />
+          <span class="file-name">{{ fileName }}</span>
+        </a>
+        <a v-else :href="fileUrl" target="_blank" rel="noopener noreferrer" class="file-link">
+          <component :is="fileIcon" class="file-icon" aria-hidden="true" />
+          <span class="file-name">{{ fileName }}</span>
+        </a>
       </div>
       <div v-else class="message-text">{{ messageText }}</div>
     </div>
@@ -19,6 +32,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { Component } from 'vue'
+import {
+  File as IconFile,
+  FileArchive as IconFileArchive,
+  FileAudio as IconFileAudio,
+  FileCode2 as IconFileCode,
+  FileSpreadsheet as IconFileSheet,
+  FileText as IconFileText,
+  FileVideo as IconFileVideo,
+} from 'lucide-vue-next'
 import type { Message } from '@/types'
 
 const props = defineProps<{
@@ -73,6 +96,7 @@ const fileUrl = computed(() => {
 })
 
 const isFileMessage = computed(() => props.message.msg_type === 'file' && !!fileUrl.value)
+const isImageFile = computed(() => /\.(png|jpe?g|gif|webp|bmp|svg|ico)$/i.test(fileName.value))
 
 const fileName = computed(() => {
   const parsed = normalizedContent.value
@@ -105,6 +129,17 @@ const fileName = computed(() => {
   } catch {
     return segment
   }
+})
+
+const fileIcon = computed<Component>(() => {
+  const lower = fileName.value.toLowerCase()
+  if (/\.(zip|rar|7z|tar|gz)$/.test(lower)) return IconFileArchive
+  if (/\.(mp4|mov|mkv|avi|webm)$/.test(lower)) return IconFileVideo
+  if (/\.(mp3|wav|flac|aac|ogg)$/.test(lower)) return IconFileAudio
+  if (/\.(xls|xlsx|csv)$/.test(lower)) return IconFileSheet
+  if (/\.(pdf|doc|docx|odt|rtf|ppt|pptx|key)$/.test(lower)) return IconFileText
+  if (/\.(js|ts|tsx|jsx|py|rs|go|java|c|cpp|h|hpp|json|yaml|yml|toml|md)$/.test(lower)) return IconFileCode
+  return IconFile
 })
 
 const messageText = computed(() => {
@@ -223,11 +258,48 @@ const formatTime = (dateStr: string) => {
 .message-file a {
   color: #2f2f2f;
   text-decoration: none;
-  font-weight: 700;
 }
 
 .message-file a:hover {
   text-decoration: underline;
+}
+
+.file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.file-icon {
+  width: 18px;
+  height: 18px;
+  stroke: #3f3f3f;
+  stroke-width: 1.8;
+  flex-shrink: 0;
+}
+
+.file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-file-link {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 260px;
+}
+
+.image-preview {
+  max-width: 240px;
+  max-height: 180px;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  object-fit: cover;
+  display: block;
 }
 
 @keyframes fadeIn {
