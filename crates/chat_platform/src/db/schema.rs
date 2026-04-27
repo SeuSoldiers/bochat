@@ -188,6 +188,53 @@ pub async fn init_schema(pool: &PgPool) -> AppResult<()> {
 
     sqlx::query(
         r#"
+        CREATE TABLE IF NOT EXISTS notifications (
+            notification_id TEXT PRIMARY KEY,
+            recipient_user_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            requires_action BOOLEAN NOT NULL DEFAULT FALSE,
+            is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+            is_read BOOLEAN NOT NULL DEFAULT FALSE,
+            action_payload TEXT,
+            related_request_id TEXT,
+            related_group_id TEXT,
+            related_bot_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            read_at TEXT,
+            resolved_at TEXT,
+            FOREIGN KEY (recipient_user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_notifications_recipient_created_at
+        ON notifications(recipient_user_id, created_at DESC)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_notifications_recipient_pending
+        ON notifications(recipient_user_id, requires_action, is_resolved, created_at DESC)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
         CREATE UNIQUE INDEX IF NOT EXISTS idx_group_join_requests_pending_unique
         ON group_join_requests(group_id, bot_id, approver_user_id, request_type)
         WHERE status = 'pending'

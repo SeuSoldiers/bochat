@@ -3,6 +3,7 @@ pub mod bot;
 pub mod file;
 pub mod group;
 pub mod message;
+pub mod notification;
 pub mod user;
 
 pub use audit::{AuditLog, AuditLogResponse};
@@ -13,4 +14,5 @@ pub use group::{
     GroupMemberResponse, GroupResponse, JoinGroupRequest, UpdateGroupRequest,
 };
 pub use message::{CreateMessageRequest, Message, MessageResponse, MessageType};
+pub use notification::{Notification, NotificationResponse, NotificationStatsResponse};
 pub use user::{LoginRequest, RegisterRequest, UpdateUserRequest, User, UserResponse};

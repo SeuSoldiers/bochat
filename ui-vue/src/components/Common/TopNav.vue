@@ -50,6 +50,20 @@
         <span>实时聊天</span>
       </router-link>
       <router-link
+        to="/notifications"
+        class="menu-item"
+        :class="{ active: $route.path === '/notifications' }"
+      >
+        <span class="item-icon ghost" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 5.5a5.5 5.5 0 0 1 5.5 5.5v3.3l1.3 2.2H5.2l1.3-2.2V11A5.5 5.5 0 0 1 12 5.5Z" />
+            <path d="M9.8 18.3a2.2 2.2 0 0 0 4.4 0" />
+          </svg>
+        </span>
+        <span class="menu-label">通知中心</span>
+        <span class="menu-meta">{{ notificationStore.stats.pending_count }}</span>
+      </router-link>
+      <router-link
         v-if="authStore.isSuperAdmin"
         to="/audit"
         class="menu-item"
@@ -92,17 +106,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBotStore } from '@/stores/bots'
 import { useGroupStore } from '@/stores/groups'
+import { useNotificationStore } from '@/stores/notifications'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const botStore = useBotStore()
 const groupStore = useGroupStore()
+const notificationStore = useNotificationStore()
 const disabledStatuses = new Set(['disabled', 'stopped', 'paused', 'inactive'])
 
 const userInitial = computed(() => {
@@ -130,6 +146,12 @@ const handleLogout = async () => {
     }
   }
 }
+
+onMounted(() => {
+  notificationStore.refreshStats().catch((error) => {
+    console.error('Failed to fetch notification stats:', error)
+  })
+})
 </script>
 
 <style scoped>

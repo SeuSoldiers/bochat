@@ -19,3 +19,7 @@ pub fn generate_group_id() -> String {
 pub fn generate_group_join_request_id() -> String {
     format!("gjr_{}", Uuid::new_v4())
 }
+
+pub fn generate_notification_id() -> String {
+    format!("ntf_{}", Uuid::new_v4())
+}

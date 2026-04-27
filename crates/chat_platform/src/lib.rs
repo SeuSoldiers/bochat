@@ -68,18 +68,6 @@ pub fn app_router(state: AppState) -> Router {
         )
         .route("/api/v1/groups/join", post(handlers::join_group))
         .route(
-            "/api/v1/groups/join-requests",
-            get(handlers::list_join_requests),
-        )
-        .route(
-            "/api/v1/groups/join-requests/{request_id}/approve",
-            post(handlers::approve_join_request),
-        )
-        .route(
-            "/api/v1/groups/join-requests/{request_id}/reject",
-            post(handlers::reject_join_request),
-        )
-        .route(
             "/api/v1/groups/{group_id}/leave",
             delete(handlers::leave_group),
         )
@@ -95,6 +83,19 @@ pub fn app_router(state: AppState) -> Router {
         .route(
             "/api/v1/audit/logs/export",
             get(handlers::export_audit_logs_csv),
+        )
+        .route("/api/v1/notifications", get(handlers::list_notifications))
+        .route(
+            "/api/v1/notifications/{notification_id}/read",
+            post(handlers::mark_notification_read),
+        )
+        .route(
+            "/api/v1/notifications/{notification_id}/approve",
+            post(handlers::approve_notification_join_request),
+        )
+        .route(
+            "/api/v1/notifications/{notification_id}/reject",
+            post(handlers::reject_notification_join_request),
         )
         .layer(user_auth_layer);
 

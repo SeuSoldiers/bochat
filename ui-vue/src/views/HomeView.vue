@@ -8,14 +8,6 @@
           {{ actionError }}
         </div>
 
-        <JoinRequestPanel
-          :inbox="groupStore.joinRequestsInbox"
-          :outbox="groupStore.joinRequestsOutbox"
-          :loading="groupStore.loading"
-          @approve="handleApproveJoinRequest"
-          @reject="handleRejectJoinRequest"
-        />
-
         <section v-if="activeTab === 'bots'" class="tab-content">
           <div v-if="botStore.loading" class="loading">
             加载中...
@@ -137,7 +129,6 @@ import CreateGroupModal from '@/components/Group/CreateGroupModal.vue'
 import EditGroupModal from '@/components/Group/EditGroupModal.vue'
 import JoinGroupModal from '@/components/Group/JoinGroupModal.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
-import JoinRequestPanel from '@/components/Group/JoinRequestPanel.vue'
 import type { Bot, Group } from '@/types'
 
 const botStore = useBotStore()
@@ -165,8 +156,6 @@ onMounted(() => {
   groupStore.initializeSelectedGroup()
   botStore.fetchBots()
   groupStore.fetchGroups()
-  groupStore.fetchJoinRequests('inbox')
-  groupStore.fetchJoinRequests('outbox')
 })
 
 // 创建机器人
@@ -378,28 +367,6 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   }
 }
 
-const handleApproveJoinRequest = async (requestId: string) => {
-  try {
-    actionError.value = null
-    await groupStore.approveJoinRequestById(requestId)
-    if (selectedGroupForMembers.value) {
-      await groupStore.fetchGroupMembers(selectedGroupForMembers.value.group_id)
-    }
-  } catch (error) {
-    actionError.value = groupStore.error || '同意申请失败'
-    console.error('Failed to approve join request:', error)
-  }
-}
-
-const handleRejectJoinRequest = async (requestId: string) => {
-  try {
-    actionError.value = null
-    await groupStore.rejectJoinRequestById(requestId)
-  } catch (error) {
-    actionError.value = groupStore.error || '拒绝申请失败'
-    console.error('Failed to reject join request:', error)
-  }
-}
 </script>
 
 <style scoped>

@@ -11,6 +11,7 @@ const HomeView = () => import('@/views/HomeView.vue')
 const ChatView = () => import('@/views/ChatView.vue')
 const ProfileView = () => import('@/views/ProfileView.vue')
 const AuditView = () => import('@/views/AuditView.vue')
+const NotificationsView = () => import('@/views/NotificationsView.vue')
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -45,6 +46,14 @@ export const routes: RouteRecordRaw[] = [
     path: '/profile',
     name: 'profile',
     component: ProfileView,
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: NotificationsView,
     meta: {
       requiresAuth: true,
     },

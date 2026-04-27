@@ -163,3 +163,27 @@ export interface WebSocketMessage {
   payload: any
   timestamp: string
 }
+
+export interface NotificationStats {
+  unread_count: number
+  pending_count: number
+}
+
+export interface NotificationItem {
+  notification_id: string
+  recipient_user_id: string
+  kind: 'group_invite_approval' | 'bot_removed_from_group' | string
+  title: string
+  content: string
+  requires_action: boolean
+  is_resolved: boolean
+  is_read: boolean
+  action_payload?: Record<string, unknown>
+  related_request_id?: string
+  related_group_id?: string
+  related_bot_id?: string
+  created_at: string
+  updated_at: string
+  read_at?: string
+  resolved_at?: string
+}

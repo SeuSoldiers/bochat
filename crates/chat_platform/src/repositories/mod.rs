@@ -7,6 +7,7 @@ pub mod file_reference_repository;
 pub mod group_repository;
 pub mod group_join_request_repository;
 pub mod message_repository;
+pub mod notification_repository;
 pub mod user_repository;
 
 pub use authz_repository::AuthzRepository;
@@ -26,5 +27,8 @@ pub use group_repository::{
 pub use group_join_request_repository::{GroupJoinRequestRepository, NewGroupJoinRequest};
 pub use message_repository::{
     GroupMessagesPage, MessageIdempotencyQuery, MessageRepository, MessageWithSenderRow, NewMessage,
+};
+pub use notification_repository::{
+    NewNotification, NotificationListFilter, NotificationRepository, NotificationStats,
 };
 pub use user_repository::{NewUser, UserLoginRow, UserRepository};

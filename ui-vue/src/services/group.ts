@@ -9,7 +9,6 @@ import type {
   UpdateGroupRequest,
   GroupJoinResult,
   GroupMember,
-  GroupJoinRequestItem,
 } from '@/types'
 
 /**
@@ -76,25 +75,6 @@ export async function leaveGroup(groupId: string) {
 
 export async function removeGroupMember(groupId: string, botId: string) {
   return apiClient.delete(`/groups/${groupId}/members/${botId}`)
-}
-
-export async function getJoinRequests(scope: 'inbox' | 'outbox', status = 'pending') {
-  const response = await apiClient.get<GroupJoinRequestItem[] | { requests: GroupJoinRequestItem[] }>(
-    `/groups/join-requests?scope=${scope}&status=${encodeURIComponent(status)}`
-  )
-  return unwrapCollectionResponse(response)
-}
-
-export async function approveJoinRequest(requestId: string, note?: string) {
-  return apiClient.post(`/groups/join-requests/${requestId}/approve`, {
-    note,
-  })
-}
-
-export async function rejectJoinRequest(requestId: string, note?: string) {
-  return apiClient.post(`/groups/join-requests/${requestId}/reject`, {
-    note,
-  })
 }
 
 /**

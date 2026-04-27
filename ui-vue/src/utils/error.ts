@@ -20,6 +20,7 @@ export function getErrorMessage(error: any, fallback: string): string {
     invalid_file_format: '文件格式不支持',
     bot_not_found: '机器人不存在或已被删除',
     join_request_not_found: '加群申请不存在或已失效',
+    notification_not_found: '通知不存在或已失效',
     user_not_found: '用户不存在或登录信息不正确',
     forbidden: message || '没有权限执行该操作',
     bad_request: message || fallback,

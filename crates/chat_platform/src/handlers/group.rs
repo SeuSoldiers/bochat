@@ -8,17 +8,17 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::models::{
-    CreateGroupRequest, GroupJoinRequestListItem, GroupMemberResponse, GroupResponse,
-    JoinGroupRequest, UpdateGroupRequest,
+    CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest, UpdateGroupRequest,
 };
 use crate::repositories::{
     BotRepository, GroupJoinRequestRepository, GroupMemberLink, GroupRepository, NewGroup,
-    NewGroupJoinRequest, NewGroupMember,
+    NewGroupJoinRequest, NewGroupMember, UserRepository,
 };
 use crate::services::audit::{record_best_effort, AuditRecord};
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
 };
+use crate::services::notification::{create_best_effort as create_notification_best_effort, NotificationRecord};
 use crate::services::GroupService;
 use crate::utils::{generate_group_id, generate_group_join_request_id};
 use crate::{
@@ -41,17 +41,6 @@ pub struct LeaveGroupQuery {
 #[derive(Debug, Deserialize)]
 pub struct SearchGroupQuery {
     pub group_code: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct JoinRequestListQuery {
-    pub scope: Option<String>,
-    pub status: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ReviewJoinRequestBody {
-    pub note: Option<String>,
 }
 
 /// 创建新群聊（仅用户可创建）
@@ -647,6 +636,39 @@ pub async fn join_group(
     )
     .await?;
 
+    let requester_display_name = UserRepository::find_by_id(&state.pool, &requester_user_id)
+        .await?
+        .map(|user| user.name)
+        .unwrap_or_else(|| requester_user_id.clone());
+
+    create_notification_best_effort(
+        &state.pool,
+        NotificationRecord {
+            recipient_user_id: approver_user_id,
+            kind: "group_invite_approval",
+            title: "群邀请审批",
+            content: &format!(
+                "{} 申请将 Bot {} 加入群 {}，理由：{}",
+                requester_display_name, target_bot.name, target_group.name, request_reason
+            ),
+            requires_action: true,
+            action_payload: Some(json!({
+                "request_id": request_id,
+                "group_id": group_id_str,
+                "group_name": target_group.name,
+                "bot_id": target_bot_id,
+                "bot_name": target_bot.name,
+                "requester_user_id": requester_user_id,
+                "request_type": request_type,
+                "request_reason": request_reason
+            })),
+            related_request_id: Some(&request_id),
+            related_group_id: Some(&group_id_str),
+            related_bot_id: Some(&target_bot_id),
+        },
+    )
+    .await;
+
     record_best_effort(
         &state.pool,
         AuditRecord {
@@ -673,164 +695,6 @@ pub async fn join_group(
             "request_id": request_id,
             "approver_user_id": approver_user_id,
             "request_type": request_type,
-        }),
-    ))
-}
-
-/// List join requests (inbox/outbox)
-#[tracing::instrument(skip_all)]
-pub async fn list_join_requests(
-    State(state): State<AppState>,
-    Extension(auth): Extension<UserAuth>,
-    Query(query): Query<JoinRequestListQuery>,
-) -> AppResult<Response> {
-    let requester_user_id = auth.user_id;
-    let scope = query.scope.as_deref().unwrap_or("inbox");
-    let status = query.status.as_deref();
-
-    let requests: Vec<GroupJoinRequestListItem> = match scope {
-        "inbox" => {
-            GroupJoinRequestRepository::list_inbox(&state.pool, &requester_user_id, status).await?
-        }
-        "outbox" => {
-            GroupJoinRequestRepository::list_outbox(&state.pool, &requester_user_id, status).await?
-        }
-        _ => {
-            return Err(AppError::BadRequest(
-                "scope 只支持 inbox 或 outbox".to_string(),
-            ))
-        }
-    };
-
-    Ok(json_response(
-        StatusCode::OK,
-        json!({
-            "requests": requests,
-        }),
-    ))
-}
-
-/// Approve one join request
-#[tracing::instrument(skip_all)]
-pub async fn approve_join_request(
-    State(state): State<AppState>,
-    Extension(auth): Extension<UserAuth>,
-    Path(request_id): Path<String>,
-    Json(body): Json<ReviewJoinRequestBody>,
-) -> AppResult<Response> {
-    let requester_user_id = auth.user_id;
-    let request = GroupJoinRequestRepository::find_by_id(&state.pool, &request_id)
-        .await?
-        .ok_or(AppError::JoinRequestNotFound)?;
-
-    if !can_manage_target_user(&state.pool, &requester_user_id, &request.approver_user_id).await? {
-        return Err(AppError::Forbidden("没有权限处理该申请".to_string()));
-    }
-
-    if request.status != "pending" {
-        return Err(AppError::BadRequest("该申请已被处理".to_string()));
-    }
-
-    let now = chrono::Utc::now().to_rfc3339();
-    GroupRepository::add_member_ignore(
-        &state.pool,
-        &NewGroupMember {
-            group_id: &request.group_id,
-            member_id: &request.bot_id,
-            member_type: "bot",
-            joined_at: &now,
-        },
-    )
-    .await?;
-
-    let note = body.note.as_deref().map(str::trim).filter(|v| !v.is_empty());
-    let updated = GroupJoinRequestRepository::update_status(&state.pool, &request_id, "approved", note, &now)
-        .await?;
-    if !updated {
-        return Err(AppError::BadRequest("该申请已被处理".to_string()));
-    }
-
-    record_best_effort(
-        &state.pool,
-        AuditRecord {
-            actor_type: "user",
-            actor_id: &requester_user_id,
-            user_id: Some(&requester_user_id),
-            bot_id: Some(&request.bot_id),
-            group_id: Some(&request.group_id),
-            action: "group.join_request.approve",
-            resource_type: "group_join_request",
-            resource_id: Some(&request_id),
-            details: None,
-        },
-    )
-    .await;
-
-    Ok(json_response(
-        StatusCode::OK,
-        json!({
-            "message": "已同意申请",
-            "request_id": request_id,
-            "group_id": request.group_id,
-            "bot_id": request.bot_id,
-            "status": "approved",
-        }),
-    ))
-}
-
-/// Reject one join request
-#[tracing::instrument(skip_all)]
-pub async fn reject_join_request(
-    State(state): State<AppState>,
-    Extension(auth): Extension<UserAuth>,
-    Path(request_id): Path<String>,
-    Json(body): Json<ReviewJoinRequestBody>,
-) -> AppResult<Response> {
-    let requester_user_id = auth.user_id;
-    let request = GroupJoinRequestRepository::find_by_id(&state.pool, &request_id)
-        .await?
-        .ok_or(AppError::JoinRequestNotFound)?;
-
-    if !can_manage_target_user(&state.pool, &requester_user_id, &request.approver_user_id).await? {
-        return Err(AppError::Forbidden("没有权限处理该申请".to_string()));
-    }
-
-    if request.status != "pending" {
-        return Err(AppError::BadRequest("该申请已被处理".to_string()));
-    }
-
-    let now = chrono::Utc::now().to_rfc3339();
-    let note = body.note.as_deref().map(str::trim).filter(|v| !v.is_empty());
-    let updated = GroupJoinRequestRepository::update_status(&state.pool, &request_id, "rejected", note, &now)
-        .await?;
-    if !updated {
-        return Err(AppError::BadRequest("该申请已被处理".to_string()));
-    }
-
-    record_best_effort(
-        &state.pool,
-        AuditRecord {
-            actor_type: "user",
-            actor_id: &requester_user_id,
-            user_id: Some(&requester_user_id),
-            bot_id: Some(&request.bot_id),
-            group_id: Some(&request.group_id),
-            action: "group.join_request.reject",
-            resource_type: "group_join_request",
-            resource_id: Some(&request_id),
-            details: None,
-        },
-    )
-    .await;
-
-    Ok(json_response(
-        StatusCode::OK,
-        json!({
-            "message": "已拒绝申请",
-            "request_id": request_id,
-            "group_id": request.group_id,
-            "bot_id": request.bot_id,
-            "status": "rejected",
         }),
     ))
 }
@@ -899,10 +763,14 @@ pub async fn remove_group_member(
     Path((group_id_str, target_bot_id)): Path<(String, String)>,
 ) -> AppResult<Response> {
     let requester_user_id = auth.user_id;
+    let now = chrono::Utc::now().to_rfc3339();
 
     let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
         .await?
         .ok_or(AppError::BotNotFound)?;
+    let group: crate::models::Group = GroupRepository::find_by_id(&state.pool, &group_id_str)
+        .await?
+        .ok_or(AppError::BadRequest("Group not found".to_string()))?;
 
     if !can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await? {
         return Err(AppError::BotOwnershipMismatch);
@@ -917,6 +785,33 @@ pub async fn remove_group_member(
     )
     .await?;
 
+    if requester_user_id != target_bot.owner_id {
+        create_notification_best_effort(
+            &state.pool,
+            NotificationRecord {
+                recipient_user_id: &target_bot.owner_id,
+                kind: "bot_removed_from_group",
+                title: "Bot 已被移出群聊",
+                content: &format!(
+                    "Bot {} 已被用户 {} 移出群 {}",
+                    target_bot.name, requester_user_id, group.name
+                ),
+                requires_action: false,
+                action_payload: Some(json!({
+                    "group_id": group_id_str,
+                    "group_name": group.name,
+                    "bot_id": target_bot.bot_id,
+                    "bot_name": target_bot.name,
+                    "operator_user_id": requester_user_id
+                })),
+                related_request_id: None,
+                related_group_id: Some(&group_id_str),
+                related_bot_id: Some(&target_bot_id),
+            },
+        )
+        .await;
+    }
+
     record_best_effort(
         &state.pool,
         AuditRecord {
@@ -928,7 +823,7 @@ pub async fn remove_group_member(
             action: "group.member.remove",
             resource_type: "group_member",
             resource_id: Some(&group_id_str),
-            details: None,
+            details: Some(json!({ "removed_at": now })),
         },
     )
     .await;
