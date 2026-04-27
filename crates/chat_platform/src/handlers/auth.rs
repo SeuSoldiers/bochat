@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::models::RegisterRequest;
 use crate::repositories::{BotRepository, NewBot, NewUser, UserRepository};
+use crate::services::audit::{record_best_effort, AuditRecord};
 use crate::utils::{generate_bot_id, generate_token, generate_user_id, generate_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -193,6 +194,22 @@ pub async fn register(
 
     tracing::info!("✅ 用户注册成功 - 用户ID: {}, Bot ID: {}", user_id, bot_id);
 
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &user_id,
+            user_id: Some(&user_id),
+            bot_id: Some(&bot_id),
+            group_id: None,
+            action: "auth.register",
+            resource_type: "user",
+            resource_id: Some(&user_id),
+            details: Some(json!({ "account": account })),
+        },
+    )
+    .await;
+
     Ok(json_response(
         StatusCode::CREATED,
         json!({
@@ -289,6 +306,22 @@ pub async fn login(
 
     let user_token = generate_user_token(&user.user_id, &state.config.security.jwt_secret)?;
     tracing::info!("✅ 用户登录成功 - 用户ID: {}", user.user_id);
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &user.user_id,
+            user_id: Some(&user.user_id),
+            bot_id: None,
+            group_id: None,
+            action: "auth.login",
+            resource_type: "user",
+            resource_id: Some(&user.user_id),
+            details: Some(json!({ "account": account })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,

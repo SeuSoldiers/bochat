@@ -12,6 +12,7 @@ use crate::{
     error::{json_response, AppError, AppResult},
     middlewares::BotAuth,
     repositories::{FileRepository, NewFile, NewFileUploader},
+    services::audit::{record_best_effort, AuditRecord},
     services::FileManager,
     AppState,
 };
@@ -120,6 +121,22 @@ pub async fn upload_file(
             content_hash
         );
 
+        record_best_effort(
+            &state.pool,
+            AuditRecord {
+                actor_type: "bot",
+                actor_id: &bot_id,
+                user_id: Some(&auth.owner_id),
+                bot_id: Some(&bot_id),
+                group_id: None,
+                action: "file.upload.reuse",
+                resource_type: "file",
+                resource_id: Some(&existing_file.file_id),
+                details: Some(json!({ "filename": existing_file.filename })),
+            },
+        )
+        .await;
+
         return Ok(json_response(
             StatusCode::CREATED,
             json!({
@@ -178,6 +195,22 @@ pub async fn upload_file(
         content_hash,
         storage_path.to_string_lossy()
     );
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "bot",
+            actor_id: &bot_id,
+            user_id: Some(&auth.owner_id),
+            bot_id: Some(&bot_id),
+            group_id: None,
+            action: "file.upload",
+            resource_type: "file",
+            resource_id: Some(&file_id),
+            details: Some(json!({ "filename": filename })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::CREATED,
@@ -241,6 +274,22 @@ pub async fn delete_file(
     if !uploader_removed {
         return Err(AppError::Forbidden("只能删除自己上传过的文件".to_string()));
     }
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "bot",
+            actor_id: &bot_id,
+            user_id: Some(&auth.owner_id),
+            bot_id: Some(&bot_id),
+            group_id: None,
+            action: "file.delete",
+            resource_type: "file",
+            resource_id: Some(&file_id_for_response),
+            details: Some(json!({ "uploader_removed": uploader_removed, "physical_deleted": physical_deleted })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,

@@ -12,6 +12,7 @@ use crate::{
     middlewares::UserAuth,
     models::{UpdateUserRequest, UserResponse},
     repositories::UserRepository,
+    services::audit::{record_best_effort, AuditRecord},
     AppState,
 };
 
@@ -110,6 +111,22 @@ pub async fn update_current_user(
     )
     .await?;
 
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &user_id,
+            user_id: Some(&user_id),
+            bot_id: None,
+            group_id: None,
+            action: "user.update_profile",
+            resource_type: "user",
+            resource_id: Some(&user_id),
+            details: Some(json!({ "name": next_name, "avatar_url": next_avatar_url })),
+        },
+    )
+    .await;
+
     Ok(json_response(
         StatusCode::OK,
         json!({
@@ -135,6 +152,22 @@ pub async fn delete_user(
 
     // Delete the user
     UserRepository::delete_user_by_id(&state.pool, &user_id).await?;
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &user_id,
+            user_id: Some(&user_id),
+            bot_id: None,
+            group_id: None,
+            action: "user.delete_account",
+            resource_type: "user",
+            resource_id: Some(&user_id),
+            details: None,
+        },
+    )
+    .await;
 
     tracing::info!("User account deleted: {}", user_id);
 

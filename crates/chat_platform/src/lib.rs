@@ -91,6 +91,11 @@ pub fn app_router(state: AppState) -> Router {
             "/api/v1/groups/{group_id}/members/{bot_id}",
             delete(handlers::remove_group_member),
         )
+        .route("/api/v1/audit/logs", get(handlers::list_audit_logs))
+        .route(
+            "/api/v1/audit/logs/export",
+            get(handlers::export_audit_logs_csv),
+        )
         .layer(user_auth_layer);
 
     let bot_auth_routes = Router::new()

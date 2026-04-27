@@ -1,4 +1,5 @@
 pub mod authz_repository;
+pub mod audit_repository;
 pub mod bot_repository;
 pub mod bootstrap_repository;
 pub mod file_repository;
@@ -9,6 +10,7 @@ pub mod message_repository;
 pub mod user_repository;
 
 pub use authz_repository::AuthzRepository;
+pub use audit_repository::{AuditLogRepository, AuditLogsFilter, NewAuditLog};
 pub use bot_repository::{BotRepository, NewBot};
 pub use bootstrap_repository::{BootstrapRepository, SeedUserInsert};
 pub use file_repository::{

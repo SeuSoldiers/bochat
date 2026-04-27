@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod authz;
 pub mod bootstrap;
 pub mod bot;

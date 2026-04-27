@@ -13,6 +13,7 @@ use crate::repositories::{
     MessageWithSenderRow, NewMessage,
 };
 use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
+use crate::services::audit::{record_best_effort, AuditRecord};
 use crate::services::MessageService;
 use crate::ws::WsEvent;
 use crate::{
@@ -197,6 +198,23 @@ pub async fn send_message(
         msg_req.group_id,
         requester_bot_id
     );
+    let msg_id_str = inserted_message.msg_id.to_string();
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "bot",
+            actor_id: &requester_bot_id,
+            user_id: Some(&auth.owner_id),
+            bot_id: Some(&requester_bot_id),
+            group_id: Some(&msg_req.group_id),
+            action: "message.send",
+            resource_type: "message",
+            resource_id: Some(&msg_id_str),
+            details: Some(json!({ "msg_type": inserted_message.msg_type })),
+        },
+    )
+    .await;
 
     Ok(json_response(StatusCode::CREATED, response_payload))
 }

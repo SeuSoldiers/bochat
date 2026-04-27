@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::models::{BotResponse, BotSearchResponse, CreateBotRequest, UpdateBotRequest};
 use crate::repositories::{BotRepository, NewBot};
+use crate::services::audit::{record_best_effort, AuditRecord};
 use crate::services::authz::{can_manage_target_user, user_is_super_admin};
 use crate::services::BotService;
 use crate::utils::{generate_bot_id, generate_token};
@@ -91,6 +92,22 @@ pub async fn create_bot(
         new_bot_id,
         owner_id
     );
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &owner_id,
+            user_id: Some(&owner_id),
+            bot_id: Some(&new_bot_id),
+            group_id: None,
+            action: "bot.create",
+            resource_type: "bot",
+            resource_id: Some(&new_bot_id),
+            details: Some(json!({ "name": req.name })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::CREATED,
@@ -284,6 +301,22 @@ pub async fn delete_bot(
         requester_user_id
     );
 
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&target_bot_id),
+            group_id: None,
+            action: "bot.delete",
+            resource_type: "bot",
+            resource_id: Some(&target_bot_id),
+            details: Some(json!({ "target_owner_id": target_bot.owner_id })),
+        },
+    )
+    .await;
+
     Ok(json_response(
         StatusCode::OK,
         json!({
@@ -338,6 +371,22 @@ pub async fn update_bot(
     let updated_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
         .await?
         .ok_or(AppError::BotNotFound)?;
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&target_bot_id),
+            group_id: None,
+            action: "bot.update",
+            resource_type: "bot",
+            resource_id: Some(&target_bot_id),
+            details: Some(json!({ "name": req.name })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,

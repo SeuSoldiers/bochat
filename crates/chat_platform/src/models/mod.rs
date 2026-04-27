@@ -1,9 +1,11 @@
+pub mod audit;
 pub mod bot;
 pub mod file;
 pub mod group;
 pub mod message;
 pub mod user;
 
+pub use audit::{AuditLog, AuditLogResponse};
 pub use bot::{Bot, BotResponse, BotSearchResponse, BotStatus, CreateBotRequest, UpdateBotRequest};
 pub use file::{File, FileMetadata, FileResponse};
 pub use group::{

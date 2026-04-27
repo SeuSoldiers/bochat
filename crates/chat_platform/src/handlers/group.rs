@@ -15,6 +15,7 @@ use crate::repositories::{
     BotRepository, GroupJoinRequestRepository, GroupMemberLink, GroupRepository, NewGroup,
     NewGroupJoinRequest, NewGroupMember,
 };
+use crate::services::audit::{record_best_effort, AuditRecord};
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
 };
@@ -169,6 +170,22 @@ pub async fn create_group(
         user_id,
         member_bot_id
     );
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &user_id,
+            user_id: Some(&user_id),
+            bot_id: Some(&member_bot_id),
+            group_id: Some(&group_id),
+            action: "group.create",
+            resource_type: "group",
+            resource_id: Some(&group_id),
+            details: Some(json!({ "name": req.name, "is_public": req.is_public.unwrap_or(false) })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::CREATED,
@@ -336,6 +353,22 @@ pub async fn update_group(
         .await?
         .ok_or(AppError::BadRequest("Group not found".to_string()))?;
 
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: None,
+            group_id: Some(&group_id),
+            action: "group.update",
+            resource_type: "group",
+            resource_id: Some(&group_id),
+            details: Some(json!({ "name": next_name, "is_public": next_is_public })),
+        },
+    )
+    .await;
+
     Ok(json_response(
         StatusCode::OK,
         GroupResponse::from(updated_group),
@@ -457,6 +490,22 @@ pub async fn join_group(
         )
         .await?;
 
+        record_best_effort(
+            &state.pool,
+            AuditRecord {
+                actor_type: "user",
+                actor_id: &requester_user_id,
+                user_id: Some(&requester_user_id),
+                bot_id: Some(&target_bot_id),
+                group_id: Some(&group_id_str),
+                action: "group.join_public",
+                resource_type: "group_member",
+                resource_id: Some(&group_id_str),
+                details: Some(json!({ "bot_id": target_bot_id })),
+            },
+        )
+        .await;
+
         return Ok(json_response(
             StatusCode::OK,
             json!({
@@ -520,6 +569,21 @@ pub async fn join_group(
         })?;
 
         tracing::info!("✅ Bot {} 已加入群聊 {}", target_bot_id, group_id_str);
+        record_best_effort(
+            &state.pool,
+            AuditRecord {
+                actor_type: "user",
+                actor_id: &requester_user_id,
+                user_id: Some(&requester_user_id),
+                bot_id: Some(&target_bot_id),
+                group_id: Some(&group_id_str),
+                action: "group.join_direct",
+                resource_type: "group_member",
+                resource_id: Some(&group_id_str),
+                details: Some(json!({ "bot_id": target_bot_id })),
+            },
+        )
+        .await;
         return Ok(json_response(
             StatusCode::OK,
             json!({
@@ -582,6 +646,22 @@ pub async fn join_group(
         },
     )
     .await?;
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&target_bot_id),
+            group_id: Some(&group_id_str),
+            action: "group.join_request.create",
+            resource_type: "group_join_request",
+            resource_id: Some(&request_id),
+            details: Some(json!({ "request_type": request_type, "approver_user_id": approver_user_id })),
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,
@@ -670,6 +750,22 @@ pub async fn approve_join_request(
         return Err(AppError::BadRequest("该申请已被处理".to_string()));
     }
 
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&request.bot_id),
+            group_id: Some(&request.group_id),
+            action: "group.join_request.approve",
+            resource_type: "group_join_request",
+            resource_id: Some(&request_id),
+            details: None,
+        },
+    )
+    .await;
+
     Ok(json_response(
         StatusCode::OK,
         json!({
@@ -710,6 +806,22 @@ pub async fn reject_join_request(
     if !updated {
         return Err(AppError::BadRequest("该申请已被处理".to_string()));
     }
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&request.bot_id),
+            group_id: Some(&request.group_id),
+            action: "group.join_request.reject",
+            resource_type: "group_join_request",
+            resource_id: Some(&request_id),
+            details: None,
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,
@@ -753,6 +865,22 @@ pub async fn leave_group(
 
     tracing::info!("Bot {} left group {}", bot_id, group_id_str);
 
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&bot_id),
+            group_id: Some(&group_id_str),
+            action: "group.leave",
+            resource_type: "group_member",
+            resource_id: Some(&group_id_str),
+            details: None,
+        },
+    )
+    .await;
+
     Ok(json_response(
         StatusCode::OK,
         json!({
@@ -788,6 +916,22 @@ pub async fn remove_group_member(
         },
     )
     .await?;
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: Some(&target_bot_id),
+            group_id: Some(&group_id_str),
+            action: "group.member.remove",
+            resource_type: "group_member",
+            resource_id: Some(&group_id_str),
+            details: None,
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,
@@ -830,6 +974,22 @@ pub async fn delete_group(
     GroupRepository::delete_group(&state.pool, &group_id_str).await?;
 
     tracing::info!("Group deleted: {}", group_id_str);
+
+    record_best_effort(
+        &state.pool,
+        AuditRecord {
+            actor_type: "user",
+            actor_id: &requester_user_id,
+            user_id: Some(&requester_user_id),
+            bot_id: None,
+            group_id: Some(&group_id_str),
+            action: "group.delete",
+            resource_type: "group",
+            resource_id: Some(&group_id_str),
+            details: None,
+        },
+    )
+    .await;
 
     Ok(json_response(
         StatusCode::OK,
