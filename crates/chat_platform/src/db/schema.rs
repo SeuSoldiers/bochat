@@ -386,6 +386,34 @@ pub async fn init_schema(pool: &PgPool) -> AppResult<()> {
 
     sqlx::query(
         r#"
+        CREATE TABLE IF NOT EXISTS file_scan_records (
+            file_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            risk_level TEXT NOT NULL DEFAULT 'unknown',
+            scan_result TEXT,
+            scanned_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (file_id) REFERENCES files(file_id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_file_scan_records_status_updated_at
+        ON file_scan_records(status, updated_at DESC)
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| crate::error::AppError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS file_uploaders (
             file_id TEXT NOT NULL,
             uploader_id TEXT NOT NULL,

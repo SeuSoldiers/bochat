@@ -54,4 +54,12 @@ impl AuthzRepository {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
+
+    pub async fn list_user_ids_by_account(pool: &PgPool, account: &str) -> AppResult<Vec<String>> {
+        sqlx::query_scalar("SELECT user_id FROM users WHERE account = $1")
+            .bind(account)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
 }

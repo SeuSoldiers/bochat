@@ -13,6 +13,7 @@ use crate::{
     middlewares::BotAuth,
     repositories::{FileRepository, NewFile, NewFileUploader},
     services::audit::{record_best_effort, AuditRecord},
+    services::file_scan::{enqueue_uploaded_file_scan_best_effort, UploadScanInput},
     services::FileManager,
     AppState,
 };
@@ -137,6 +138,20 @@ pub async fn upload_file(
         )
         .await;
 
+        enqueue_uploaded_file_scan_best_effort(
+            &state,
+            UploadScanInput {
+                file_id: &existing_file.file_id,
+                filename: &existing_file.filename,
+                mime_type: &existing_file.mime_type,
+                size: existing_file.size,
+                storage_path: &existing_file.storage_path,
+                uploader_bot_id: &bot_id,
+                uploader_user_id: &auth.owner_id,
+            },
+        )
+        .await;
+
         return Ok(json_response(
             StatusCode::CREATED,
             json!({
@@ -154,6 +169,7 @@ pub async fn upload_file(
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
     let storage_path = file_dir.join(&filename);
+    let storage_path_string = storage_path.to_string_lossy().into_owned();
     let mut file = tokio::fs::File::create(&storage_path)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
@@ -170,7 +186,7 @@ pub async fn upload_file(
             filename: &filename,
             size: total_size as i64,
             mime_type: &mime_type,
-            storage_path: &storage_path.to_string_lossy(),
+            storage_path: &storage_path_string,
             created_at: &now,
         },
     )
@@ -193,7 +209,7 @@ pub async fn upload_file(
         bot_id,
         file_id,
         content_hash,
-        storage_path.to_string_lossy()
+        storage_path_string
     );
 
     record_best_effort(
@@ -208,6 +224,20 @@ pub async fn upload_file(
             resource_type: "file",
             resource_id: Some(&file_id),
             details: Some(json!({ "filename": filename })),
+        },
+    )
+    .await;
+
+    enqueue_uploaded_file_scan_best_effort(
+        &state,
+        UploadScanInput {
+            file_id: &file_id,
+            filename: &filename,
+            mime_type: &mime_type,
+            size: total_size as i64,
+            storage_path: &storage_path_string,
+            uploader_bot_id: &bot_id,
+            uploader_user_id: &auth.owner_id,
         },
     )
     .await;

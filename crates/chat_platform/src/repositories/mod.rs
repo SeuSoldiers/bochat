@@ -3,6 +3,7 @@ pub mod audit_repository;
 pub mod bot_repository;
 pub mod bootstrap_repository;
 pub mod file_repository;
+pub mod file_scan_repository;
 pub mod file_reference_repository;
 pub mod group_repository;
 pub mod group_join_request_repository;
@@ -17,6 +18,7 @@ pub use bootstrap_repository::{BootstrapRepository, SeedUserInsert};
 pub use file_repository::{
     FileRepository, NewFile, NewFileUploader, UploaderRelation, UserFilesPage,
 };
+pub use file_scan_repository::{FileScanRepository, FileScanResultUpdate, NewPendingFileScan};
 pub use file_reference_repository::{
     FileReferenceKey, FileReferenceRepository, MessageReferenceCleanup, NewFileReference,
 };

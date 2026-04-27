@@ -3,6 +3,7 @@ pub mod authz;
 pub mod bootstrap;
 pub mod bot;
 pub mod file;
+pub mod file_scan;
 pub mod file_manager;
 pub mod group;
 pub mod message;

@@ -14,6 +14,7 @@ use crate::repositories::{
 };
 use crate::services::authz::{bot_has_global_group_access, list_super_admin_bot_ids};
 use crate::services::audit::{record_best_effort, AuditRecord};
+use crate::services::file_scan::notify_group_owner_if_file_flagged_best_effort;
 use crate::services::MessageService;
 use crate::ws::WsEvent;
 use crate::{
@@ -170,6 +171,15 @@ pub async fn send_message(
         &response_content,
     )
     .await?;
+    notify_group_owner_if_file_flagged_best_effort(
+        &state,
+        &inserted_message.msg_type,
+        &response_content,
+        &msg_req.group_id,
+        &requester_bot_id,
+        &auth.owner_id,
+    )
+    .await;
 
     let member_bot_ids: Vec<String> =
         MessageRepository::list_member_bot_ids(&state.pool, &msg_req.group_id).await?;

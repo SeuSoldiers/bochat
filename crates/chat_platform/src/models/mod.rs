@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod bot;
 pub mod file;
+pub mod file_scan;
 pub mod group;
 pub mod message;
 pub mod notification;
@@ -9,6 +10,7 @@ pub mod user;
 pub use audit::{AuditLog, AuditLogResponse};
 pub use bot::{Bot, BotResponse, BotSearchResponse, BotStatus, CreateBotRequest, UpdateBotRequest};
 pub use file::{File, FileMetadata, FileResponse};
+pub use file_scan::FileScanRecord;
 pub use group::{
     CreateGroupRequest, Group, GroupJoinRequest, GroupJoinRequestListItem, GroupMember,
     GroupMemberResponse, GroupResponse, JoinGroupRequest, UpdateGroupRequest,
