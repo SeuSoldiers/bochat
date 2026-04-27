@@ -21,6 +21,7 @@ pub struct AuthResponse {
     pub token: String,
     pub account: Option<String>,
     pub created_at: Option<String>,
+    pub is_super_admin: Option<bool>,
 }
 
 /// Public user profile payload for `GET/PUT /api/v1/users/me`.
@@ -32,6 +33,7 @@ pub struct UserProfile {
     pub avatar_url: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+    pub is_super_admin: Option<bool>,
 }
 
 /// Bot information returned by bot-related APIs.

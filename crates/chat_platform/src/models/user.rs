@@ -45,15 +45,17 @@ pub struct UpdateUserRequest {
 pub struct UserResponse {
     pub name: String,
     pub avatar_url: Option<String>,
+    pub is_super_admin: bool,
     pub created_at: String,
     pub updated_at: String,
 }
 
-impl From<User> for UserResponse {
-    fn from(user: User) -> Self {
+impl UserResponse {
+    pub fn from_user(user: User, is_super_admin: bool) -> Self {
         UserResponse {
             name: user.name,
             avatar_url: user.avatar_url,
+            is_super_admin,
             created_at: user.created_at,
             updated_at: user.updated_at,
         }

@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::models::RegisterRequest;
 use crate::repositories::{BotRepository, NewBot, NewUser, UserRepository};
 use crate::services::audit::{record_best_effort, AuditRecord};
+use crate::services::authz::user_is_super_admin;
 use crate::utils::{generate_bot_id, generate_token, generate_user_id, generate_user_token};
 use crate::{
     error::{json_response, AppError, AppResult},
@@ -216,6 +217,7 @@ pub async fn register(
             "message": "注册成功",
             "name": name,
             "account": account,
+            "is_super_admin": false,
             "token": generate_user_token(&user_id, &state.config.security.jwt_secret)?,
             "created_at": now,
         }),
@@ -305,6 +307,7 @@ pub async fn login(
     tracing::debug!("用户查询成功: {}", user.user_id);
 
     let user_token = generate_user_token(&user.user_id, &state.config.security.jwt_secret)?;
+    let is_super_admin = user_is_super_admin(&state.pool, &user.user_id).await?;
     tracing::info!("✅ 用户登录成功 - 用户ID: {}", user.user_id);
 
     record_best_effort(
@@ -328,6 +331,7 @@ pub async fn login(
         json!({
             "message": "登录成功",
             "name": user.name,
+            "is_super_admin": is_super_admin,
             "token": user_token,
         }),
     ))

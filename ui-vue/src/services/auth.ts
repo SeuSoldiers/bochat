@@ -15,6 +15,7 @@ export interface RegisterPayload extends AuthCredentialsPayload {
 }
 
 export type LoginResponse = User & { token: string }
+export type CurrentUserResponse = User
 
 /**
  * 用户注册
@@ -39,7 +40,7 @@ export async function login(payload: AuthCredentialsPayload) {
 }
 
 export async function getCurrentUser() {
-  return apiClient.get<User>('/users/me')
+  return apiClient.get<CurrentUserResponse>('/users/me')
 }
 
 export async function updateCurrentUser(payload: {
@@ -47,7 +48,7 @@ export async function updateCurrentUser(payload: {
   avatar_url?: string
   password?: string
 }) {
-  return apiClient.put<User>('/users/me', payload)
+  return apiClient.put<CurrentUserResponse>('/users/me', payload)
 }
 
 /**

@@ -18,15 +18,18 @@ class AuthResponse:
     token: str
     account: str | None = None
     created_at: str | None = None
+    is_super_admin: bool | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AuthResponse":
+        is_super_admin = data.get("is_super_admin")
         return cls(
             message=str(data.get("message", "")),
             name=str(data.get("name", "")),
             token=str(data.get("token", "")),
             account=data.get("account"),
             created_at=data.get("created_at"),
+            is_super_admin=is_super_admin if isinstance(is_super_admin, bool) else None,
         )
 
 
@@ -36,14 +39,17 @@ class UserProfile:
     avatar_url: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    is_super_admin: bool | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "UserProfile":
+        is_super_admin = data.get("is_super_admin")
         return cls(
             name=str(data.get("name", "")),
             avatar_url=data.get("avatar_url"),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
+            is_super_admin=is_super_admin if isinstance(is_super_admin, bool) else None,
         )
 
 

@@ -12,6 +12,7 @@ use crate::{
     middlewares::UserAuth,
     models::{UpdateUserRequest, UserResponse},
     repositories::UserRepository,
+    services::authz::user_is_super_admin,
     services::audit::{record_best_effort, AuditRecord},
     AppState,
 };
@@ -52,10 +53,11 @@ pub async fn get_current_user(
     let user: crate::models::User = UserRepository::find_by_id(&state.pool, &user_id)
         .await?
         .ok_or(AppError::InvalidUserToken)?;
+    let is_super_admin = user_is_super_admin(&state.pool, &user_id).await?;
 
     Ok(json_response(
         StatusCode::OK,
-        json!(UserResponse::from(user)),
+        json!(UserResponse::from_user(user, is_super_admin)),
     ))
 }
 
@@ -127,12 +129,15 @@ pub async fn update_current_user(
     )
     .await;
 
+    let is_super_admin = user_is_super_admin(&state.pool, &user_id).await?;
+
     Ok(json_response(
         StatusCode::OK,
         json!({
             "message": "用户信息更新成功",
             "name": next_name,
             "avatar_url": next_avatar_url,
+            "is_super_admin": is_super_admin,
             "created_at": current_user.created_at,
             "updated_at": now,
         }),

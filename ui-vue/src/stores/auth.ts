@@ -47,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const userId = computed(() => parseUserIdFromToken(token.value) || '')
   const userName = computed(() => user.value?.name || '')
+  const isSuperAdmin = computed(() => !!user.value?.is_super_admin)
 
   // 方法：注册
   const handleRegister = async (payload: RegisterPayload) => {
@@ -102,6 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = {
         name: profile.name,
         avatar_url: profile.avatar_url,
+        is_super_admin: profile.is_super_admin,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       }
@@ -126,6 +128,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = {
         name: updated.name,
         avatar_url: updated.avatar_url,
+        is_super_admin: updated.is_super_admin,
         created_at: updated.created_at,
         updated_at: updated.updated_at,
       }
@@ -176,6 +179,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     userId,
     userName,
+    isSuperAdmin,
 
     // 方法
     initializeAuth,
@@ -191,6 +195,10 @@ export const useAuthStore = defineStore('auth', () => {
 function extractUser(response: LoginResponse): User {
   return {
     name: response.name,
+    avatar_url: response.avatar_url,
+    is_super_admin: response.is_super_admin,
+    created_at: response.created_at,
+    updated_at: response.updated_at,
   }
 }
 

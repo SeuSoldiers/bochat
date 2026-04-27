@@ -49,6 +49,20 @@
         </span>
         <span>实时聊天</span>
       </router-link>
+      <router-link
+        v-if="authStore.isSuperAdmin"
+        to="/audit"
+        class="menu-item"
+        :class="{ active: $route.path === '/audit' }"
+      >
+        <span class="item-icon ghost" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M6.5 5.5h11v13h-11z" />
+            <path d="M9 9.5h6M9 12.5h6M9 15.5h4" />
+          </svg>
+        </span>
+        <span>审计日志</span>
+      </router-link>
     </nav>
 
     <div ref="profileWrapRef" class="profile-wrap">
@@ -56,7 +70,7 @@
         <span class="avatar">{{ userInitial }}</span>
         <div class="user-meta">
           <p class="user-name">{{ authStore.userName || 'BoChat Admin' }}</p>
-          <p class="user-role">管理员</p>
+          <p class="user-role">{{ authStore.isSuperAdmin ? '超级管理员' : '管理员' }}</p>
         </div>
         <button type="button" class="arrow-btn" aria-haspopup="menu" aria-label="打开用户菜单">
           <svg viewBox="0 0 24 24" fill="none">

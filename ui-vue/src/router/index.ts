@@ -10,6 +10,7 @@ const LoginView = () => import('@/views/LoginView.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const ChatView = () => import('@/views/ChatView.vue')
 const ProfileView = () => import('@/views/ProfileView.vue')
+const AuditView = () => import('@/views/AuditView.vue')
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -49,6 +50,15 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/audit',
+    name: 'audit',
+    component: AuditView,
+    meta: {
+      requiresAuth: true,
+      requiresSuperAdmin: true,
+    },
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/home',
   },
@@ -65,6 +75,7 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   const requiresAuth = to.meta.requiresAuth !== false
+  const requiresSuperAdmin = to.meta.requiresSuperAdmin === true
 
   // 如果 store 中没有用户信息，从 localStorage 恢复
   if (!authStore.user || !authStore.token) {
@@ -76,6 +87,8 @@ router.beforeEach((to, _from, next) => {
   if (requiresAuth && !isAuthenticated) {
     // 需要认证但未认证，跳转到登录
     next('/login')
+  } else if (requiresSuperAdmin && !authStore.isSuperAdmin) {
+    next('/home')
   } else if (to.path === '/login' && isAuthenticated) {
     // 已认证但访问登录页，跳转到首页
     next('/home')
