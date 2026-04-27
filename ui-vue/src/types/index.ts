@@ -53,6 +53,7 @@ export interface Group {
   name: string
   description?: string
   avatar_url?: string
+  is_public: boolean
   status: string
   created_at: string
   updated_at: string
@@ -64,6 +65,7 @@ export interface CreateGroupRequest {
   description?: string
   avatar_url?: string
   bot_id?: string
+  is_public?: boolean
 }
 
 export interface UpdateGroupRequest {
@@ -71,6 +73,7 @@ export interface UpdateGroupRequest {
   group_code?: string
   description?: string
   avatar_url?: string
+  is_public?: boolean
 }
 
 export interface GroupJoinResult {

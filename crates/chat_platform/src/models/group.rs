@@ -8,6 +8,7 @@ pub struct Group {
     pub name: String,
     pub description: Option<String>,
     pub avatar_url: Option<String>,
+    pub is_public: bool,
     pub status: String, // active / inactive
     pub created_at: String,
     pub updated_at: String,
@@ -20,6 +21,7 @@ pub struct CreateGroupRequest {
     pub group_code: Option<String>, // 可选，如果不提供则不设置
     pub avatar_url: Option<String>,
     pub bot_id: Option<String>,     // 可选，指定自动加入群聊的 Bot
+    pub is_public: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -28,6 +30,7 @@ pub struct UpdateGroupRequest {
     pub description: Option<String>,
     pub group_code: Option<String>,
     pub avatar_url: Option<String>,
+    pub is_public: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -38,6 +41,7 @@ pub struct GroupResponse {
     pub name: String,
     pub description: Option<String>,
     pub avatar_url: Option<String>,
+    pub is_public: bool,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
@@ -52,6 +56,7 @@ impl From<Group> for GroupResponse {
             name: group.name,
             description: group.description,
             avatar_url: group.avatar_url,
+            is_public: group.is_public,
             status: group.status,
             created_at: group.created_at,
             updated_at: group.updated_at,

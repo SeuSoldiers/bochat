@@ -134,6 +134,7 @@ pub async fn create_group(
         name: &req.name,
         description: req.description.as_deref(),
         avatar_url: req.avatar_url.as_deref(),
+        is_public: req.is_public.unwrap_or(false),
         status: "active",
         now: &now,
     };
@@ -178,6 +179,7 @@ pub async fn create_group(
             "name": req.name,
             "description": req.description,
             "avatar_url": req.avatar_url,
+            "is_public": req.is_public.unwrap_or(false),
             "status": "active",
             "created_at": now,
             "updated_at": now,
@@ -240,12 +242,11 @@ pub async fn search_group_by_code(
     Query(query): Query<SearchGroupQuery>,
 ) -> AppResult<Response> {
     let group_code = query.group_code.trim();
-    if group_code.is_empty() {
-        return Err(AppError::BadRequest("群号不能为空".to_string()));
-    }
-
-    let groups: Vec<crate::models::Group> =
-        GroupRepository::find_by_code_prefix(&state.pool, group_code).await?;
+    let groups: Vec<crate::models::Group> = if group_code.is_empty() {
+        GroupRepository::list_public(&state.pool).await?
+    } else {
+        GroupRepository::find_by_code_prefix(&state.pool, group_code).await?
+    };
 
     let responses: Vec<GroupResponse> = groups.into_iter().map(|group| group.into()).collect();
     Ok(json_response(
@@ -316,6 +317,7 @@ pub async fn update_group(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    let next_is_public = req.is_public.unwrap_or(target_group.is_public);
     let now = chrono::Utc::now().to_rfc3339();
 
     GroupRepository::update_profile(
@@ -325,6 +327,7 @@ pub async fn update_group(
         next_group_code,
         next_description,
         next_avatar_url,
+        next_is_public,
         &now,
     )
     .await?;
@@ -434,6 +437,36 @@ pub async fn join_group(
         can_manage_target_user(&state.pool, &requester_user_id, &target_bot_owner_id).await?;
     let requester_can_manage_group =
         can_manage_target_user(&state.pool, &requester_user_id, &target_group.creator_id).await?;
+
+    if target_group.is_public {
+        if !requester_can_manage_bot {
+            return Err(AppError::Forbidden(
+                "公开群仅允许 Bot 管理员发起入群".to_string(),
+            ));
+        }
+        let joined_at = chrono::Utc::now().to_rfc3339();
+
+        GroupRepository::add_member_ignore(
+            &state.pool,
+            &NewGroupMember {
+                group_id: &group_id_str,
+                member_id: &target_bot_id,
+                member_type: "bot",
+                joined_at: &joined_at,
+            },
+        )
+        .await?;
+
+        return Ok(json_response(
+            StatusCode::OK,
+            json!({
+                "message": "公开群已直接加入",
+                "group_id": group_id_str,
+                "bot_id": target_bot_id,
+                "result_status": "joined",
+            }),
+        ));
+    }
 
     if !requester_can_manage_bot && !requester_can_manage_group {
         tracing::warn!(

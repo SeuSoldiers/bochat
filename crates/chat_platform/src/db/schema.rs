@@ -81,6 +81,7 @@ pub async fn init_schema(pool: &PgPool) -> AppResult<()> {
             name TEXT NOT NULL,
             description TEXT,
             avatar_url TEXT,
+            is_public BOOLEAN NOT NULL DEFAULT FALSE,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT,
             updated_at TEXT,

@@ -27,6 +27,7 @@ pub struct NewGroup<'a> {
     pub name: &'a str,
     pub description: Option<&'a str>,
     pub avatar_url: Option<&'a str>,
+    pub is_public: bool,
     pub status: &'a str,
     pub now: &'a str,
 }
@@ -49,8 +50,8 @@ impl GroupRepository {
     pub async fn insert_group(pool: &PgPool, new_group: &NewGroup<'_>) -> AppResult<()> {
         sqlx::query(
             r#"
-            INSERT INTO groups (group_id, group_code, creator_id, name, description, avatar_url, status, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO groups (group_id, group_code, creator_id, name, description, avatar_url, is_public, status, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             "#,
         )
         .bind(new_group.group_id)
@@ -59,6 +60,7 @@ impl GroupRepository {
         .bind(new_group.name)
         .bind(new_group.description)
         .bind(new_group.avatar_url)
+        .bind(new_group.is_public)
         .bind(new_group.status)
         .bind(new_group.now)
         .bind(new_group.now)
@@ -87,7 +89,7 @@ impl GroupRepository {
     pub async fn list_all(pool: &PgPool) -> AppResult<Vec<Group>> {
         sqlx::query_as(
             r#"
-            SELECT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.status, g.created_at, g.updated_at
+            SELECT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.is_public, g.status, g.created_at, g.updated_at
             FROM groups g
             ORDER BY g.created_at DESC
             "#,
@@ -100,7 +102,7 @@ impl GroupRepository {
     pub async fn list_visible_by_user(pool: &PgPool, user_id: &str) -> AppResult<Vec<Group>> {
         sqlx::query_as(
             r#"
-            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.status, g.created_at, g.updated_at
+            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.is_public, g.status, g.created_at, g.updated_at
             FROM groups g
             LEFT JOIN group_members gm ON gm.group_id = g.group_id
             LEFT JOIN bots b ON b.bot_id = gm.member_id
@@ -117,7 +119,7 @@ impl GroupRepository {
 
     pub async fn find_by_id(pool: &PgPool, group_id: &str) -> AppResult<Option<Group>> {
         sqlx::query_as(
-            "SELECT group_id, group_code, creator_id, name, description, avatar_url, status, created_at, updated_at FROM groups WHERE group_id = $1",
+            "SELECT group_id, group_code, creator_id, name, description, avatar_url, is_public, status, created_at, updated_at FROM groups WHERE group_id = $1",
         )
         .bind(group_id)
         .fetch_optional(pool)
@@ -132,19 +134,21 @@ impl GroupRepository {
         group_code: Option<&str>,
         description: Option<&str>,
         avatar_url: Option<&str>,
+        is_public: bool,
         updated_at: &str,
     ) -> AppResult<()> {
         sqlx::query(
             r#"
             UPDATE groups
-            SET name = $1, group_code = $2, description = $3, avatar_url = $4, updated_at = $5
-            WHERE group_id = $6
+            SET name = $1, group_code = $2, description = $3, avatar_url = $4, is_public = $5, updated_at = $6
+            WHERE group_id = $7
             "#,
         )
         .bind(name)
         .bind(group_code)
         .bind(description)
         .bind(avatar_url)
+        .bind(is_public)
         .bind(updated_at)
         .bind(group_id)
         .execute(pool)
@@ -165,9 +169,18 @@ impl GroupRepository {
     pub async fn find_by_code_prefix(pool: &PgPool, group_code_prefix: &str) -> AppResult<Vec<Group>> {
         let like_pattern = format!("{}%", group_code_prefix);
         sqlx::query_as(
-            "SELECT group_id, group_code, creator_id, name, description, avatar_url, status, created_at, updated_at FROM groups WHERE group_code IS NOT NULL AND group_code LIKE $1 ORDER BY created_at DESC",
+            "SELECT group_id, group_code, creator_id, name, description, avatar_url, is_public, status, created_at, updated_at FROM groups WHERE group_code IS NOT NULL AND group_code LIKE $1 ORDER BY created_at DESC",
         )
         .bind(like_pattern)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+
+    pub async fn list_public(pool: &PgPool) -> AppResult<Vec<Group>> {
+        sqlx::query_as(
+            "SELECT group_id, group_code, creator_id, name, description, avatar_url, is_public, status, created_at, updated_at FROM groups WHERE is_public = TRUE ORDER BY created_at DESC",
+        )
         .fetch_all(pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))

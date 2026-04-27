@@ -57,6 +57,13 @@
         </div>
 
         <div class="form-group">
+          <label class="switch-row">
+            <input v-model="form.isPublic" type="checkbox" :disabled="loading" />
+            <span>公开群聊（允许任意 Bot 自由加入）</span>
+          </label>
+        </div>
+
+        <div class="form-group">
           <label for="group-avatar-url">群头像（可选）</label>
           <input
             id="group-avatar-url"
@@ -116,7 +123,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  create: [groupName: string, description: string, groupNumber: string, botId: string, avatarUrl: string]
+  create: [
+    groupName: string,
+    description: string,
+    groupNumber: string,
+    botId: string,
+    avatarUrl: string,
+    isPublic: boolean,
+  ]
   close: []
 }>()
 
@@ -126,6 +140,7 @@ const form = ref({
   description: '',
   groupNumber: '',
   avatarUrl: '',
+  isPublic: false,
 })
 const loading = ref(false)
 const uploading = ref(false)
@@ -164,7 +179,8 @@ const handleSubmit = async () => {
       form.value.description,
       form.value.groupNumber,
       form.value.botId,
-      form.value.avatarUrl
+      form.value.avatarUrl,
+      form.value.isPublic
     )
   } catch (err: any) {
     error.value = getErrorMessage(err, '创建失败')
@@ -221,7 +237,11 @@ const handleFileChange = async (event: Event) => {
   border-radius: 8px;
   width: 100%;
   max-width: 540px;
+  max-height: 82vh;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-header {
@@ -263,6 +283,8 @@ const handleFileChange = async (event: Event) => {
 
 .modal-form {
   padding: 16px 18px 18px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .form-group {
@@ -276,6 +298,18 @@ const handleFileChange = async (event: Event) => {
   font-size: 13px;
   color: #4f4f4f;
   font-weight: 600;
+}
+
+.switch-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.switch-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
 }
 
 .form-group input,

@@ -14,14 +14,14 @@
               id="group-search"
               v-model="searchGroupCode"
               type="text"
-              placeholder="输入群号后搜索"
+              placeholder="可留空搜索公开群"
               :disabled="loading || searching"
             />
             <button type="button" class="btn-search" :disabled="loading || searching" @click="handleSearch">
               {{ searching ? '搜索中' : '搜索' }}
             </button>
           </div>
-          <p class="search-hint">默认下方列出你自己的群聊，也可以通过群号搜索其他群聊。</p>
+          <p class="search-hint">默认下方列出你自己的群聊，也可留空搜索公开群。</p>
         </div>
 
         <div v-if="searchError" class="error-message">
@@ -136,10 +136,6 @@ const selectSearchedGroup = (group: Group) => {
 
 const handleSearch = async () => {
   const groupCode = searchGroupCode.value.trim()
-  if (!groupCode) {
-    searchError.value = '请输入群号'
-    return
-  }
 
   searching.value = true
   searchError.value = null

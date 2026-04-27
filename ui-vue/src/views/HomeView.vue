@@ -235,7 +235,8 @@ const handleCreateGroup = async (
   description: string,
   groupNumber: string,
   botId: string,
-  avatarUrl: string
+  avatarUrl: string,
+  isPublic: boolean
 ) => {
   try {
     actionError.value = null
@@ -245,6 +246,7 @@ const handleCreateGroup = async (
       group_code: groupNumber,
       bot_id: botId,
       avatar_url: avatarUrl || undefined,
+      is_public: isPublic,
     })
     showCreateGroupModal.value = false
   } catch (error) {
