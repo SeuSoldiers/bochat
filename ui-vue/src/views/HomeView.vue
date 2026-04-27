@@ -8,6 +8,14 @@
           {{ actionError }}
         </div>
 
+        <JoinRequestPanel
+          :inbox="groupStore.joinRequestsInbox"
+          :outbox="groupStore.joinRequestsOutbox"
+          :loading="groupStore.loading"
+          @approve="handleApproveJoinRequest"
+          @reject="handleRejectJoinRequest"
+        />
+
         <section v-if="activeTab === 'bots'" class="tab-content">
           <div v-if="botStore.loading" class="loading">
             加载中...
@@ -129,6 +137,7 @@ import CreateGroupModal from '@/components/Group/CreateGroupModal.vue'
 import EditGroupModal from '@/components/Group/EditGroupModal.vue'
 import JoinGroupModal from '@/components/Group/JoinGroupModal.vue'
 import MembersModal from '@/components/Group/MembersModal.vue'
+import JoinRequestPanel from '@/components/Group/JoinRequestPanel.vue'
 import type { Bot, Group } from '@/types'
 
 const botStore = useBotStore()
@@ -156,6 +165,8 @@ onMounted(() => {
   groupStore.initializeSelectedGroup()
   botStore.fetchBots()
   groupStore.fetchGroups()
+  groupStore.fetchJoinRequests('inbox')
+  groupStore.fetchJoinRequests('outbox')
 })
 
 // 创建机器人
@@ -291,18 +302,29 @@ const handleEditGroup = async (payload: {
 }
 
 // 加入群
-const handleJoinGroup = async (payload: { groupId?: string; groupCode?: string; botId: string }) => {
+const handleJoinGroup = async (payload: {
+  groupId?: string
+  groupCode?: string
+  botId: string
+  requestReason: string
+}) => {
   try {
     actionError.value = null
+    let result: { result_status?: string; message?: string } | null = null
     if (payload.groupId) {
-      await groupStore.joinGroupById(payload.groupId, payload.botId)
+      result = await groupStore.joinGroupById(payload.groupId, payload.botId, payload.requestReason)
     } else if (payload.groupCode) {
-      await groupStore.joinGroupByNumber(payload.groupCode, payload.botId)
+      result = await groupStore.joinGroupByNumber(payload.groupCode, payload.botId, payload.requestReason)
     } else {
       throw new Error('未提供群标识')
     }
     closeJoinGroupModal()
-    await groupStore.fetchGroups()
+    if (result?.result_status === 'pending_approval') {
+      actionError.value = result.message || '申请已提交，等待对方同意'
+    } else {
+      await groupStore.fetchGroups()
+      actionError.value = null
+    }
   } catch (error) {
     actionError.value = groupStore.error || '加入群失败'
     console.error('Failed to join group:', error)
@@ -319,14 +341,21 @@ const showGroupMembers = async (groupId: string) => {
   }
 }
 
-const handleAddBotToGroup = async (botId: string) => {
+const handleAddBotToGroup = async (payload: { botId: string; requestReason: string }) => {
   if (!selectedGroupForMembers.value) {
     return
   }
 
   try {
     actionError.value = null
-    await groupStore.addBotToGroup(selectedGroupForMembers.value.group_id, botId)
+    const result = await groupStore.addBotToGroup(
+      selectedGroupForMembers.value.group_id,
+      payload.botId,
+      payload.requestReason
+    )
+    if (result.result_status === 'pending_approval') {
+      actionError.value = result.message || '邀请已发送，等待对方同意'
+    }
   } catch (error) {
     actionError.value = groupStore.error || '添加机器人到群聊失败'
     console.error('Failed to add bot to group:', error)
@@ -344,6 +373,29 @@ const handleRemoveBotFromGroup = async (botId: string) => {
   } catch (error) {
     actionError.value = groupStore.error || '移出群聊失败'
     console.error('Failed to remove bot from group:', error)
+  }
+}
+
+const handleApproveJoinRequest = async (requestId: string) => {
+  try {
+    actionError.value = null
+    await groupStore.approveJoinRequestById(requestId)
+    if (selectedGroupForMembers.value) {
+      await groupStore.fetchGroupMembers(selectedGroupForMembers.value.group_id)
+    }
+  } catch (error) {
+    actionError.value = groupStore.error || '同意申请失败'
+    console.error('Failed to approve join request:', error)
+  }
+}
+
+const handleRejectJoinRequest = async (requestId: string) => {
+  try {
+    actionError.value = null
+    await groupStore.rejectJoinRequestById(requestId)
+  } catch (error) {
+    actionError.value = groupStore.error || '拒绝申请失败'
+    console.error('Failed to reject join request:', error)
   }
 }
 </script>

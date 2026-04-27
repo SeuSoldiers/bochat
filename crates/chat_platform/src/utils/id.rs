@@ -15,3 +15,7 @@ pub fn generate_file_id() -> String {
 pub fn generate_group_id() -> String {
     format!("g_{}", Uuid::new_v4())
 }
+
+pub fn generate_group_join_request_id() -> String {
+    format!("gjr_{}", Uuid::new_v4())
+}

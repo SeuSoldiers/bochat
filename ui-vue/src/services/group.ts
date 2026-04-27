@@ -3,7 +3,14 @@
  */
 
 import { apiClient, unwrapCollectionResponse } from './api'
-import type { Group, CreateGroupRequest, UpdateGroupRequest, GroupJoinResult, GroupMember } from '@/types'
+import type {
+  Group,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+  GroupJoinResult,
+  GroupMember,
+  GroupJoinRequestItem,
+} from '@/types'
 
 /**
  * 获取群列表
@@ -51,11 +58,12 @@ export async function deleteGroup(groupId: string) {
 /**
  * Bot 加入群
  */
-export async function joinGroup(data: { groupId?: string; groupCode?: string; botId?: string }) {
+export async function joinGroup(data: { groupId?: string; groupCode?: string; botId?: string; requestReason?: string }) {
   return apiClient.post<GroupJoinResult>('/groups/join', {
     group_id: data.groupId,
     group_code: data.groupCode,
     bot_id: data.botId,
+    request_reason: data.requestReason,
   })
 }
 
@@ -68,6 +76,25 @@ export async function leaveGroup(groupId: string) {
 
 export async function removeGroupMember(groupId: string, botId: string) {
   return apiClient.delete(`/groups/${groupId}/members/${botId}`)
+}
+
+export async function getJoinRequests(scope: 'inbox' | 'outbox', status = 'pending') {
+  const response = await apiClient.get<GroupJoinRequestItem[] | { requests: GroupJoinRequestItem[] }>(
+    `/groups/join-requests?scope=${scope}&status=${encodeURIComponent(status)}`
+  )
+  return unwrapCollectionResponse(response)
+}
+
+export async function approveJoinRequest(requestId: string, note?: string) {
+  return apiClient.post(`/groups/join-requests/${requestId}/approve`, {
+    note,
+  })
+}
+
+export async function rejectJoinRequest(requestId: string, note?: string) {
+  return apiClient.post(`/groups/join-requests/${requestId}/reject`, {
+    note,
+  })
 }
 
 /**

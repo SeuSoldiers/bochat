@@ -218,7 +218,7 @@ class ApiClient {
 export const apiClient = new ApiClient()
 
 export function unwrapCollectionResponse<T>(
-  response: T[] | { bots?: T[]; groups?: T[]; messages?: T[]; members?: T[] }
+  response: T[] | { bots?: T[]; groups?: T[]; messages?: T[]; members?: T[]; requests?: T[] }
 ): T[] {
   if (Array.isArray(response)) {
     return response
@@ -238,6 +238,10 @@ export function unwrapCollectionResponse<T>(
 
   if (Array.isArray(response.members)) {
     return response.members
+  }
+
+  if (Array.isArray(response.requests)) {
+    return response.requests
   }
 
   return []

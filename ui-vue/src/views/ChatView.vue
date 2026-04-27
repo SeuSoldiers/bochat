@@ -235,12 +235,24 @@ const createIdempotencyKey = () => {
   return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-const handleAddBotToGroup = async (botId: string) => {
+const handleAddBotToGroup = async (payload: { botId: string; requestReason: string }) => {
   if (!groupStore.selectedGroup) {
     return
   }
 
-  await groupStore.addBotToGroup(groupStore.selectedGroup.group_id, botId)
+  try {
+    messageError.value = null
+    const result = await groupStore.addBotToGroup(
+      groupStore.selectedGroup.group_id,
+      payload.botId,
+      payload.requestReason
+    )
+    if (result.result_status === 'pending_approval') {
+      messageError.value = result.message || '邀请已发送，等待对方同意'
+    }
+  } catch (error: any) {
+    messageError.value = getErrorMessage(error, '邀请机器人失败')
+  }
 }
 
 const handleRemoveBotFromGroup = async (botId: string) => {

@@ -77,6 +77,10 @@ export interface GroupJoinResult {
   message: string
   group_id: string
   bot_id: string
+  result_status?: 'joined' | 'pending_approval'
+  request_id?: string
+  approver_user_id?: string
+  request_type?: 'bot_owner_approval' | 'group_owner_approval'
 }
 
 export interface GroupMember {
@@ -86,6 +90,25 @@ export interface GroupMember {
   joined_at: string
   bot_name?: string
   owner_id?: string
+}
+
+export interface GroupJoinRequestItem {
+  request_id: string
+  group_id: string
+  group_name: string
+  group_code?: string
+  bot_id: string
+  bot_name: string
+  bot_owner_id: string
+  requester_user_id: string
+  approver_user_id: string
+  request_type: 'bot_owner_approval' | 'group_owner_approval' | string
+  request_reason: string
+  status: 'pending' | 'approved' | 'rejected' | string
+  review_note?: string
+  created_at: string
+  updated_at: string
+  reviewed_at?: string
 }
 
 /**

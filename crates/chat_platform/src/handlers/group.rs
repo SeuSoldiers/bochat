@@ -8,16 +8,18 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::models::{
-    CreateGroupRequest, GroupMemberResponse, GroupResponse, JoinGroupRequest, UpdateGroupRequest,
+    CreateGroupRequest, GroupJoinRequestListItem, GroupMemberResponse, GroupResponse,
+    JoinGroupRequest, UpdateGroupRequest,
 };
 use crate::repositories::{
-    BotRepository, GroupMemberLink, GroupRepository, NewGroup, NewGroupMember,
+    BotRepository, GroupJoinRequestRepository, GroupMemberLink, GroupRepository, NewGroup,
+    NewGroupJoinRequest, NewGroupMember,
 };
 use crate::services::authz::{
     bot_has_global_group_access, can_manage_target_user, user_is_super_admin,
 };
 use crate::services::GroupService;
-use crate::utils::generate_group_id;
+use crate::utils::{generate_group_id, generate_group_join_request_id};
 use crate::{
     error::{json_response, AppError, AppResult},
     middlewares::{BotAuth, UserAuth},
@@ -38,6 +40,17 @@ pub struct LeaveGroupQuery {
 #[derive(Debug, Deserialize)]
 pub struct SearchGroupQuery {
     pub group_code: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JoinRequestListQuery {
+    pub scope: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewJoinRequestBody {
+    pub note: Option<String>,
 }
 
 /// 创建新群聊（仅用户可创建）
@@ -385,8 +398,8 @@ pub async fn join_group(
             AppError::BadRequest("群聊不存在".to_string())
         })?;
 
-    let target_bot_id = if let Some(bot_id) = req.bot_id.as_ref() {
-        let target_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, bot_id)
+    let target_bot: crate::models::Bot = if let Some(bot_id) = req.bot_id.as_ref() {
+        BotRepository::find_by_id(&state.pool, bot_id)
             .await
             .map_err(|e| {
                 tracing::error!("查询目标 Bot 时数据库错误: {}", e);
@@ -395,64 +408,284 @@ pub async fn join_group(
             .ok_or_else(|| {
                 tracing::warn!("目标 Bot 不存在: {}", bot_id);
                 AppError::BotNotFound
-            })?;
-
-        let is_target_bot_owner =
-            can_manage_target_user(&state.pool, &requester_user_id, &target_bot.owner_id).await?;
-        let can_invite_to_group =
-            can_manage_target_user(&state.pool, &requester_user_id, &target_group.creator_id).await?;
-
-        if !is_target_bot_owner && !can_invite_to_group {
-            tracing::warn!(
-                "加入群聊失败: 既不是 Bot 所有者也不是群创建者, bot_owner={}, group_creator={}, requester={}",
-                target_bot.owner_id,
-                target_group.creator_id,
-                requester_user_id
-            );
-            return Err(AppError::Forbidden(
-                "只能邀请自己的 Bot，或由群创建者邀请其他 Bot".to_string(),
-            ));
-        }
-
-        if target_bot.status != "active" {
-            tracing::warn!("加入群聊失败: 目标 Bot 未激活: {}", target_bot.bot_id);
-            return Err(AppError::BotInactive);
-        }
-
-        target_bot.bot_id
+            })?
     } else {
         let default_bot_id: Option<String> =
             BotRepository::find_default_active_bot_id(&state.pool, &requester_user_id).await?;
-
-        default_bot_id.ok_or(AppError::NoAvailableBot)?
+        let bot_id = default_bot_id.ok_or(AppError::NoAvailableBot)?;
+        BotRepository::find_by_id(&state.pool, &bot_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("查询默认 Bot 时数据库错误: {}", e);
+                e
+            })?
+            .ok_or(AppError::BotNotFound)?
     };
+
+    if target_bot.status != "active" {
+        tracing::warn!("加入群聊失败: 目标 Bot 未激活: {}", target_bot.bot_id);
+        return Err(AppError::BotInactive);
+    }
+
+    let target_bot_id = target_bot.bot_id.clone();
+    let target_bot_owner_id = target_bot.owner_id.clone();
+
+    let requester_can_manage_bot =
+        can_manage_target_user(&state.pool, &requester_user_id, &target_bot_owner_id).await?;
+    let requester_can_manage_group =
+        can_manage_target_user(&state.pool, &requester_user_id, &target_group.creator_id).await?;
+
+    if !requester_can_manage_bot && !requester_can_manage_group {
+        tracing::warn!(
+            "加入群聊失败: 既不是 Bot 所有者也不是群创建者, bot_owner={}, group_creator={}, requester={}",
+            target_bot_owner_id,
+            target_group.creator_id,
+            requester_user_id
+        );
+        return Err(AppError::Forbidden(
+            "只能申请自己的 Bot 入群，或由群创建者发起邀请".to_string(),
+        ));
+    }
+
+    let already_member = GroupRepository::is_member(
+        &state.pool,
+        &GroupMemberLink {
+            group_id: &group_id_str,
+            member_id: &target_bot_id,
+        },
+    )
+    .await?;
+
+    if already_member {
+        return Ok(json_response(
+            StatusCode::OK,
+            json!({
+                "message": "Bot 已在群聊中",
+                "group_id": group_id_str,
+                "bot_id": target_bot_id,
+                "result_status": "joined",
+            }),
+        ));
+    }
 
     let now = chrono::Utc::now().to_rfc3339();
 
-    // Add bot to group (ignore if already a member)
-    GroupRepository::add_member_ignore(
-        &state.pool,
-        &NewGroupMember {
-            group_id: &group_id_str,
-            member_id: &target_bot_id,
-            member_type: "bot",
-            joined_at: &now,
-        },
-    )
+    if requester_can_manage_bot && requester_can_manage_group {
+        GroupRepository::add_member_ignore(
+            &state.pool,
+            &NewGroupMember {
+                group_id: &group_id_str,
+                member_id: &target_bot_id,
+                member_type: "bot",
+                joined_at: &now,
+            },
+        )
         .await
         .map_err(|e| {
             tracing::error!("添加 Bot 到群聊时数据库错误: {}", e);
             e
         })?;
 
-    tracing::info!("✅ Bot {} 已加入群聊 {}", target_bot_id, group_id_str);
+        tracing::info!("✅ Bot {} 已加入群聊 {}", target_bot_id, group_id_str);
+        return Ok(json_response(
+            StatusCode::OK,
+            json!({
+                "message": "成功加入群聊",
+                "group_id": group_id_str,
+                "bot_id": target_bot_id,
+                "result_status": "joined",
+            }),
+        ));
+    }
+
+    let (approver_user_id, request_type) = if requester_can_manage_group && !requester_can_manage_bot {
+        (target_bot_owner_id.as_str(), "bot_owner_approval")
+    } else {
+        (target_group.creator_id.as_str(), "group_owner_approval")
+    };
+
+    let request_reason = req
+        .request_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or(AppError::BadRequest("申请理由不能为空".to_string()))?;
+
+    if let Some(pending) = GroupJoinRequestRepository::find_pending(
+        &state.pool,
+        &group_id_str,
+        &target_bot_id,
+        approver_user_id,
+        request_type,
+    )
+    .await?
+    {
+        return Ok(json_response(
+            StatusCode::OK,
+            json!({
+                "message": "申请已存在，等待对方处理",
+                "group_id": group_id_str,
+                "bot_id": target_bot_id,
+                "result_status": "pending_approval",
+                "request_id": pending.request_id,
+                "approver_user_id": approver_user_id,
+                "request_type": request_type,
+            }),
+        ));
+    }
+
+    let request_id = generate_group_join_request_id();
+    GroupJoinRequestRepository::insert(
+        &state.pool,
+        &NewGroupJoinRequest {
+            request_id: &request_id,
+            group_id: &group_id_str,
+            bot_id: &target_bot_id,
+            requester_user_id: &requester_user_id,
+            approver_user_id,
+            request_type,
+            request_reason,
+            now: &now,
+        },
+    )
+    .await?;
 
     Ok(json_response(
         StatusCode::OK,
         json!({
-            "message": "成功加入群聊",
+            "message": "申请已提交，等待对方同意",
             "group_id": group_id_str,
             "bot_id": target_bot_id,
+            "result_status": "pending_approval",
+            "request_id": request_id,
+            "approver_user_id": approver_user_id,
+            "request_type": request_type,
+        }),
+    ))
+}
+
+/// List join requests (inbox/outbox)
+#[tracing::instrument(skip_all)]
+pub async fn list_join_requests(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+    Query(query): Query<JoinRequestListQuery>,
+) -> AppResult<Response> {
+    let requester_user_id = auth.user_id;
+    let scope = query.scope.as_deref().unwrap_or("inbox");
+    let status = query.status.as_deref();
+
+    let requests: Vec<GroupJoinRequestListItem> = match scope {
+        "inbox" => {
+            GroupJoinRequestRepository::list_inbox(&state.pool, &requester_user_id, status).await?
+        }
+        "outbox" => {
+            GroupJoinRequestRepository::list_outbox(&state.pool, &requester_user_id, status).await?
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "scope 只支持 inbox 或 outbox".to_string(),
+            ))
+        }
+    };
+
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "requests": requests,
+        }),
+    ))
+}
+
+/// Approve one join request
+#[tracing::instrument(skip_all)]
+pub async fn approve_join_request(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+    Path(request_id): Path<String>,
+    Json(body): Json<ReviewJoinRequestBody>,
+) -> AppResult<Response> {
+    let requester_user_id = auth.user_id;
+    let request = GroupJoinRequestRepository::find_by_id(&state.pool, &request_id)
+        .await?
+        .ok_or(AppError::JoinRequestNotFound)?;
+
+    if !can_manage_target_user(&state.pool, &requester_user_id, &request.approver_user_id).await? {
+        return Err(AppError::Forbidden("没有权限处理该申请".to_string()));
+    }
+
+    if request.status != "pending" {
+        return Err(AppError::BadRequest("该申请已被处理".to_string()));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    GroupRepository::add_member_ignore(
+        &state.pool,
+        &NewGroupMember {
+            group_id: &request.group_id,
+            member_id: &request.bot_id,
+            member_type: "bot",
+            joined_at: &now,
+        },
+    )
+    .await?;
+
+    let note = body.note.as_deref().map(str::trim).filter(|v| !v.is_empty());
+    let updated = GroupJoinRequestRepository::update_status(&state.pool, &request_id, "approved", note, &now)
+        .await?;
+    if !updated {
+        return Err(AppError::BadRequest("该申请已被处理".to_string()));
+    }
+
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "已同意申请",
+            "request_id": request_id,
+            "group_id": request.group_id,
+            "bot_id": request.bot_id,
+            "status": "approved",
+        }),
+    ))
+}
+
+/// Reject one join request
+#[tracing::instrument(skip_all)]
+pub async fn reject_join_request(
+    State(state): State<AppState>,
+    Extension(auth): Extension<UserAuth>,
+    Path(request_id): Path<String>,
+    Json(body): Json<ReviewJoinRequestBody>,
+) -> AppResult<Response> {
+    let requester_user_id = auth.user_id;
+    let request = GroupJoinRequestRepository::find_by_id(&state.pool, &request_id)
+        .await?
+        .ok_or(AppError::JoinRequestNotFound)?;
+
+    if !can_manage_target_user(&state.pool, &requester_user_id, &request.approver_user_id).await? {
+        return Err(AppError::Forbidden("没有权限处理该申请".to_string()));
+    }
+
+    if request.status != "pending" {
+        return Err(AppError::BadRequest("该申请已被处理".to_string()));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let note = body.note.as_deref().map(str::trim).filter(|v| !v.is_empty());
+    let updated = GroupJoinRequestRepository::update_status(&state.pool, &request_id, "rejected", note, &now)
+        .await?;
+    if !updated {
+        return Err(AppError::BadRequest("该申请已被处理".to_string()));
+    }
+
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "message": "已拒绝申请",
+            "request_id": request_id,
+            "group_id": request.group_id,
+            "bot_id": request.bot_id,
+            "status": "rejected",
         }),
     ))
 }

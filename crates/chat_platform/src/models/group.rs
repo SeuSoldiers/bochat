@@ -101,4 +101,42 @@ pub struct JoinGroupRequest {
     pub group_code: Option<String>,
     /// 要加入群聊的 Bot ID，必须属于当前认证用户
     pub bot_id: Option<String>,
+    /// 申请理由（涉及审批场景时必填）
+    pub request_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct GroupJoinRequest {
+    pub request_id: String,
+    pub group_id: String,
+    pub bot_id: String,
+    pub requester_user_id: String,
+    pub approver_user_id: String,
+    pub request_type: String,
+    pub request_reason: String,
+    pub status: String,
+    pub review_note: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub reviewed_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct GroupJoinRequestListItem {
+    pub request_id: String,
+    pub group_id: String,
+    pub group_name: String,
+    pub group_code: Option<String>,
+    pub bot_id: String,
+    pub bot_name: String,
+    pub bot_owner_id: String,
+    pub requester_user_id: String,
+    pub approver_user_id: String,
+    pub request_type: String,
+    pub request_reason: String,
+    pub status: String,
+    pub review_note: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub reviewed_at: Option<String>,
 }

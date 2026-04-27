@@ -88,6 +88,9 @@ pub enum AppError {
     #[error("Bot is not a member of this group")]
     BotNotInGroup,
 
+    #[error("Join request not found")]
+    JoinRequestNotFound,
+
     #[error("{0}")]
     Forbidden(String),
 }
@@ -98,7 +101,8 @@ impl AppError {
             AppError::UserNotFound
             | AppError::BotNotFound
             | AppError::MessageNotFound
-            | AppError::FileNotFound => StatusCode::NOT_FOUND,
+            | AppError::FileNotFound
+            | AppError::JoinRequestNotFound => StatusCode::NOT_FOUND,
             AppError::Unauthorized
             | AppError::InvalidToken
             | AppError::InvalidUserToken
@@ -149,6 +153,7 @@ impl AppError {
             AppError::BotInactive => "bot_inactive",
             AppError::NoAvailableBot => "no_available_bot",
             AppError::BotNotInGroup => "bot_not_in_group",
+            AppError::JoinRequestNotFound => "join_request_not_found",
             AppError::Forbidden(_) => "forbidden",
         }
     }
@@ -184,6 +189,7 @@ impl AppError {
             AppError::BotInactive => "目标 Bot 未激活".to_string(),
             AppError::NoAvailableBot => "当前用户没有可用的 Bot".to_string(),
             AppError::BotNotInGroup => "该 Bot 还不在当前群里".to_string(),
+            AppError::JoinRequestNotFound => "加群申请不存在".to_string(),
             AppError::Forbidden(message) => message.clone(),
         }
     }

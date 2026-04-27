@@ -10,12 +10,22 @@ import {
   deleteGroup,
   getGroupMembers,
   joinGroup,
+  getJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
   getGroup,
   removeGroupMember,
   updateGroup,
 } from '@/services/group'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
-import type { Group, CreateGroupRequest, UpdateGroupRequest, GroupMember } from '@/types'
+import type {
+  Group,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+  GroupMember,
+  GroupJoinRequestItem,
+  GroupJoinResult,
+} from '@/types'
 import { getErrorMessage } from '@/utils/error'
 
 export const useGroupStore = defineStore('groups', () => {
@@ -23,6 +33,8 @@ export const useGroupStore = defineStore('groups', () => {
   const groups = ref<Group[]>([])
   const selectedGroupId = ref<string | null>(null)
   const groupMembers = ref<Record<string, GroupMember[]>>({})
+  const joinRequestsInbox = ref<GroupJoinRequestItem[]>([])
+  const joinRequestsOutbox = ref<GroupJoinRequestItem[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -44,6 +56,10 @@ export const useGroupStore = defineStore('groups', () => {
   const selectedGroupMembers = computed(() => {
     return selectedGroupId.value ? (groupMembers.value[selectedGroupId.value] || []) : []
   })
+
+  const pendingInboxCount = computed(() => joinRequestsInbox.value.filter((item) => item.status === 'pending').length)
+
+  const pendingOutboxCount = computed(() => joinRequestsOutbox.value.filter((item) => item.status === 'pending').length)
 
   // 方法：获取群列表
   const fetchGroups = async () => {
@@ -161,19 +177,25 @@ export const useGroupStore = defineStore('groups', () => {
   }
 
   // 方法：加入群
-  const joinGroupByNumber = async (groupNumber: string, botId: string) => {
+  const joinGroupByNumber = async (
+    groupNumber: string,
+    botId: string,
+    requestReason: string
+  ): Promise<GroupJoinResult> => {
     loading.value = true
     error.value = null
 
     try {
-      const result = await joinGroup({ groupCode: groupNumber, botId })
-      const joinedGroup = await getGroup(result.group_id)
-
-      if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
-        groups.value.unshift(joinedGroup)
+      const result = await joinGroup({ groupCode: groupNumber, botId, requestReason })
+      if (result.result_status === 'joined') {
+        const joinedGroup = await getGroup(result.group_id)
+        if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
+          groups.value.unshift(joinedGroup)
+        }
+      } else {
+        await fetchJoinRequests('outbox')
       }
-
-      return joinedGroup
+      return result
     } catch (err: any) {
       error.value = getErrorMessage(err, '加入群失败')
       throw err
@@ -182,19 +204,25 @@ export const useGroupStore = defineStore('groups', () => {
     }
   }
 
-  const joinGroupById = async (groupId: string, botId: string) => {
+  const joinGroupById = async (
+    groupId: string,
+    botId: string,
+    requestReason: string
+  ): Promise<GroupJoinResult> => {
     loading.value = true
     error.value = null
 
     try {
-      const result = await joinGroup({ groupId, botId })
-      const joinedGroup = await getGroup(result.group_id)
-
-      if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
-        groups.value.unshift(joinedGroup)
+      const result = await joinGroup({ groupId, botId, requestReason })
+      if (result.result_status === 'joined') {
+        const joinedGroup = await getGroup(result.group_id)
+        if (!groups.value.some((group) => group.group_id === joinedGroup.group_id)) {
+          groups.value.unshift(joinedGroup)
+        }
+      } else {
+        await fetchJoinRequests('outbox')
       }
-
-      return joinedGroup
+      return result
     } catch (err: any) {
       error.value = getErrorMessage(err, '加入群失败')
       throw err
@@ -203,14 +231,22 @@ export const useGroupStore = defineStore('groups', () => {
     }
   }
 
-  const addBotToGroup = async (groupId: string, botId: string) => {
+  const addBotToGroup = async (
+    groupId: string,
+    botId: string,
+    requestReason: string
+  ): Promise<GroupJoinResult> => {
     loading.value = true
     error.value = null
 
     try {
-      const result = await joinGroup({ groupId, botId })
-      const members = await getGroupMembers(groupId)
-      groupMembers.value[groupId] = members
+      const result = await joinGroup({ groupId, botId, requestReason })
+      if (result.result_status === 'joined') {
+        const members = await getGroupMembers(groupId)
+        groupMembers.value[groupId] = members
+      } else {
+        await fetchJoinRequests('outbox')
+      }
       return result
     } catch (err: any) {
       error.value = getErrorMessage(err, '添加机器人到群聊失败')
@@ -235,6 +271,53 @@ export const useGroupStore = defineStore('groups', () => {
     }
   }
 
+  const fetchJoinRequests = async (scope: 'inbox' | 'outbox') => {
+    loading.value = true
+    error.value = null
+    try {
+      const requests = await getJoinRequests(scope, 'pending')
+      if (scope === 'inbox') {
+        joinRequestsInbox.value = requests
+      } else {
+        joinRequestsOutbox.value = requests
+      }
+      return requests
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '获取加群申请失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const approveJoinRequestById = async (requestId: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      await approveJoinRequest(requestId)
+      await Promise.all([fetchJoinRequests('inbox'), fetchJoinRequests('outbox'), fetchGroups()])
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '同意申请失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const rejectJoinRequestById = async (requestId: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      await rejectJoinRequest(requestId)
+      await Promise.all([fetchJoinRequests('inbox'), fetchJoinRequests('outbox')])
+    } catch (err: any) {
+      error.value = getErrorMessage(err, '拒绝申请失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 方法：清除错误
   const clearError = () => {
     error.value = null
@@ -245,6 +328,8 @@ export const useGroupStore = defineStore('groups', () => {
     groups,
     selectedGroupId,
     groupMembers,
+    joinRequestsInbox,
+    joinRequestsOutbox,
     loading,
     error,
 
@@ -252,6 +337,8 @@ export const useGroupStore = defineStore('groups', () => {
     selectedGroup,
     groupsCount,
     selectedGroupMembers,
+    pendingInboxCount,
+    pendingOutboxCount,
 
     // 方法
     initializeSelectedGroup,
@@ -265,6 +352,9 @@ export const useGroupStore = defineStore('groups', () => {
     joinGroupById,
     addBotToGroup,
     removeBotFromGroup,
+    fetchJoinRequests,
+    approveJoinRequestById,
+    rejectJoinRequestById,
     clearError,
   }
 })

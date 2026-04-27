@@ -22,6 +22,17 @@
         </div>
 
         <div class="search-block section-card">
+          <label for="invite-reason">申请理由</label>
+          <textarea
+            id="invite-reason"
+            v-model="requestReason"
+            rows="3"
+            placeholder="请填写邀请该 Bot 入群的理由"
+            :disabled="loading"
+          />
+        </div>
+
+        <div class="search-block section-card">
           <label for="bot-search">按 Bot 编号搜索（精确匹配）</label>
           <div class="search-row">
             <input
@@ -112,7 +123,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'add-bot': [botId: string]
+  'add-bot': [payload: { botId: string; requestReason: string }]
   'remove-bot': [botId: string]
   close: []
 }>()
@@ -122,6 +133,7 @@ const selectedKey = ref('')
 const searchBotId = ref('')
 const searching = ref(false)
 const searchError = ref<string | null>(null)
+const requestReason = ref('')
 const searchedBots = ref<Array<{ bot_id: string; name: string; status: string }>>([])
 
 const canAddSelectedBot = computed(() => {
@@ -186,7 +198,12 @@ const handleAddBot = () => {
   if (!selectedBotId.value) {
     return
   }
-  emit('add-bot', selectedBotId.value)
+  const reason = requestReason.value.trim()
+  if (!reason) {
+    searchError.value = '请填写申请理由'
+    return
+  }
+  emit('add-bot', { botId: selectedBotId.value, requestReason: reason })
 }
 
 const handleRemoveBot = () => {
@@ -342,6 +359,19 @@ const formatDate = (dateStr: string) => {
   font-size: 14px;
   color: #2f2f2f;
   background: #f7f7f7;
+}
+
+.search-block textarea {
+  width: 100%;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-size: 13px;
+  color: #2f2f2f;
+  background: #f7f7f7;
+  resize: vertical;
+  min-height: 68px;
+  font-family: inherit;
 }
 
 .btn-search {

@@ -62,6 +62,17 @@
           <p v-else class="empty-tip">暂无可选群聊，请先创建群聊或先搜索群号。</p>
         </div>
 
+        <div class="form-group">
+          <label for="join-reason">申请理由</label>
+          <textarea
+            id="join-reason"
+            v-model="requestReason"
+            placeholder="请填写申请加入群聊的理由"
+            :disabled="loading"
+            rows="3"
+          />
+        </div>
+
         <div v-if="error" class="error-message">
           {{ error }}
         </div>
@@ -91,7 +102,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  join: [payload: { groupId?: string; groupCode?: string; botId: string }]
+  join: [payload: { groupId?: string; groupCode?: string; botId: string; requestReason: string }]
   close: []
 }>()
 
@@ -103,6 +114,7 @@ const searchGroupCode = ref('')
 const searchedGroups = ref<Group[]>([])
 const selectedKey = ref('')
 const selectedPayload = ref<{ groupId?: string; groupCode?: string } | null>(null)
+const requestReason = ref('')
 
 const selectOwnGroup = (group: Group) => {
   selectedKey.value = `own:${group.group_id}`
@@ -157,6 +169,12 @@ const handleSubmit = async () => {
     return
   }
 
+  const reason = requestReason.value.trim()
+  if (!reason) {
+    error.value = '请填写申请理由'
+    return
+  }
+
   loading.value = true
   error.value = null
 
@@ -164,6 +182,7 @@ const handleSubmit = async () => {
     emit('join', {
       ...selectedPayload.value,
       botId: props.preselectedBotId,
+      requestReason: reason,
     })
   } catch (err: any) {
     error.value = getErrorMessage(err, '加入失败')
@@ -245,6 +264,19 @@ const handleSubmit = async () => {
   font-size: 14px;
   color: #2f2f2f;
   background: #f7f7f7;
+}
+
+.form-group textarea {
+  width: 100%;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #2f2f2f;
+  background: #f7f7f7;
+  resize: vertical;
+  min-height: 72px;
+  font-family: inherit;
 }
 
 .btn-search {

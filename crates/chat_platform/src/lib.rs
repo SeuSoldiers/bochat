@@ -68,6 +68,18 @@ pub fn app_router(state: AppState) -> Router {
         )
         .route("/api/v1/groups/join", post(handlers::join_group))
         .route(
+            "/api/v1/groups/join-requests",
+            get(handlers::list_join_requests),
+        )
+        .route(
+            "/api/v1/groups/join-requests/{request_id}/approve",
+            post(handlers::approve_join_request),
+        )
+        .route(
+            "/api/v1/groups/join-requests/{request_id}/reject",
+            post(handlers::reject_join_request),
+        )
+        .route(
             "/api/v1/groups/{group_id}/leave",
             delete(handlers::leave_group),
         )

@@ -4,6 +4,7 @@ pub mod bootstrap_repository;
 pub mod file_repository;
 pub mod file_reference_repository;
 pub mod group_repository;
+pub mod group_join_request_repository;
 pub mod message_repository;
 pub mod user_repository;
 
@@ -20,6 +21,7 @@ pub use group_repository::{
     GroupMemberLink, GroupMessagesQuery, GroupMessagesRow, GroupRepository, NewGroup,
     NewGroupMember,
 };
+pub use group_join_request_repository::{GroupJoinRequestRepository, NewGroupJoinRequest};
 pub use message_repository::{
     GroupMessagesPage, MessageIdempotencyQuery, MessageRepository, MessageWithSenderRow, NewMessage,
 };
