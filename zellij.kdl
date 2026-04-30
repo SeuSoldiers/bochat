@@ -1,13 +1,13 @@
 layout {
     pane split_direction="vertical" size="50%" {
-        pane name="backend" cwd="/home/harkerhand/codes/rust-bochat/" command="zsh" {
-            args "-lc" "rm ./chat_platform.db && touch ./chat_platform.db && cargo run --release"
+        pane name="backend" cwd="/home/harkerhand/codes/bochat/" command="zsh" {
+            args "-lc" "cargo run --release"
         }
         pane split_direction="horizontal" {
-            pane name="frontend" cwd="/home/harkerhand/codes/rust-bochat/ui-vue" command="zsh" {
+            pane name="frontend" cwd="/home/harkerhand/codes/bochat/ui-vue" command="zsh" {
                 args "-lc" "npm run dev"
             }
-            pane name="shell" cwd="/home/harkerhand/codes/rust-bochat"
+            pane name="shell" cwd="/home/harkerhand/codes/bochat"
         }
     }
 }

@@ -12,6 +12,39 @@
 
 尽量基于仓库中的rust-sdk或python-sdk来开发插件，避免直接调用HTTP API，这样可以更好地利用SDK提供的功能和抽象层，减少开发难度和维护成本。
 
-每一个社区开发库可以独立，使用submodule的形式挂载到community目录下。每个库都需要提供一个README.md文件，说明库的功能、使用方法和示例代码。
 
-不要直接修改本仓库的 master 分支，有任何改动都应该在一个新的分支上进行，并且提交一个Pull Request来合并到master分支。这样可以保证代码的质量和稳定性，同时也方便其他人参与到社区开发中来。
+社区项目保持**完全独立仓库**维护；主仓库只维护一个**索引文件**，不托管社区项目源码。  
+推荐做法：主仓库提交 `YAML` 索引，社区仓库维护自己的 `README.md` 与发布版本。
+
+主仓库 PR 只包含：新增或更新 `community/proj-name.yaml` 中对应条目
+
+每个社区仓库至少包含以下内容：
+
+1. `README.md`：功能简介、安装方式、配置方式、最小示例
+2. `LICENSE`
+
+
+示例：`community/index.yaml`
+
+```yaml
+id: ncat-bochat-bridge
+name: Ncat BoChat Bridge
+status: active
+summary: QQ 与 BoChat 的双向消息转发插件
+repo: https://github.com/example/ncat-bochat-bridge
+homepage: https://github.com/example/ncat-bochat-bridge#readme
+maintainer: "@alice"
+sdk: python
+tags: [qq, bridge, relay]
+```
+
+字段约定：
+
+- `id`: 全局唯一，建议 kebab-case，后续不变更
+- `name`: 展示名
+- `status`: `active` / `beta` / `deprecated`
+- `summary`: 一句话描述
+- `repo`: 仓库地址
+- `homepage`: 文档入口，通常指向 `README`
+- `maintainer`: 维护者标识
+- `tags`: 检索标签
