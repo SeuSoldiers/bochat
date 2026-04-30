@@ -1,0 +1,9 @@
+id: translator
+name: Translator
+status: active
+summary: 中英互译插件，通过 /trans 命令在 BoChat 群中进行实时翻译
+repo: https://github.com/ShakonQin/bot_plugins
+homepage: https://github.com/ShakonQin/bot_plugins/blob/master/translator/README.md
+maintainer: "@ShakonQin"
+sdk: python
+tags: [translate, i18n, utility]
