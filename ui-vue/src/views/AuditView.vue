@@ -1,9 +1,5 @@
 <template>
-  <div class="page-shell audit-page">
-    <div class="shell-body">
-      <TopNav />
-
-      <main class="audit-main">
+  <main class="audit-main">
         <section class="audit-card dashboard-surface">
           <header class="audit-header">
             <h2>审计日志</h2>
@@ -59,14 +55,11 @@
             </table>
           </div>
         </section>
-      </main>
-    </div>
-  </div>
+    </main>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import TopNav from '@/components/Common/TopNav.vue'
 import { exportAuditLogsCsv, getAuditLogs, type AuditLogItem, type AuditLogQuery } from '@/services/audit'
 import { getErrorMessage } from '@/utils/error'
 
@@ -208,23 +201,8 @@ onMounted(fetchLogs)
 </script>
 
 <style scoped>
-.audit-page {
-  min-height: calc(100vh - 40px);
-}
-
-.shell-body {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  gap: 20px;
-}
-
 .audit-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 8px;
+  /* no extra wrapper needed */
 }
 
 .audit-card {
@@ -358,11 +336,6 @@ onMounted(fetchLogs)
 }
 
 @media (max-width: 1024px) {
-  .shell-body {
-    flex-direction: column;
-    gap: 12px;
-  }
-
   .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -13,7 +13,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 class ApiClient {
   private instance: AxiosInstance
-  private token: string | null = null
 
   constructor() {
     this.instance = axios.create({
@@ -23,9 +22,6 @@ class ApiClient {
       },
       timeout: 30000,
     })
-
-    // 初始化 token
-    this.token = this.getStoredToken()
 
     // 请求拦截器
     this.instance.interceptors.request.use(
@@ -101,22 +97,13 @@ class ApiClient {
    * 设置认证 token
    */
   setToken(token: string) {
-    this.token = token
     localStorage.setItem(STORAGE_KEYS.TOKEN, token)
-  }
-
-  /**
-   * 获取存储的 token
-   */
-  private getStoredToken(): string | null {
-    return localStorage.getItem(STORAGE_KEYS.TOKEN)
   }
 
   /**
    * 清除 token
    */
   clearToken() {
-    this.token = null
     localStorage.removeItem(STORAGE_KEYS.TOKEN)
   }
 

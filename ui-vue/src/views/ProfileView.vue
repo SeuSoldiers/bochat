@@ -1,9 +1,5 @@
 <template>
-  <div class="page-shell profile-page">
-    <div class="shell-body">
-      <TopNav />
-
-      <main class="profile-main">
+  <main class="profile-main">
         <section class="profile-card">
           <header class="card-header">
             <div>
@@ -55,14 +51,11 @@
             </div>
           </form>
         </section>
-      </main>
-    </div>
-  </div>
+    </main>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import TopNav from '@/components/Common/TopNav.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getErrorMessage } from '@/utils/error'
 
@@ -139,23 +132,8 @@ onMounted(fetchProfile)
 </script>
 
 <style scoped>
-.profile-page {
-  min-height: calc(100vh - 40px);
-}
-
-.shell-body {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  gap: 20px;
-}
-
 .profile-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 8px;
+  max-width: 640px;
 }
 
 .profile-card {

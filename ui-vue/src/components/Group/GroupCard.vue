@@ -14,7 +14,12 @@
         </div>
       </div>
       <div class="card-actions">
-        <button class="action-btn view-btn" @click.stop="$emit('view-members')" aria-label="查看成员">
+        <button class="action-btn chat-btn" @click.stop="$emit('enter-chat')" aria-label="进入聊天" title="进入聊天">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
+        <button class="action-btn view-btn" @click.stop="$emit('view-members')" aria-label="查看成员" title="查看成员">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M8.5 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
             <path d="M15.5 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
@@ -135,6 +140,7 @@ defineEmits<{
   edit: []
   delete: []
   'view-members': []
+  'enter-chat': []
 }>()
 
 const isGroupActive = ['active', 'running', 'enabled'].includes((props.group.status || '').toLowerCase())
@@ -273,6 +279,14 @@ const copyValue = async (value: string, label: string) => {
 
 .delete-btn {
   color: #f0413e;
+}
+
+.chat-btn {
+  color: #2f8f4e;
+}
+
+.chat-btn:hover {
+  color: #267a3e;
 }
 
 .card-divider {

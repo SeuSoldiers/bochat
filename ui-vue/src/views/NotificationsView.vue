@@ -1,9 +1,5 @@
 <template>
-  <div class="page-shell notifications-page">
-    <div class="shell-body">
-      <TopNav />
-
-      <main class="notifications-main">
+  <main class="notifications-main">
         <section class="notifications-card dashboard-surface">
           <header class="card-header">
             <h2>通知中心</h2>
@@ -63,14 +59,11 @@
             <p v-else class="empty-tip">暂无提醒</p>
           </div>
         </section>
-      </main>
-    </div>
-  </div>
+    </main>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import TopNav from '@/components/Common/TopNav.vue'
 import { useNotificationStore } from '@/stores/notifications'
 
 const notificationStore = useNotificationStore()
@@ -93,23 +86,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.notifications-page {
-  min-height: calc(100vh - 40px);
-}
-
-.shell-body {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  gap: 20px;
-}
-
 .notifications-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 8px;
+  max-width: 720px;
 }
 
 .notifications-card {
