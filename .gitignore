@@ -13,3 +13,10 @@ assets/files
 .vscode
 
 logs
+*.log
+dump.rdb
+
+.cache/
+python-sdk/.venv/
+ui-vue/dist/
+ui-vue/node_modules/

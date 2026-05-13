@@ -6,31 +6,30 @@
       <p class="login-subtitle">智能聊天机器人管理平台</p>
 
       <form @submit.prevent="handleSubmit">
-        <!-- 切换表单 -->
         <div class="form-tabs">
           <button
             type="button"
             :class="['tab', { active: isLogin }]"
-            @click="isLogin = true"
+            @click="switchMode(true)"
           >
             登录
           </button>
           <button
             type="button"
             :class="['tab', { active: !isLogin }]"
-            @click="isLogin = false"
+            @click="switchMode(false)"
           >
             注册
           </button>
         </div>
 
-        <!-- 昵称输入（注册可选） -->
         <div v-if="!isLogin" class="form-group">
           <label for="name">昵称</label>
           <input
             id="name"
             v-model="form.name"
             type="text"
+            autocomplete="nickname"
             placeholder="可选，不填则自动生成默认昵称"
             :disabled="loading"
           />
@@ -42,6 +41,7 @@
             id="account"
             v-model="form.account"
             type="text"
+            autocomplete="username"
             placeholder="4-32位，仅支持字母、数字、下划线"
             :disabled="loading"
           />
@@ -53,17 +53,16 @@
             id="password"
             v-model="form.password"
             type="password"
+            autocomplete="current-password"
             placeholder="8-64位，需包含字母和数字"
             :disabled="loading"
           />
         </div>
 
-        <!-- 错误提示 -->
         <div v-if="error" class="error-message">
           {{ error }}
         </div>
 
-        <!-- 提交按钮 -->
         <button type="submit" class="submit-btn" :disabled="loading">
           <span v-if="!loading">{{ isLogin ? '进入控制台' : '创建并进入' }}</span>
           <span v-else>处理中...</span>
@@ -74,12 +73,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getErrorMessage } from '@/utils/error'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const isLogin = ref(true)
@@ -90,6 +90,14 @@ const form = ref({
   password: '',
 })
 const error = ref<string | null>(null)
+
+const redirectPath = computed(() => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && redirect !== '/login') {
+    return redirect
+  }
+  return '/'
+})
 
 function validateCredentials(account: string, password: string): string | null {
   const accountPattern = /^[A-Za-z0-9_]{4,32}$/
@@ -104,6 +112,11 @@ function validateCredentials(account: string, password: string): string | null {
   }
 
   return null
+}
+
+const switchMode = (loginMode: boolean) => {
+  isLogin.value = loginMode
+  error.value = null
 }
 
 const handleSubmit = async () => {
@@ -136,13 +149,11 @@ const handleSubmit = async () => {
       })
     }
 
-    // 等待 router 导航完成
-    await router.push('/home')
-
-    // 导航成功后，清空表单
     form.value.name = ''
     form.value.account = ''
     form.value.password = ''
+
+    await router.replace(redirectPath.value)
   } catch (err: any) {
     error.value = getErrorMessage(err, isLogin.value ? '登录失败' : '注册失败')
     console.error('登录/注册错误:', err)
@@ -177,7 +188,7 @@ const handleSubmit = async () => {
 }
 
 .eyebrow {
-  margin-bottom: 8px;
+  margin: 0 0 8px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.22em;
@@ -189,14 +200,14 @@ const handleSubmit = async () => {
   font-weight: 700;
   color: #0f2f25;
   text-align: left;
-  margin-bottom: 8px;
+  margin: 0 0 8px;
 }
 
 .login-subtitle {
   font-size: 13px;
   color: #5d6b66;
   text-align: left;
-  margin-bottom: 28px;
+  margin: 0 0 28px;
 }
 
 .form-tabs {
@@ -216,7 +227,7 @@ const handleSubmit = async () => {
   font-weight: 700;
   cursor: pointer;
   position: relative;
-  transition: all 0.3s ease;
+  transition: var(--transition-base, all 0.2s ease);
 }
 
 .tab.active {
@@ -252,7 +263,7 @@ const handleSubmit = async () => {
   border-radius: 12px;
   font-size: 14px;
   color: #203129;
-  transition: var(--transition-base);
+  transition: var(--transition-base, all 0.2s ease);
   background: #fbfdf9;
 }
 
@@ -287,7 +298,8 @@ const handleSubmit = async () => {
   border-radius: 12px;
   font-size: 14px;
   font-weight: 800;
-  transition: var(--transition-base);
+  cursor: pointer;
+  transition: var(--transition-base, all 0.2s ease);
 }
 
 .submit-btn:hover:not(:disabled) {

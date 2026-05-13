@@ -4,7 +4,7 @@ import type { WebSocketMessage, Message } from '@/types'
 
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws'
 
-export function useWebSocket(token: Ref<string | null>) {
+export function useWebSocket(token: Ref<string | null>, onMessage?: (message: Message) => void) {
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
   const reconnectAttempts = ref(0)
@@ -64,7 +64,11 @@ export function useWebSocket(token: Ref<string | null>) {
         if (!payload) {
           return
         }
-        chatStore.addWebSocketMessage(payload)
+        if (onMessage) {
+          onMessage(payload)
+        } else {
+          chatStore.addWebSocketMessage(payload)
+        }
       } catch (error) {
         console.warn('Invalid WebSocket message payload:', error)
       }
