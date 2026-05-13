@@ -1,0 +1,9 @@
+id: bochat-scheduler-bot
+name: BoChat Scheduler Bot
+status: active
+summary: BoChat 定时任务 Bot，支持按配置定时发送消息和检测网页内容变化通知
+repo: https://github.com/xUxIAOrUI815/bochat-scheduler-bot
+homepage: https://github.com/xUxIAOrUI815/bochat-scheduler-bot/blob/main/README.md
+maintainer: "@xUxIAOrUI815" 
+sdk: python
+tags: [scheduler, bot, automation, notification, bochat]
