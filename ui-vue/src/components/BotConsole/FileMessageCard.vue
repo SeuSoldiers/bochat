@@ -1,6 +1,9 @@
 <template>
-  <div class="file-message-card">
-    <div class="file-icon-wrap">
+  <div class="file-message-card" :class="{ 'is-image': isImage && fileUrl }">
+    <div v-if="isImage && fileUrl" class="image-preview-wrap">
+      <img :src="fileUrl" :alt="fileName" class="image-preview" loading="lazy" />
+    </div>
+    <div v-else class="file-icon-wrap">
       <FileText v-if="isDoc" class="file-icon doc" />
       <FileImage v-else-if="isImage" class="file-icon image" />
       <FileCode2 v-else-if="isCode" class="file-icon code" />
@@ -82,6 +85,58 @@ const handleDownload = async () => {
   border: 1px solid #d0d0d0;
   border-radius: 8px;
   max-width: 320px;
+}
+
+.file-message-card.is-image {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px;
+  gap: 6px;
+  position: relative;
+}
+
+.image-preview-wrap {
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #d0d0d0;
+}
+
+.image-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.image-preview:hover {
+  transform: scale(1.02);
+}
+
+/* 图片模式下的底部信息栏 */
+.file-message-card.is-image .file-body {
+  padding: 2px 4px 0;
+}
+
+.file-message-card.is-image .file-name {
+  font-size: 11px;
+  color: #6f6f6f;
+}
+
+.file-message-card.is-image .download-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(47, 47, 47, 0.7);
+  color: #f3f3f3;
+  border-radius: 4px;
+}
+
+.file-message-card.is-image .download-btn:hover:not(:disabled) {
+  background: rgba(47, 47, 47, 0.85);
 }
 
 .file-icon-wrap {

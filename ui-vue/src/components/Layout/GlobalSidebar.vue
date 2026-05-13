@@ -59,6 +59,7 @@ import {
   Bot,
   Users,
   MessageSquare,
+  Bell,
   ScrollText,
   ChevronUp,
   User,
@@ -78,6 +79,7 @@ const navItems = computed(() => {
     { path: '/bots', label: 'Bot 管理', icon: Bot },
     { path: '/groups', label: '群组管理', icon: Users },
     { path: '/chat', label: '实时会话', icon: MessageSquare },
+    { path: '/notifications', label: '通知中心', icon: Bell },
   ]
   if (authStore.isSuperAdmin) {
     items.push({ path: '/audit', label: '审计日志', icon: ScrollText })
