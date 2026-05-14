@@ -118,7 +118,6 @@ router.beforeEach((to, _from, next) => {
     to.meta.requiresBotAuth === true ||
     to.matched.some((record) => record.meta.requiresBotAuth === true)
 
-  // Check parent route meta for requiresSuperAdmin (nested routes)
   const requiresSuperAdmin =
     to.meta.requiresSuperAdmin === true ||
     to.matched.some((record) => record.meta.requiresSuperAdmin === true)

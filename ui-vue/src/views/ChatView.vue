@@ -39,6 +39,15 @@
         <button
           type="button"
           class="toggle-panel-btn"
+          :class="{ active: showMdSource }"
+          @click="showMdSource = !showMdSource"
+          title="MD源码"
+        >
+          <Code class="icon-sm" />
+        </button>
+        <button
+          type="button"
+          class="toggle-panel-btn"
           :class="{ active: showInfoPanel }"
           @click="showInfoPanel = !showInfoPanel"
           title="信息面板"
@@ -94,7 +103,7 @@
 
       <!-- 消息区 -->
       <section class="message-column">
-        <div class="message-list-scroll">
+        <div ref="messageListRef" class="message-list-scroll">
           <div v-if="store.loadingMessages" class="empty-messages">
             <MessageSquare class="empty-icon" />
             <p>消息加载中...</p>
@@ -134,7 +143,10 @@
                     />
                   </div>
                   <div v-else class="msg-bubble">
-                    {{ textOf(item.message) }}
+                    <template v-if="showMdSource">
+                      <pre class="md-source">{{ textOf(item.message) }}</pre>
+                    </template>
+                    <span v-else v-html="renderMarkdown(textOf(item.message))"></span>
                   </div>
                 </div>
               </template>
@@ -146,7 +158,10 @@
                     <span class="msg-sender">{{ item.message.sender_name ?? 'Bot' }}</span>
                   </div>
                   <div class="msg-bubble bot-bubble">
-                    {{ textOf(item.message) }}
+                    <template v-if="showMdSource">
+                      <pre class="md-source">{{ textOf(item.message) }}</pre>
+                    </template>
+                    <span v-else v-html="renderMarkdown(textOf(item.message))"></span>
                   </div>
                 </div>
                 <div class="msg-avatar bot-avatar">
@@ -226,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   Users,
   MessageSquare,
@@ -236,10 +251,13 @@ import {
   Paperclip,
   Send,
   AlertCircle,
+  Code,
   Info,
 } from 'lucide-vue-next'
 import { useBotConsoleStore } from '@/stores/botConsole'
 import type { Message } from '@/types'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useWebSocket } from '@/composables/useWebSocket'
 import BotChatInspector from '@/components/BotConsole/BotChatInspector.vue'
 import FileMessageCard from '@/components/BotConsole/FileMessageCard.vue'
@@ -247,6 +265,8 @@ import FileMessageCard from '@/components/BotConsole/FileMessageCard.vue'
 const store = useBotConsoleStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const showInfoPanel = ref(true)
+const showMdSource = ref(false)
+const messageListRef = ref<HTMLElement | null>(null)
 const selectedBotId = ref(store.activeBotId)
 
 const wsToken = computed(() => store.botToken || null)
@@ -331,6 +351,11 @@ const formatTime = (dateStr: string) => {
   return new Date(dateStr).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
+const renderMarkdown = (text: string): string => {
+  const raw = marked.parse(text, { async: false }) as string
+  return DOMPurify.sanitize(raw)
+}
+
 const handleBotChange = () => {
   store.activeBotId = selectedBotId.value
 }
@@ -363,6 +388,13 @@ const handleFileChange = (event: Event) => {
 
 watch(isConnected, (connected) => {
   store.setWebSocketConnected(connected)
+})
+
+// 新消息到达或切换群组时自动滚到底部
+watch(messageBlocks, async () => {
+  await nextTick()
+  const el = messageListRef.value
+  if (el) el.scrollTop = el.scrollHeight
 })
 
 onMounted(() => {
@@ -840,13 +872,153 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 13px;
   color: #1f1f1f;
-  line-height: 1.5;
+  line-height: 1.55;
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: normal;
+}
+
+.msg-bubble :deep(p) {
+  margin: 0 0 6px;
+}
+
+.msg-bubble :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.msg-bubble :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+
+.msg-bubble :deep(h1) {
+  margin: 8px 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(h2) {
+  margin: 8px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(h3) {
+  margin: 6px 0 3px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(h4),
+.msg-bubble :deep(h5),
+.msg-bubble :deep(h6) {
+  margin: 6px 0 3px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(code) {
+  background: #ececec;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.msg-bubble :deep(pre) {
+  background: #f0f0f0;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+}
+
+.msg-bubble :deep(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.msg-bubble :deep(ul),
+.msg-bubble :deep(ol) {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.msg-bubble :deep(li) {
+  margin-bottom: 2px;
+}
+
+.msg-bubble :deep(blockquote) {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid #b0b0b0;
+  color: #5f5f5f;
+  background: #f6f6f6;
+  border-radius: 0 4px 4px 0;
+}
+
+.msg-bubble :deep(a) {
+  color: #1a6fb5;
+  text-decoration: underline;
+}
+
+.msg-bubble :deep(strong) {
+  font-weight: 700;
+}
+
+.msg-bubble :deep(em) {
+  font-style: italic;
+}
+
+.msg-bubble :deep(table) {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.msg-bubble :deep(th),
+.msg-bubble :deep(td) {
+  border: 1px solid #d0d0d0;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.msg-bubble :deep(th) {
+  background: #f0f0f0;
+  font-weight: 700;
+}
+
+.msg-bubble :deep(hr) {
+  border: none;
+  border-top: 1px solid #d0d0d0;
+  margin: 8px 0;
 }
 
 .msg-bubble.bot-bubble {
   background: #f0f0f0;
+}
+
+/* ===== MD源码模式 ===== */
+.md-source {
+  margin: 0;
+  padding: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #4a4a4a;
+  background: transparent;
+  border: none;
 }
 
 .file-bubble {

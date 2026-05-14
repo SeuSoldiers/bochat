@@ -1,0 +1,9 @@
+id: bochat-rss-subscriber
+name: BoChat RSS Subscriber
+status: active
+summary: BoChat 社区版 RSS/Atom 订阅 Bot，定时检查订阅源并将新增内容发送到指定群聊
+repo: https://github.com/xUxIAOrUI815/bochat-rss-subscriber
+homepage: https://github.com/xUxIAOrUI815/bochat-rss-subscriber/blob/main/README.md
+maintainer: "@xUxIAOrUI815"
+sdk: python
+tags: [rss, atom, subscriber, bot, feed]

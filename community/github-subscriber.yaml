@@ -1,0 +1,9 @@
+id: github-subscriber
+name: GitHub Subscriber
+status: active
+summary: GitHub 仓库事件订阅插件，监控 Issue/PR/Release 等事件并推送到 BoChat 群
+repo: https://github.com/ShakonQin/bot_plugins
+homepage: https://github.com/ShakonQin/bot_plugins/blob/master/github_subscriber/README.md
+maintainer: "@ShakonQin"
+sdk: python
+tags: [github, webhook, subscriber, notification]

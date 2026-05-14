@@ -1,0 +1,9 @@
+id: bochat-forwarder
+name: BoChat Forwarder
+status: active
+summary: BoChat 与 QQ 消息双向转发插件，支持文本、图片、文件等多类型消息
+repo: https://github.com/ShakonQin/bot_plugins
+homepage: https://github.com/ShakonQin/bot_plugins/blob/master/bochat_forwarder/README.md
+maintainer: "@ShakonQin"
+sdk: python
+tags: [qq, bridge, relay, forwarder]
