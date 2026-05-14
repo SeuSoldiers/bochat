@@ -17,12 +17,24 @@ use crate::utils::{generate_bot_id, generate_token};
 use crate::{
     AppState,
     error::{AppError, AppResult, json_response},
-    middlewares::UserAuth,
+    middlewares::{BotAuth, UserAuth},
 };
 
 #[derive(Debug, Deserialize)]
 pub struct SearchBotQuery {
     pub bot_id: String,
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn get_current_bot(
+    State(state): State<AppState>,
+    Extension(auth): Extension<BotAuth>,
+) -> AppResult<Response> {
+    let bot = BotRepository::find_by_id(&state.pool, &auth.bot_id)
+        .await?
+        .ok_or(AppError::BotNotFound)?;
+
+    Ok(json_response(StatusCode::OK, BotResponse::from(bot)))
 }
 
 /// 为已认证的用户创建新 Bot

@@ -243,6 +243,22 @@ pub async fn list_user_groups(
     ))
 }
 
+#[tracing::instrument(skip_all)]
+pub async fn list_bot_groups(
+    State(state): State<AppState>,
+    Extension(auth): Extension<BotAuth>,
+) -> AppResult<Response> {
+    let groups = GroupRepository::list_by_bot_member(&state.pool, &auth.bot_id).await?;
+    let responses: Vec<GroupResponse> = groups.into_iter().map(GroupResponse::from).collect();
+
+    Ok(json_response(
+        StatusCode::OK,
+        json!({
+            "groups": responses,
+        }),
+    ))
+}
+
 /// 按群号前缀搜索群信息
 #[tracing::instrument(skip_all)]
 pub async fn search_group_by_code(
