@@ -168,7 +168,18 @@ const maskSecret = (value: string) => {
 
 const copyValue = async (value: string, label: string) => {
   try {
-    await navigator.clipboard.writeText(value)
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(value)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = value
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
     copyTipText.value = `${label} 已复制`
     setTimeout(() => {
       copyTipText.value = ''
