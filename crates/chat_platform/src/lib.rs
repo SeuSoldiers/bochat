@@ -101,6 +101,8 @@ pub fn app_router(state: AppState) -> Router {
         .layer(user_auth_layer);
 
     let bot_auth_routes = Router::new()
+        .route("/api/v1/bot/profile", get(handlers::get_current_bot))
+        .route("/api/v1/bot/groups", get(handlers::list_bot_groups))
         .route(
             "/api/v1/groups/{group_id}/messages",
             get(handlers::get_group_messages),

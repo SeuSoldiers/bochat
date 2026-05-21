@@ -67,6 +67,10 @@
           <span v-if="!loading">{{ isLogin ? '进入控制台' : '创建并进入' }}</span>
           <span v-else>处理中...</span>
         </button>
+
+        <router-link class="bot-login-link" to="/bot/login">
+          Bot Token 登录
+        </router-link>
       </form>
     </div>
   </div>
@@ -314,6 +318,20 @@ const handleSubmit = async () => {
 .submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.bot-login-link {
+  display: block;
+  margin-top: 16px;
+  text-align: center;
+  color: #4f4f4f;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.bot-login-link:hover {
+  color: #1f1f1f;
 }
 
 @media (max-width: 480px) {

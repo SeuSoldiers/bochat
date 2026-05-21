@@ -127,6 +127,22 @@ impl GroupRepository {
         .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
+    pub async fn list_by_bot_member(pool: &PgPool, bot_id: &str) -> AppResult<Vec<Group>> {
+        sqlx::query_as(
+            r#"
+            SELECT DISTINCT g.group_id, g.group_code, g.creator_id, g.name, g.description, g.avatar_url, g.is_public, g.status, g.created_at, g.updated_at
+            FROM groups g
+            INNER JOIN group_members gm ON gm.group_id = g.group_id
+            WHERE gm.member_id = $1
+            ORDER BY g.created_at DESC
+            "#,
+        )
+        .bind(bot_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+
     pub async fn find_by_id(pool: &PgPool, group_id: &str) -> AppResult<Option<Group>> {
         sqlx::query_as(
             "SELECT group_id, group_code, creator_id, name, description, avatar_url, is_public, status, created_at, updated_at FROM groups WHERE group_id = $1",
