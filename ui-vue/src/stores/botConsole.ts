@@ -19,7 +19,7 @@ export interface RecentFile {
   name: string
   size: string
   time: string
-  type: 'doc' | 'pdf' | 'code' | 'image' | 'other'
+  type: 'doc' | 'pdf' | 'code' | 'image' | 'bin' | 'other'
 }
 
 export interface ConnectionLog {
@@ -220,7 +220,7 @@ export const useBotConsoleStore = defineStore('botConsole', () => {
     void measureLatency()
     latencyTimer = setInterval(() => {
       void measureLatency()
-    }, 30_000)
+    }, 5_000)
   }
 
   const stopLatencyTimer = () => {
@@ -541,9 +541,10 @@ function fileSizeOf(message: Message): string {
 function inferFileType(fileName: string): RecentFile['type'] {
   const lower = fileName.toLowerCase()
   if (/\.(pdf)$/.test(lower)) return 'pdf'
-  if (/\.(png|jpe?g|gif|webp|svg)$/.test(lower)) return 'image'
-  if (/\.(js|ts|tsx|jsx|py|rs|go|java|json|md|sql|yaml|yml|toml)$/.test(lower)) return 'code'
-  if (/\.(doc|docx|xls|xlsx|csv|ppt|pptx|txt)$/.test(lower)) return 'doc'
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|ico)$/.test(lower)) return 'image'
+  if (/\.(js|ts|tsx|jsx|py|rs|go|java|c|cpp|h|hpp|json|yaml|yml|toml|md|sql)$/.test(lower)) return 'code'
+  if (/\.(dll|so|dylib|exe|bin|msi|apk|ipa|deb|rpm)$/.test(lower)) return 'bin'
+  if (/\.(doc|docx|odt|rtf|ppt|pptx|key|txt|xls|xlsx|csv)$/.test(lower)) return 'doc'
   return 'other'
 }
 

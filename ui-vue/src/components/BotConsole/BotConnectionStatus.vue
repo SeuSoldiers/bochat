@@ -4,34 +4,34 @@
       <h4 class="panel-title">连接状态</h4>
       <div class="conn-badge">
         <span class="status-dot-small" :class="statusClass"></span>
-        <span class="status-label" :class="statusClass">{{ store.connectionLabel }}</span>
+        <span class="status-label" :class="statusClass">{{ connLabel }}</span>
       </div>
     </div>
 
     <div class="info-rows">
       <div class="info-row">
         <span class="info-key">后端地址</span>
-        <span class="info-value">{{ store.baseUrl || '未配置' }}</span>
+        <span class="info-value">{{ baseUrl }}</span>
       </div>
       <div class="info-row">
         <span class="info-key">WebSocket</span>
-        <span class="info-value">{{ store.wsUrl || '未配置' }}</span>
+        <span class="info-value">{{ wsUrl }}</span>
       </div>
-      <div class="info-row">
-        <span class="info-key">连接时长</span>
-        <span class="info-value">{{ store.connectionDuration }}</span>
+      <div v-if="connIdentity" class="info-row">
+        <span class="info-key">连接身份</span>
+        <span class="info-value">{{ connIdentity }}</span>
       </div>
       <div class="info-row">
         <span class="info-key">延迟</span>
         <span class="info-value latency">
           <Signal class="latency-icon" />
-          {{ store.connectionLatency }}ms
+          {{ connLatency }}ms
         </span>
       </div>
     </div>
 
-    <button type="button" class="action-btn secondary" @click="store.reconnect">
-      {{ store.connectionStatus === 'testing' ? '连接中...' : '重新连接' }}
+    <button type="button" class="action-btn secondary" :disabled="reconnecting" @click="handleReconnect">
+      {{ reconnecting ? '连接中...' : '重新连接' }}
     </button>
   </div>
 </template>
@@ -41,22 +41,53 @@ import { computed } from 'vue'
 import { Signal } from 'lucide-vue-next'
 import { useBotConsoleStore } from '@/stores/botConsole'
 
-const store = useBotConsoleStore()
+type ConnStatus = 'idle' | 'testing' | 'connected' | 'disconnected' | 'error'
+
+const props = defineProps<{
+  status?: ConnStatus
+  label?: string
+  baseUrl?: string
+  wsUrl?: string
+  identity?: string
+  duration?: string
+  latency?: number
+  onReconnect?: () => void
+}>()
+
+const emit = defineEmits<{
+  reconnect: []
+}>()
+
+// 回退到 botConsole store（管理员视角兼容）
+const adminStore = useBotConsoleStore()
 
 const statusClass = computed(() => {
-  switch (store.connectionStatus) {
-    case 'connected':
-      return 'online'
-    case 'testing':
-      return 'testing'
+  const s = props.status ?? adminStore.connectionStatus
+  switch (s) {
+    case 'connected': return 'online'
+    case 'testing': return 'testing'
     case 'error':
-    case 'disconnected':
-      return 'offline'
-    default:
-      return 'idle'
+    case 'disconnected': return 'offline'
+    default: return 'idle'
   }
 })
 
+const connLabel = computed(() => props.label ?? adminStore.connectionLabel)
+const baseUrl = computed(() => props.baseUrl ?? adminStore.baseUrl ?? '未配置')
+const wsUrl = computed(() => props.wsUrl ?? adminStore.wsUrl ?? '未配置')
+const connIdentity = computed(() => props.identity ?? undefined)
+const connDuration = computed(() => props.duration ?? adminStore.connectionDuration)
+const connLatency = computed(() => props.latency ?? adminStore.connectionLatency)
+const reconnecting = computed(() => (props.status ?? adminStore.connectionStatus) === 'testing')
+
+const handleReconnect = () => {
+  if (props.onReconnect) {
+    props.onReconnect()
+  } else {
+    adminStore.reconnect()
+  }
+  emit('reconnect')
+}
 </script>
 
 <style scoped>
@@ -92,21 +123,10 @@ const statusClass = computed(() => {
   font-weight: 600;
 }
 
-.status-label.online {
-  color: #2f8f4e;
-}
-
-.status-label.testing {
-  color: #a57d11;
-}
-
-.status-label.offline {
-  color: #c4453c;
-}
-
-.status-label.idle {
-  color: #6f6f6f;
-}
+.status-label.online { color: #2f8f4e; }
+.status-label.testing { color: #a57d11; }
+.status-label.offline { color: #c4453c; }
+.status-label.idle { color: #6f6f6f; }
 
 .status-dot-small {
   width: 8px;
@@ -116,17 +136,9 @@ const statusClass = computed(() => {
   flex-shrink: 0;
 }
 
-.status-dot-small.online {
-  background: #2f8f4e;
-}
-
-.status-dot-small.testing {
-  background: #c9a227;
-}
-
-.status-dot-small.offline {
-  background: #c4453c;
-}
+.status-dot-small.online { background: #2f8f4e; }
+.status-dot-small.testing { background: #c9a227; }
+.status-dot-small.offline { background: #c4453c; }
 
 .info-rows {
   display: flex;
@@ -185,8 +197,13 @@ const statusClass = computed(() => {
   border: 1px solid #d0d0d0;
 }
 
-.action-btn.secondary:hover {
+.action-btn.secondary:hover:not(:disabled) {
   background: #ebebeb;
   border-color: #c5c5c5;
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

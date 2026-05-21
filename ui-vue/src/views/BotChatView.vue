@@ -4,7 +4,8 @@
       <div class="topbar-left">
         <div class="bot-identity">
           <div class="bot-avatar">
-            <Bot class="bot-avatar-icon" />
+            <img v-if="authStore.bot?.avatar_url" :src="authStore.bot.avatar_url" :alt="authStore.botName" class="avatar-image" />
+            <Bot v-else class="bot-avatar-icon" />
           </div>
           <div class="bot-meta">
             <span class="bot-name">{{ authStore.botName }}</span>
@@ -23,6 +24,24 @@
           <span class="conn-dot" :class="store.connectionStatus"></span>
           <span class="conn-label">{{ store.connectionLabel }}</span>
         </div>
+        <button
+          type="button"
+          class="toggle-panel-btn"
+          :class="{ active: showMdSource }"
+          @click="showMdSource = !showMdSource"
+          title="MD源码"
+        >
+          <Code class="icon-sm" />
+        </button>
+        <button
+          type="button"
+          class="toggle-panel-btn"
+          :class="{ active: showInfoPanel }"
+          @click="showInfoPanel = !showInfoPanel"
+          title="信息面板"
+        >
+          <Info class="icon-sm" />
+        </button>
         <button type="button" class="logout-btn" title="退出登录" @click="handleLogout">
           <LogOut class="icon-sm" />
         </button>
@@ -53,7 +72,10 @@
             :class="{ active: store.selectedGroupId === group.group_id }"
             @click="store.selectGroup(group.group_id)"
           >
-            <MessageSquare class="group-item-icon" />
+            <div class="group-item-avatar">
+              <img v-if="group.avatar_url" :src="group.avatar_url" :alt="group.name" class="group-avatar-image" />
+              <MessageSquare v-else class="group-item-icon" />
+            </div>
             <div class="group-item-main">
               <span class="group-item-name">{{ group.name }}</span>
               <span class="group-item-preview">{{ group.description?.slice(0, 20) ?? '暂无描述' }}</span>
@@ -63,7 +85,7 @@
       </aside>
 
       <section class="message-column">
-        <div class="message-list-scroll">
+        <div ref="messageListRef" class="message-list-scroll">
           <div v-if="store.loadingMessages" class="empty-messages">
             <MessageSquare class="empty-icon" />
             <p>消息加载中...</p>
@@ -87,9 +109,11 @@
               class="message-row"
               :class="{ 'is-self': item.message.sender_id === authStore.botId }"
             >
+              <!-- 其他人消息 -->
               <template v-if="item.message.sender_id !== authStore.botId">
                 <div class="msg-avatar">
-                  {{ item.message.sender_name?.charAt(0) ?? '?' }}
+                  <img v-if="item.message.sender_avatar_url" :src="item.message.sender_avatar_url" :alt="item.message.sender_name" class="avatar-image" />
+                  <span v-else>{{ item.message.sender_name?.charAt(0) ?? '?' }}</span>
                 </div>
                 <div class="msg-body">
                   <div class="msg-header">
@@ -104,11 +128,15 @@
                     />
                   </div>
                   <div v-else class="msg-bubble">
-                    {{ textOf(item.message) }}
+                    <template v-if="showMdSource">
+                      <pre class="md-source">{{ textOf(item.message) }}</pre>
+                    </template>
+                    <span v-else v-html="renderMarkdown(textOf(item.message))"></span>
                   </div>
                 </div>
               </template>
 
+              <!-- 自己消息 -->
               <template v-else>
                 <div class="msg-body self-body">
                   <div class="msg-header self-header">
@@ -123,11 +151,15 @@
                     />
                   </div>
                   <div v-else class="msg-bubble self-bubble">
-                    {{ textOf(item.message) }}
+                    <template v-if="showMdSource">
+                      <pre class="md-source">{{ textOf(item.message) }}</pre>
+                    </template>
+                    <span v-else v-html="renderMarkdown(textOf(item.message))"></span>
                   </div>
                 </div>
                 <div class="msg-avatar self-avatar">
-                  <Bot class="bot-avatar-svg" />
+                  <img v-if="authStore.bot?.avatar_url" :src="authStore.bot.avatar_url" :alt="authStore.botName" class="avatar-image" />
+                  <Bot v-else class="bot-avatar-svg" />
                 </div>
               </template>
             </div>
@@ -184,46 +216,31 @@
         </div>
       </section>
 
-      <aside class="inspector-column">
-        <div class="info-panel">
-          <div class="panel-header">
-            <h4 class="panel-title">连接状态</h4>
-            <div class="conn-badge">
-              <span class="status-dot-small" :class="statusClass"></span>
-              <span class="status-label" :class="statusClass">{{ store.connectionLabel }}</span>
-            </div>
-          </div>
-
-          <div class="info-rows">
-            <div class="info-row">
-              <span class="info-key">后端地址</span>
-              <span class="info-value">{{ apiBaseUrl }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-key">WebSocket</span>
-              <span class="info-value">{{ wsBaseUrl }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-key">连接身份</span>
-              <span class="info-value">{{ authStore.botId || '未认证' }}</span>
-            </div>
-          </div>
-
-          <button type="button" class="action-btn secondary" @click="store.initialize">
-            {{ store.connectionStatus === 'testing' ? '连接中...' : '重新连接' }}
-          </button>
-        </div>
+      <!-- 右侧信息面板 -->
+      <aside v-if="showInfoPanel" class="inspector-column">
+        <BotConnectionStatus
+          :status="store.connectionStatus"
+          :label="store.connectionLabel"
+          :base-url="apiBaseUrl"
+          :ws-url="wsBaseUrl"
+          :latency="store.connectionLatency"
+          :on-reconnect="() => store.initialize()"
+        />
 
         <div class="info-panel">
           <h4 class="panel-title">群组信息</h4>
           <div class="info-rows">
             <div class="info-row">
               <span class="info-key">群组名称</span>
-              <span class="info-value">{{ store.selectedGroup?.name ?? '-' }}</span>
+              <span class="info-value">{{ store.selectedGroup?.name ?? '—' }}</span>
             </div>
             <div class="info-row">
               <span class="info-key">群组码</span>
-              <span class="info-value">{{ store.selectedGroup?.group_code ?? '-' }}</span>
+              <span class="info-value">{{ store.selectedGroup?.group_code ?? '—' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">群组 ID</span>
+              <span class="info-value">{{ store.selectedGroupId ?? '—' }}</span>
             </div>
             <div class="info-row">
               <span class="info-key">创建时间</span>
@@ -249,6 +266,7 @@
                 <FileText v-else-if="file.type === 'pdf'" class="file-type-icon pdf" />
                 <FileCode2 v-else-if="file.type === 'code'" class="file-type-icon code" />
                 <FileImage v-else-if="file.type === 'image'" class="file-type-icon image" />
+                <Binary v-else-if="file.type === 'bin'" class="file-type-icon bin" />
                 <File v-else class="file-type-icon" />
               </div>
               <div class="file-meta">
@@ -263,23 +281,6 @@
           </div>
         </div>
 
-        <div class="info-panel">
-          <h4 class="panel-title">Bot 信息</h4>
-          <div class="info-rows">
-            <div class="info-row">
-              <span class="info-key">当前 Bot</span>
-              <span class="info-value">{{ authStore.botName }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-key">状态</span>
-              <span class="info-value">{{ authStore.bot?.status ?? '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-key">Token</span>
-              <span class="info-value">{{ tokenPrefix }}</span>
-            </div>
-          </div>
-        </div>
       </aside>
     </div>
 
@@ -290,14 +291,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Bot,
+  Code,
+  Binary,
   File,
   FileCode2,
   FileImage,
   FileText,
+  Info,
   LogOut,
   MessageSquare,
   Paperclip,
@@ -305,9 +309,13 @@ import {
   Users,
   X,
 } from 'lucide-vue-next'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import hljs from 'highlight.js'
 import { useBotUserAuthStore } from '@/stores/botUserAuth'
 import { useBotUserChatStore } from '@/stores/botUserChat'
 import { useWebSocket } from '@/composables/useWebSocket'
+import BotConnectionStatus from '@/components/BotConsole/BotConnectionStatus.vue'
 import FileMessageCard from '@/components/BotConsole/FileMessageCard.vue'
 import type { Message } from '@/types'
 
@@ -315,6 +323,9 @@ const router = useRouter()
 const authStore = useBotUserAuthStore()
 const store = useBotUserChatStore()
 const fileInput = ref<HTMLInputElement | null>(null)
+const messageListRef = ref<HTMLElement | null>(null)
+const showInfoPanel = ref(true)
+const showMdSource = ref(false)
 
 const wsToken = computed(() => authStore.token)
 const { isConnected } = useWebSocket(wsToken, store.addRealtimeMessage)
@@ -329,38 +340,6 @@ const tokenPrefix = computed(() => {
 const textareaPlaceholder = computed(() => {
   if (!store.selectedGroupId) return '请先选择群聊'
   return '输入消息...'
-})
-
-const statusClass = computed(() => {
-  switch (store.connectionStatus) {
-    case 'connected':
-      return 'online'
-    case 'testing':
-      return 'testing'
-    case 'error':
-    case 'disconnected':
-      return 'offline'
-    default:
-      return 'idle'
-  }
-})
-
-const recentFiles = computed(() => {
-  return store.groupMessages
-    .filter((message) => message.msg_type === 'file')
-    .slice()
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 6)
-    .map((message) => {
-      const name = fileNameOf(message)
-      return {
-        id: String(message.msg_id),
-        name,
-        size: fileSizeOf(message),
-        time: formatRecentTime(message.created_at),
-        type: inferFileType(name),
-      }
-    })
 })
 
 interface DateBlock { type: 'date'; label: string }
@@ -384,6 +363,24 @@ const messageBlocks = computed<(DateBlock | MsgBlock)[]>(() => {
   }
 
   return blocks
+})
+
+const recentFiles = computed(() => {
+  return store.groupMessages
+    .filter((message) => message.msg_type === 'file')
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 6)
+    .map((message) => {
+      const name = fileNameOf(message)
+      return {
+        id: String(message.msg_id),
+        name,
+        size: fileSizeOf(message),
+        time: formatRecentTime(message.created_at),
+        type: inferFileType(name),
+      }
+    })
 })
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -415,40 +412,85 @@ const handleLogout = () => {
 }
 
 const textOf = (msg: Message): string => {
-  const c = msg.content
-  if (typeof c === 'string') return c
-  if (c && typeof c === 'object' && 'text' in c) return String(c.text ?? '')
+  const c = contentObjectOf(msg)
+  if (c && typeof c.text === 'string') return c.text
+  if (typeof msg.content === 'string') return msg.content
   return ''
 }
 
 const fileNameOf = (msg: Message): string => {
-  const c = msg.content
-  if (typeof c === 'string') return '文件'
-  if (c && typeof c === 'object') {
-    if ('filename' in c && c.filename) return String(c.filename)
-    if ('file_name' in c && c.file_name) return String(c.file_name)
-    if ('url' in c && c.url) {
-      const url = String(c.url)
-      const seg = url.split('/').pop() || ''
-      return seg ? decodeURIComponent(seg) : '文件'
-    }
+  const c = contentObjectOf(msg)
+  if (c) {
+    if (typeof c.filename === 'string' && c.filename.trim()) return c.filename.trim()
+    if (typeof c.file_name === 'string' && c.file_name.trim()) return c.file_name.trim()
+    if (typeof c.name === 'string' && c.name.trim()) return c.name.trim()
+    if (typeof c.url === 'string' && c.url) return fileNameFromUrl(c.url)
+    if (typeof c.file_url === 'string' && c.file_url) return fileNameFromUrl(c.file_url)
   }
   return '文件'
 }
 
 const fileSizeOf = (msg: Message): string => {
-  const c = msg.content
-  if (c && typeof c === 'object' && 'size' in c && c.size) return String(c.size)
+  const c = contentObjectOf(msg)
+  if (!c) return ''
+  if (typeof c.size === 'number' || typeof c.size === 'string') return String(c.size)
+  if (typeof c.file_size === 'number' || typeof c.file_size === 'string') return String(c.file_size)
   return ''
 }
 
 const fileUrlOf = (msg: Message): string => {
-  const c = msg.content
-  if (c && typeof c === 'object') {
-    if ('url' in c && c.url) return String(c.url)
-    if ('file_url' in c && c.file_url) return String(c.file_url)
-  }
+  const c = contentObjectOf(msg)
+  if (!c) return ''
+  if (typeof c.url === 'string' && c.url) return c.url
+  if (typeof c.file_url === 'string' && c.file_url) return c.file_url
   return ''
+}
+
+const contentObjectOf = (msg: Message): Record<string, unknown> | null => {
+  const c = msg.content
+  if (c && typeof c === 'object') return c as Record<string, unknown>
+  if (typeof c !== 'string') return null
+  const trimmed = c.trim()
+  if (!(trimmed.startsWith('{') && trimmed.endsWith('}'))) return null
+  try {
+    const parsed = JSON.parse(trimmed)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+const fileNameFromUrl = (url: string): string => {
+  const raw = url.split('?')[0].split('#')[0]
+  const seg = raw.split('/').pop() || ''
+  if (!seg) return '文件'
+  try {
+    return decodeURIComponent(seg)
+  } catch {
+    return seg
+  }
+}
+
+const markdownRenderer = new marked.Renderer()
+markdownRenderer.code = (token) => {
+  const rawLang = (token.lang || '').trim()
+  const code = token.text || ''
+  let html = ''
+  if (rawLang && hljs.getLanguage(rawLang)) {
+    html = hljs.highlight(code, { language: rawLang, ignoreIllegals: true }).value
+  } else {
+    html = hljs.highlightAuto(code).value
+  }
+  const langClass = rawLang ? ` language-${rawLang}` : ''
+  return `<pre><code class="hljs${langClass}">${html}</code></pre>`
+}
+
+const renderMarkdown = (text: string): string => {
+  const raw = marked.parse(text, {
+    async: false,
+    renderer: markdownRenderer,
+  }) as string
+  return DOMPurify.sanitize(raw)
 }
 
 const formatTime = (dateStr: string) => {
@@ -456,7 +498,7 @@ const formatTime = (dateStr: string) => {
 }
 
 const formatDate = (dateStr?: string) => {
-  if (!dateStr) return '-'
+  if (!dateStr) return '—'
   return new Date(dateStr).toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -475,14 +517,22 @@ const formatRecentTime = (dateStr: string) => {
   return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
 }
 
-const inferFileType = (fileName: string): 'doc' | 'pdf' | 'code' | 'image' | 'other' => {
+const inferFileType = (fileName: string): 'doc' | 'pdf' | 'code' | 'image' | 'bin' | 'other' => {
   const lower = fileName.toLowerCase()
   if (/\.(pdf)$/.test(lower)) return 'pdf'
-  if (/\.(png|jpe?g|gif|webp|svg)$/.test(lower)) return 'image'
-  if (/\.(js|ts|tsx|jsx|py|rs|go|java|json|md|sql|yaml|yml|toml)$/.test(lower)) return 'code'
-  if (/\.(doc|docx|xls|xlsx|csv|ppt|pptx|txt)$/.test(lower)) return 'doc'
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|ico)$/.test(lower)) return 'image'
+  if (/\.(js|ts|tsx|jsx|py|rs|go|java|c|cpp|h|hpp|json|yaml|yml|toml|md|sql)$/.test(lower)) return 'code'
+  if (/\.(dll|so|dylib|exe|bin|msi|apk|ipa|deb|rpm)$/.test(lower)) return 'bin'
+  if (/\.(doc|docx|odt|rtf|ppt|pptx|key|txt|xls|xlsx|csv)$/.test(lower)) return 'doc'
   return 'other'
 }
+
+// 自动滚到底部
+watch(messageBlocks, async () => {
+  await nextTick()
+  const el = messageListRef.value
+  if (el) el.scrollTop = el.scrollHeight
+})
 
 watch(isConnected, (connected) => {
   store.setWebSocketConnected(connected)
@@ -553,11 +603,18 @@ onMounted(() => {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .bot-avatar {
   background: #2f2f2f;
   color: #f3f3f3;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .bot-avatar-icon,
@@ -633,23 +690,34 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.conn-dot.connected {
-  background: #2f8f4e;
-}
-
-.conn-dot.testing {
-  background: #c9a227;
-}
-
+.conn-dot.connected { background: #2f8f4e; }
+.conn-dot.testing { background: #c9a227; }
 .conn-dot.error,
-.conn-dot.disconnected {
-  background: #c4453c;
-}
+.conn-dot.disconnected { background: #c4453c; }
 
 .conn-label {
   font-size: 12px;
   font-weight: 600;
   color: #4f4f4f;
+}
+
+.toggle-panel-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  background: #f5f5f5;
+  color: #6f6f6f;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-panel-btn:hover,
+.toggle-panel-btn.active {
+  background: #ebebeb;
+  color: #1f1f1f;
 }
 
 .logout-btn {
@@ -739,6 +807,25 @@ onMounted(() => {
   stroke: currentColor;
   stroke-width: 2;
   flex-shrink: 0;
+}
+
+.group-item-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #ebebeb;
+  border: 1px solid #d0d0d0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.group-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .group-item-main {
@@ -870,19 +957,201 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 13px;
   color: #1f1f1f;
-  line-height: 1.5;
+  line-height: 1.55;
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: normal;
 }
 
 .msg-bubble.self-bubble {
   background: #f0f0f0;
 }
 
+.msg-bubble :deep(p) {
+  margin: 0 0 6px;
+}
+
+.msg-bubble :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.msg-bubble :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+
+.msg-bubble :deep(h1) {
+  margin: 8px 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(h2) {
+  margin: 8px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(h3) {
+  margin: 6px 0 3px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(h4),
+.msg-bubble :deep(h5),
+.msg-bubble :deep(h6) {
+  margin: 6px 0 3px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.msg-bubble :deep(code) {
+  background: #ececec;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.msg-bubble :deep(pre) {
+  background: #f0f0f0;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+}
+
+.msg-bubble :deep(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.msg-bubble :deep(.hljs) {
+  display: block;
+  color: #1f2937;
+}
+
+.msg-bubble :deep(.hljs-comment),
+.msg-bubble :deep(.hljs-quote) {
+  color: #6b7280;
+}
+
+.msg-bubble :deep(.hljs-keyword),
+.msg-bubble :deep(.hljs-selector-tag),
+.msg-bubble :deep(.hljs-name),
+.msg-bubble :deep(.hljs-doctag),
+.msg-bubble :deep(.hljs-title),
+.msg-bubble :deep(.hljs-section) {
+  color: #374151;
+  font-weight: 600;
+}
+
+.msg-bubble :deep(.hljs-string),
+.msg-bubble :deep(.hljs-attr),
+.msg-bubble :deep(.hljs-literal),
+.msg-bubble :deep(.hljs-template-tag),
+.msg-bubble :deep(.hljs-template-variable) {
+  color: #1d4ed8;
+}
+
+.msg-bubble :deep(.hljs-number),
+.msg-bubble :deep(.hljs-built_in),
+.msg-bubble :deep(.hljs-type),
+.msg-bubble :deep(.hljs-class .hljs-title),
+.msg-bubble :deep(.hljs-symbol),
+.msg-bubble :deep(.hljs-bullet) {
+  color: #0f766e;
+}
+
+.msg-bubble :deep(.hljs-variable),
+.msg-bubble :deep(.hljs-params),
+.msg-bubble :deep(.hljs-property) {
+  color: #4b5563;
+}
+
+.msg-bubble :deep(ul),
+.msg-bubble :deep(ol) {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.msg-bubble :deep(li) {
+  margin-bottom: 2px;
+}
+
+.msg-bubble :deep(blockquote) {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid #b0b0b0;
+  color: #5f5f5f;
+  background: #f6f6f6;
+  border-radius: 0 4px 4px 0;
+}
+
+.msg-bubble :deep(a) {
+  color: #1a6fb5;
+  text-decoration: underline;
+}
+
+.msg-bubble :deep(strong) {
+  font-weight: 700;
+}
+
+.msg-bubble :deep(em) {
+  font-style: italic;
+}
+
+.msg-bubble :deep(table) {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.msg-bubble :deep(th),
+.msg-bubble :deep(td) {
+  border: 1px solid #d0d0d0;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.msg-bubble :deep(th) {
+  background: #f0f0f0;
+  font-weight: 700;
+}
+
+.msg-bubble :deep(hr) {
+  border: none;
+  border-top: 1px solid #d0d0d0;
+  margin: 8px 0;
+}
+
 .file-bubble {
   background: transparent;
   border: none;
   padding: 0;
+}
+
+.md-source {
+  margin: 0;
+  padding: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #4a4a4a;
+  background: transparent;
+  border: none;
 }
 
 .inspector-column {
@@ -908,62 +1177,11 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .panel-title {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
   color: #1f1f1f;
-}
-
-.conn-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.status-dot-small {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #9f9f9f;
-  flex-shrink: 0;
-}
-
-.status-dot-small.online {
-  background: #2f8f4e;
-}
-
-.status-dot-small.testing {
-  background: #c9a227;
-}
-
-.status-dot-small.offline {
-  background: #c4453c;
-}
-
-.status-label.online {
-  color: #2f8f4e;
-}
-
-.status-label.testing {
-  color: #a57d11;
-}
-
-.status-label.offline {
-  color: #c4453c;
-}
-
-.status-label.idle {
-  color: #6f6f6f;
 }
 
 .info-rows {
@@ -1035,21 +1253,11 @@ onMounted(() => {
   stroke-width: 2;
 }
 
-.file-type-icon.doc {
-  stroke: #2f5f8f;
-}
-
-.file-type-icon.pdf {
-  stroke: #c4453c;
-}
-
-.file-type-icon.code {
-  stroke: #2f8f4e;
-}
-
-.file-type-icon.image {
-  stroke: #8f5f2f;
-}
+.file-type-icon.doc { stroke: #2f5f8f; }
+.file-type-icon.pdf { stroke: #c4453c; }
+.file-type-icon.code { stroke: #2f8f4e; }
+.file-type-icon.image { stroke: #8f5f2f; }
+.file-type-icon.bin { stroke: #8f3a2f; }
 
 .file-meta {
   min-width: 0;
@@ -1084,27 +1292,6 @@ onMounted(() => {
   color: #9f9f9f;
   border: 1px dashed #d0d0d0;
   border-radius: 6px;
-}
-
-.action-btn {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition-base, all 0.2s ease);
-  text-align: center;
-}
-
-.action-btn.secondary {
-  background: #f5f5f5;
-  color: #4f4f4f;
-  border: 1px solid #d0d0d0;
-}
-
-.action-btn.secondary:hover {
-  background: #ebebeb;
-  border-color: #c5c5c5;
 }
 
 .chat-input-area {

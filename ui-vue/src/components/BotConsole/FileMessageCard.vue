@@ -7,6 +7,7 @@
       <FileText v-if="isDoc" class="file-icon doc" />
       <FileImage v-else-if="isImage" class="file-icon image" />
       <FileCode2 v-else-if="isCode" class="file-icon code" />
+      <Binary v-else-if="isBin" class="file-icon bin" />
       <FileSpreadsheet v-else-if="isSheet" class="file-icon sheet" />
       <FileArchive v-else-if="isArchive" class="file-icon archive" />
       <FileVideo v-else-if="isVideo" class="file-icon video" />
@@ -37,6 +38,7 @@ import {
   FileText,
   FileImage,
   FileCode2,
+  Binary,
   FileSpreadsheet,
   FileArchive,
   FileVideo,
@@ -58,6 +60,7 @@ const lower = computed(() => props.fileName.toLowerCase())
 const isDoc = computed(() => /\.(pdf|doc|docx|odt|rtf|ppt|pptx|key|txt)$/.test(lower.value))
 const isImage = computed(() => /\.(png|jpe?g|gif|webp|bmp|svg|ico)$/.test(lower.value))
 const isCode = computed(() => /\.(js|ts|tsx|jsx|py|rs|go|java|c|cpp|h|hpp|json|yaml|yml|toml|md|sql)$/.test(lower.value))
+const isBin = computed(() => /\.(dll|so|dylib|exe|bin|msi|apk|ipa|deb|rpm)$/.test(lower.value))
 const isSheet = computed(() => /\.(xls|xlsx|csv)$/.test(lower.value))
 const isArchive = computed(() => /\.(zip|rar|7z|tar|gz)$/.test(lower.value))
 const isVideo = computed(() => /\.(mp4|mov|mkv|avi|webm)$/.test(lower.value))
@@ -159,6 +162,7 @@ const handleDownload = async () => {
 .file-icon.doc { stroke: #2f5f8f; }
 .file-icon.image { stroke: #8f5f2f; }
 .file-icon.code { stroke: #2f8f4e; }
+.file-icon.bin { stroke: #8f3a2f; }
 .file-icon.sheet { stroke: #2f8f5f; }
 .file-icon.archive { stroke: #6f4f8f; }
 .file-icon.video { stroke: #8f2f4f; }

@@ -60,19 +60,6 @@
     <div class="chat-body">
       <!-- 群聊列表 -->
       <aside class="group-list-column">
-        <div class="list-tabs">
-          <button
-            v-for="tab in groupTabs"
-            :key="tab.key"
-            type="button"
-            class="tab-btn"
-            :class="{ active: store.activeTab === tab.key }"
-            @click="store.activeTab = tab.key"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
-
         <div v-if="store.groups.length === 0" class="empty-group-list">
           <Users class="empty-icon" />
           <p class="empty-title">暂无群组</p>
@@ -82,22 +69,22 @@
 
         <div v-else class="group-list">
           <button
-            v-for="group in store.filteredGroups"
+            v-for="group in store.groups"
             :key="group.group_id"
             type="button"
             class="group-item"
             :class="{ active: store.selectedGroupId === group.group_id }"
             @click="store.selectGroup(group.group_id)"
           >
-            <MessageSquare class="group-item-icon" />
+            <div class="group-item-avatar">
+              <img v-if="group.avatar_url" :src="group.avatar_url" :alt="group.name" class="group-avatar-image" />
+              <MessageSquare v-else class="group-item-icon" />
+            </div>
             <div class="group-item-main">
               <span class="group-item-name">{{ group.name }}</span>
               <span class="group-item-preview">{{ group.description?.slice(0, 20) ?? '暂无描述' }}</span>
             </div>
           </button>
-          <div v-if="store.filteredGroups.length === 0" class="empty-tip">
-            暂无匹配的群聊
-          </div>
         </div>
       </aside>
 
@@ -258,6 +245,7 @@ import { useBotConsoleStore } from '@/stores/botConsole'
 import type { Message } from '@/types'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import hljs from 'highlight.js'
 import { useWebSocket } from '@/composables/useWebSocket'
 import BotChatInspector from '@/components/BotConsole/BotChatInspector.vue'
 import FileMessageCard from '@/components/BotConsole/FileMessageCard.vue'
@@ -275,12 +263,6 @@ const { isConnected } = useWebSocket(wsToken, store.addRealtimeMessage)
 watch(() => store.activeBotId, (newId) => {
   selectedBotId.value = newId
 })
-
-const groupTabs = [
-  { key: 'all' as const, label: '全部' },
-  { key: 'joined' as const, label: '我加入的' },
-  { key: 'managed' as const, label: '我管理的' },
-]
 
 const textareaPlaceholder = computed(() => {
   if (store.bots.length === 0) return '请先创建 Bot'
@@ -351,8 +333,25 @@ const formatTime = (dateStr: string) => {
   return new Date(dateStr).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
+const markdownRenderer = new marked.Renderer()
+markdownRenderer.code = (token) => {
+  const rawLang = (token.lang || '').trim()
+  const code = token.text || ''
+  let html = ''
+  if (rawLang && hljs.getLanguage(rawLang)) {
+    html = hljs.highlight(code, { language: rawLang, ignoreIllegals: true }).value
+  } else {
+    html = hljs.highlightAuto(code).value
+  }
+  const langClass = rawLang ? ` language-${rawLang}` : ''
+  return `<pre><code class="hljs${langClass}">${html}</code></pre>`
+}
+
 const renderMarkdown = (text: string): string => {
-  const raw = marked.parse(text, { async: false }) as string
+  const raw = marked.parse(text, {
+    async: false,
+    renderer: markdownRenderer,
+  }) as string
   return DOMPurify.sanitize(raw)
 }
 
@@ -672,6 +671,25 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.group-item-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #ebebeb;
+  border: 1px solid #d0d0d0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.group-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .group-item-main {
   min-width: 0;
   display: flex;
@@ -945,6 +963,49 @@ onMounted(() => {
   border: none;
   padding: 0;
   font-size: 12px;
+}
+
+.msg-bubble :deep(.hljs) {
+  display: block;
+  color: #1f2937;
+}
+
+.msg-bubble :deep(.hljs-comment),
+.msg-bubble :deep(.hljs-quote) {
+  color: #6b7280;
+}
+
+.msg-bubble :deep(.hljs-keyword),
+.msg-bubble :deep(.hljs-selector-tag),
+.msg-bubble :deep(.hljs-name),
+.msg-bubble :deep(.hljs-doctag),
+.msg-bubble :deep(.hljs-title),
+.msg-bubble :deep(.hljs-section) {
+  color: #374151;
+  font-weight: 600;
+}
+
+.msg-bubble :deep(.hljs-string),
+.msg-bubble :deep(.hljs-attr),
+.msg-bubble :deep(.hljs-literal),
+.msg-bubble :deep(.hljs-template-tag),
+.msg-bubble :deep(.hljs-template-variable) {
+  color: #1d4ed8;
+}
+
+.msg-bubble :deep(.hljs-number),
+.msg-bubble :deep(.hljs-built_in),
+.msg-bubble :deep(.hljs-type),
+.msg-bubble :deep(.hljs-class .hljs-title),
+.msg-bubble :deep(.hljs-symbol),
+.msg-bubble :deep(.hljs-bullet) {
+  color: #0f766e;
+}
+
+.msg-bubble :deep(.hljs-variable),
+.msg-bubble :deep(.hljs-params),
+.msg-bubble :deep(.hljs-property) {
+  color: #4b5563;
 }
 
 .msg-bubble :deep(ul),

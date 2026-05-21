@@ -30,6 +30,11 @@ export const useBotUserChatStore = defineStore('botUserChat', () => {
   const pendingFile = ref<PendingFile | null>(null)
   const notice = ref('')
   const connectionStatus = ref<ConnStatus>('idle')
+  const connectionDuration = ref('00:00:00')
+  const connectionLatency = ref(0)
+  let connectionStartedAt = 0
+  let durationTimer: ReturnType<typeof setInterval> | undefined
+  let latencyTimer: ReturnType<typeof setInterval> | undefined
   let noticeTimer: number | undefined
 
   const token = computed(() => authStore.token || '')
@@ -58,6 +63,66 @@ export const useBotUserChatStore = defineStore('botUserChat', () => {
     }
   })
 
+  const healthUrl = (() => {
+    const base = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:48080/api/v1`
+    try {
+      const u = new URL(base)
+      return `${u.origin}/health`
+    } catch {
+      return `${window.location.protocol}//${window.location.hostname}:48080/health`
+    }
+  })()
+
+  const formatDuration = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = seconds % 60
+    return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
+  }
+
+  const startDurationTimer = () => {
+    stopDurationTimer()
+    durationTimer = setInterval(() => {
+      if (connectionStartedAt > 0) {
+        connectionDuration.value = formatDuration(
+          Math.floor((Date.now() - connectionStartedAt) / 1000)
+        )
+      }
+    }, 1000)
+  }
+
+  const stopDurationTimer = () => {
+    if (durationTimer) {
+      clearInterval(durationTimer)
+      durationTimer = undefined
+    }
+  }
+
+  const measureLatency = async () => {
+    try {
+      const start = performance.now()
+      await fetch(healthUrl, { method: 'HEAD', cache: 'no-store' })
+      connectionLatency.value = Math.max(1, Math.round(performance.now() - start))
+    } catch {
+      // 保持上次的延迟值
+    }
+  }
+
+  const startLatencyTimer = () => {
+    stopLatencyTimer()
+    void measureLatency()
+    latencyTimer = setInterval(() => {
+      void measureLatency()
+    }, 5_000)
+  }
+
+  const stopLatencyTimer = () => {
+    if (latencyTimer) {
+      clearInterval(latencyTimer)
+      latencyTimer = undefined
+    }
+  }
+
   const notify = (message: string) => {
     notice.value = message
     if (noticeTimer) window.clearTimeout(noticeTimer)
@@ -72,6 +137,8 @@ export const useBotUserChatStore = defineStore('botUserChat', () => {
     loading.value = true
     error.value = null
     connectionStatus.value = 'testing'
+    const startedAt = performance.now()
+    connectionStartedAt = Date.now()
 
     try {
       const fetchedGroups = await getBotVisibleGroups(token.value)
@@ -88,7 +155,13 @@ export const useBotUserChatStore = defineStore('botUserChat', () => {
         messages.value = []
       }
 
+      connectionLatency.value = Math.max(1, Math.round(performance.now() - startedAt))
       connectionStatus.value = 'connected'
+      stopDurationTimer()
+      stopLatencyTimer()
+      connectionStartedAt = Date.now()
+      startDurationTimer()
+      startLatencyTimer()
     } catch (err: any) {
       error.value = getErrorMessage(err, '加载 Bot 聊天数据失败')
       connectionStatus.value = 'error'
@@ -218,12 +291,17 @@ export const useBotUserChatStore = defineStore('botUserChat', () => {
   }
 
   const reset = () => {
+    stopDurationTimer()
+    stopLatencyTimer()
     groups.value = []
     selectedGroupId.value = null
     messages.value = []
     inputText.value = ''
     pendingFile.value = null
     connectionStatus.value = 'idle'
+    connectionDuration.value = '00:00:00'
+    connectionLatency.value = 0
+    connectionStartedAt = 0
     localStorage.removeItem(STORAGE_KEYS.BOT_SELECTED_GROUP_ID)
   }
 
@@ -243,6 +321,8 @@ export const useBotUserChatStore = defineStore('botUserChat', () => {
     notice,
     canSend,
     connectionStatus,
+    connectionDuration,
+    connectionLatency,
     connectionLabel,
     initialize,
     fetchMessagesForGroup,
