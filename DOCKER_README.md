@@ -26,8 +26,8 @@ docker-compose down
 
 ### 3. 访问服务
 
-- 前端界面: http://localhost
-- 后端 API: http://localhost:8080
+- 前端界面: http://localhost:48080
+- 后端 API: http://localhost:48888
 - WebSocket: ws://localhost:8080/ws
 
 ## 开发环境
@@ -61,8 +61,8 @@ docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| frontend | 80 | 前端界面 |
-| backend | 8080 | 后端 API |
+| frontend | 48080 | 前端界面 |
+| backend | 48888 | 后端 API |
 | postgres | 5432 | PostgreSQL 数据库 |
 | redis | 6379 | Redis 缓存 |
 

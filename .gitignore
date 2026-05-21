@@ -22,5 +22,4 @@ ui-vue/dist/
 ui-vue/node_modules/
 
 # Docker 相关
-.env.docker.example
 docker-compose.override.yml

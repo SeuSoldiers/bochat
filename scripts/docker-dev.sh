@@ -36,8 +36,8 @@ docker-compose ps
 
 echo ""
 echo "开发环境已启动!"
-echo "前端界面: http://localhost:5173"
-echo "后端 API: http://localhost:8080"
+echo "前端界面: http://localhost:48080"
+echo "后端 API: http://localhost:48888"
 echo "数据库: localhost:5432"
 echo "Redis: localhost:6379"
 echo ""

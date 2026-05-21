@@ -3,6 +3,8 @@ services:
     image: postgres:16
     container_name: chat-postgres
     restart: unless-stopped
+    expose:
+      - "5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-chat_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chat_password}
@@ -22,6 +24,8 @@ services:
     image: redis:7
     container_name: chat-redis
     restart: unless-stopped
+    expose:
+      - "6379"
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password} --bind 0.0.0.0
     volumes:
       - chat_redis_data:/data
@@ -69,7 +73,7 @@ services:
     container_name: chat-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "48080:80"
     networks:
       - chat-network
     depends_on:
