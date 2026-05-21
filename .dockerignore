@@ -1,0 +1,16 @@
+target/
+node_modules/
+.git/
+.env
+*.md
+logs/
+data/
+ui-vue/node_modules/
+ui-vue/dist/
+scripts/
+.claude/
+.cargo/
+.codex
+.vscode/
+.cache/
+python-sdk/.venv/
