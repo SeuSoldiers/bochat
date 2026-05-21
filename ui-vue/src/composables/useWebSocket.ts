@@ -2,7 +2,7 @@ import { ref, watch, onMounted, onUnmounted, type Ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import type { WebSocketMessage, Message } from '@/types'
 
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws'
+const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:48080/ws`
 
 export function useWebSocket(token: Ref<string | null>, onMessage?: (message: Message) => void) {
   const ws = ref<WebSocket | null>(null)

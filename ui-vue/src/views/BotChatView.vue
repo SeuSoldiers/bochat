@@ -318,8 +318,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 const wsToken = computed(() => authStore.token)
 const { isConnected } = useWebSocket(wsToken, store.addRealtimeMessage)
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
-const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:48080/api/v1`
+const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:48080/ws`
 
 const tokenPrefix = computed(() => {
   const token = authStore.token || ''

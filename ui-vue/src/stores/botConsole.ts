@@ -36,8 +36,8 @@ interface PendingFile {
   size: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:48080/api/v1`
+const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:48080/ws`
 
 export const useBotConsoleStore = defineStore('botConsole', () => {
   const authStore = useAuthStore()
@@ -59,7 +59,7 @@ export const useBotConsoleStore = defineStore('botConsole', () => {
       const u = new URL(API_BASE_URL)
       return `${u.origin}/health`
     } catch {
-      return 'http://localhost:8080/health'
+      return `${window.location.protocol}//${window.location.hostname}:48080/health`
     }
   })()
 

@@ -9,7 +9,7 @@ import type { ApiResponse } from '@/types'
 import { getErrorMessage } from '@/utils/error'
 
 // 获取 API 基础 URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:48080/api/v1`
 
 class ApiClient {
   private instance: AxiosInstance

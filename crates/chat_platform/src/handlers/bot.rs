@@ -9,7 +9,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::models::{BotResponse, BotSearchResponse, CreateBotRequest, UpdateBotRequest};
-use crate::repositories::{BotRepository, NewBot};
+use crate::repositories::{BotRepository, NewBot, GroupRepository};
 use crate::services::BotService;
 use crate::services::audit::{AuditRecord, record_best_effort};
 use crate::services::authz::{can_manage_target_user, user_is_super_admin};
@@ -311,6 +311,14 @@ pub async fn delete_bot(
     )
     .await?;
 
+    // 尝试清理该 Bot 所在群组的消息缓存（Best-effort）
+    if let Ok(group_ids) = GroupRepository::list_group_ids_by_member(&state.pool, &target_bot_id).await {
+        for gid in group_ids {
+            let _ = state.message_record_manager.remove_group_messages(&gid).await;
+            tracing::debug!("清理 Redis 缓存: group_id={} after bot delete", gid);
+        }
+    }
+
     tracing::info!(
         "✅ Bot 删除成功 - Bot ID: {}, 所有者: {}",
         target_bot_id,
@@ -383,6 +391,14 @@ pub async fn update_bot(
         req.avatar_url.as_deref(),
     )
     .await?;
+
+    // Bot 名称或头像更新后，刷新相关群组的消息缓存以让历史消息立即反映新信息（Best-effort）
+    if let Ok(group_ids) = GroupRepository::list_group_ids_by_member(&state.pool, &target_bot_id).await {
+        for gid in group_ids {
+            let _ = state.message_record_manager.remove_group_messages(&gid).await;
+            tracing::debug!("清理 Redis 缓存: group_id={} after bot update", gid);
+        }
+    }
 
     let updated_bot: crate::models::Bot = BotRepository::find_by_id(&state.pool, &target_bot_id)
         .await?
