@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      SERVER_HOST: 0.0.0.0
+      SERVER_HOST: 127.0.0.1
       SERVER_PORT: ${SERVER_PORT:-48888}
       DATABASE_URL: postgres://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@127.0.0.1:5432/${POSTGRES_DB:-chat_db}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@127.0.0.1:6379
