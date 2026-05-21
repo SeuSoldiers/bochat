@@ -11,12 +11,17 @@ export async function uploadFile(file: File, botToken: string) {
   const formData = new FormData()
   formData.append('file', file)
 
-  return apiClient.post<UploadedFile>('/file/upload', formData, {
+  const result = await apiClient.post<UploadedFile>('/file/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
       Authorization: `Bearer ${botToken}`,
     },
   })
+  // 后端返回相对路径，前端拼接完整URL
+  if (result.url && result.url.startsWith('/')) {
+    result.url = window.location.origin + result.url
+  }
+  return result
 }
 
 export async function downloadFile(fileUrl: string, fileName: string): Promise<void> {

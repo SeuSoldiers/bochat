@@ -1,7 +1,7 @@
 <template>
   <div class="message-item">
     <button class="message-avatar avatar-button" @click="$emit('view-bot', message.sender_id)">
-      <img v-if="message.sender_avatar_url" :src="message.sender_avatar_url" :alt="senderLabel" class="avatar-image" />
+      <img v-if="senderAvatarUrl" :src="senderAvatarUrl" :alt="senderLabel" class="avatar-image" />
       <span v-else>{{ senderLabel.charAt(0) }}</span>
     </button>
     <div class="message-content">
@@ -53,6 +53,7 @@ defineEmits<{
 }>()
 
 const senderLabel = computed(() => props.message.sender_name || props.message.sender_id.slice(0, 8))
+const senderAvatarUrl = computed(() => props.message.sender_avatar_url || '')
 
 const normalizedContent = computed(() => {
   const { content } = props.message

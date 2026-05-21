@@ -22,7 +22,6 @@ use crate::{
 pub async fn upload_file(
     State(state): State<AppState>,
     Extension(auth): Extension<BotAuth>,
-    headers: axum::http::HeaderMap,
     mut payload: Multipart,
 ) -> AppResult<axum::response::Response> {
     let bot_id = auth.bot_id;
@@ -88,17 +87,6 @@ pub async fn upload_file(
     let existing_file: Option<crate::models::File> =
         FileRepository::find_by_content_hash(&state.pool, &content_hash).await?;
 
-    let scheme = headers
-        .get("x-forwarded-proto")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("http")
-        .to_string();
-    let host = headers
-        .get(header::HOST)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("127.0.0.1:8080")
-        .to_string();
-
     if let Some(existing_file) = existing_file {
         FileRepository::add_uploader_ignore(
             &state.pool,
@@ -110,9 +98,7 @@ pub async fn upload_file(
         )
         .await?;
 
-        let file_url = build_download_url(
-            &scheme,
-            &host,
+        let file_path = build_download_path(
             &existing_file.file_id,
             &existing_file.filename,
         );
@@ -159,7 +145,7 @@ pub async fn upload_file(
             json!({
                 "file_id": existing_file.file_id,
                 "filename": existing_file.filename,
-                "url": file_url,
+                "url": file_path,
                 "created_at": existing_file.created_at,
             }),
         ));
@@ -204,7 +190,7 @@ pub async fn upload_file(
     )
     .await?;
 
-    let file_url = build_download_url(&scheme, &host, &file_id, &filename);
+    let file_path = build_download_path(&file_id, &filename);
 
     tracing::trace!(
         "文件上传成功: bot_id={}, file_id={}, sha256={}, path={}",
@@ -249,7 +235,7 @@ pub async fn upload_file(
         json!({
             "file_id": file_id,
             "filename": filename,
-            "url": file_url,
+            "url": file_path,
             "created_at": now,
         }),
     ))
@@ -363,11 +349,9 @@ fn decode_filename_segment(filename: &str) -> String {
         .into_owned()
 }
 
-fn build_download_url(scheme: &str, host: &str, file_id: &str, filename: &str) -> String {
+fn build_download_path(file_id: &str, filename: &str) -> String {
     format!(
-        "{}://{}/api/v1/file/download/{}/{}",
-        scheme,
-        host,
+        "/api/v1/file/download/{}/{}",
         file_id,
         encode_filename_segment(filename)
     )
