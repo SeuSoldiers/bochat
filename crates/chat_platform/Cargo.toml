@@ -60,3 +60,9 @@ thiserror = "2"
 tokio-test = "0.4"
 tempfile = "3"
 tower = "0.5"
+criterion = { version = "0.5", features = ["async_tokio"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
+
+[[bench]]
+name = "message_send_batch"
+harness = false

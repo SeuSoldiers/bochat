@@ -3,7 +3,8 @@ services:
     image: postgres:16
     container_name: chat-postgres
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "50032:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-chat_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chat_password}
@@ -18,14 +19,15 @@ services:
       retries: 5
     command: >
       postgres
-      -c listen_addresses=127.0.0.1
+      -c listen_addresses=0.0.0.0
 
   redis:
     image: redis:7
     container_name: chat-redis
     restart: unless-stopped
-    network_mode: host
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password} --bind 127.0.0.1
+    ports:
+      - "50079:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password} --bind 0.0.0.0
     volumes:
       - chat_redis_data:/data
     healthcheck:
@@ -40,12 +42,13 @@ services:
       dockerfile: Dockerfile
     container_name: chat-backend
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${SERVER_PORT:-50080}:50080"
     environment:
-      SERVER_HOST: 127.0.0.1
-      SERVER_PORT: ${SERVER_PORT:-48888}
-      DATABASE_URL: postgres://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@127.0.0.1:5432/${POSTGRES_DB:-chat_db}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@127.0.0.1:6379
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 50080
+      DATABASE_URL: postgres://${POSTGRES_USER:-chat_user}:${POSTGRES_PASSWORD:-chat_password}@postgres:5432/${POSTGRES_DB:-chat_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-Admin123456}
       TOKEN_EXPIRY_SECS: ${TOKEN_EXPIRY_SECS:-31536000}
@@ -67,7 +70,8 @@ services:
       dockerfile: Dockerfile
     container_name: chat-frontend
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${FRONTEND_PORT:-50081}:80"
     depends_on:
       - backend
 

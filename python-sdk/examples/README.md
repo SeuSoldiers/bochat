@@ -6,6 +6,7 @@
 - `ws_session.py`
 - `ws_observe.py`
 - `ws_dispatcher.py`
+- `message_rate_ramp.py`
 
 ## 1. 前置条件
 
@@ -74,7 +75,24 @@ cd /home/harkerhand/codes/bochat/python-sdk
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-## 8. 常见问题
+## 8. 运行消息递增压测（10 msg/s 指数递增）
+
+```bash
+cd /home/harkerhand/codes/bochat/python-sdk
+PYTHONPATH=. python examples/message_rate_ramp.py \
+  --base-url http://127.0.0.1:50080 \
+  --start-rps 10 \
+  --max-rps 1000 \
+  --growth 2 \
+  --step-seconds 15
+```
+
+停止条件：
+- 达到 `--max-rps`；
+- 或失败率超过 `--fail-rate-threshold`（默认 5%）；
+- 或 P95 超过 `--p95-ms-threshold`（默认 800ms）。
+
+## 9. 常见问题
 
 - `MissingUserToken`：登录未成功，检查账号密码是否正确。
 - `MissingBotToken`：账号下没有可用 Bot，先在平台创建 Bot 或确认 Bot 状态为 `active`。

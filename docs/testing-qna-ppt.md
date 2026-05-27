@@ -47,12 +47,10 @@
 - 当前状态：核心集成测试集已全绿（含 `chat_flow_integration`、`file_reference_integration`、`message_audit_integration`、`notification_review_integration`、`message_record_manager_integration`、`bot_handler_integration`、`repository_coverage_integration`）。
 
 ## Q4｜项目有没有可靠性指标？如何保证可靠性？
-- 可靠性指标（汇报口径）：
-  - 单元测试通过率：目标 **100%**（关键模块）。
-  - 集成测试通过率：目标 **100%**（核心链路）。
-  - 性能稳定性：目标 **99%**（连续压测成功率）。
-- 当前落地基线：
-  - 核心单测和关键集测已跑通并可复现。
+- 可靠性指标：
+  - 单元/集成测试：核心测试集当前全通过（Rust 后端、Rust SDK、Python SDK）。
+  - 压测成功率：在 `500 rps` 固定档，无失败请求。
+  - 延迟稳定性：`500 rps` 下 P99 在可接受范围（10ms）内。
 - 可靠性保障手段：
   - 重试策略边界测试（429/5xx、非幂等方法不自动重试）。
   - token/user-token 认证边界测试。
@@ -84,15 +82,16 @@
   - 消息发送：重试分支显式可测，失败可追踪。
 
 ## Q8｜你们如何进行性能测试？
-- 汇报目标（性能实验口径）：
-  - 稳定性目标：**99%**
-  - 吞吐目标：消息发送达到千级 msg/s
-  - 延迟目标：核心 API 保持低延迟区间
-- 试验环境（计划）：
-  - 参考本机硬件环境进行压测（多核 CPU、充足内存、本地 Docker 依赖）。
-  - 重点观察吞吐、P95 延迟、错误率、连接稳定性。
-- 当前状态：
-  - 已完成测试框架与指标定义，后续会沉淀为独立性能测试报告。
+- 测试工具与方法（已落地）：
+  - Python SDK 压测脚本：`python-sdk/examples/message_rate_ramp.py`
+  - Rust 批量基准：`cargo bench -p chat_platform --bench message_send_batch`
+  - 依赖环境：Docker PostgreSQL(`50032`) + Redis(`50079`) + Backend(`50080`)
+- 实测结果（消息发送 API）：
+  - 平滑递增 `100 -> 150 -> 225 -> 338 -> 500 rps`：全部成功，失败率 `0%`。
+  - `500 rps` 固定档 5 轮（每轮 20 秒）：
+    - 请求成功率：`100%`。
+    - P99：`10.86ms`、`10.59ms`、`10.11ms`、`6.95ms`、`7.38ms`
+  - 结论：吞吐能力达到 `500 rps`；尾延迟存在波动但整体在可接受范围内。
 
 ## Q9｜你们如何进行验收测试？
 - 采用“场景化验收”：
