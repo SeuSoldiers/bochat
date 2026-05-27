@@ -1,0 +1,9 @@
+id: bochat-ai-summary
+name: BoChat AI Summary
+status: active
+summary: 群聊总结插件，使用 /sum 触发最近 30 条消息的中文总结（主题摘要/结论/待办）
+repo: https://github.com/bochat-community/bochat-ai-summary
+homepage: https://github.com/bochat-community/bochat-ai-summary/blob/main/README.md
+maintainer: "@community"
+sdk: python
+tags: [summary, ai, group-chat, utility]
