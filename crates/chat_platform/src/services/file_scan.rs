@@ -3,7 +3,7 @@ use serde_json::json;
 use crate::{
     AppState,
     db::DbPool,
-    repositories::{FileScanRepository, FileScanResultUpdate, GroupRepository, NewPendingFileScan},
+    repositories::{BotRepository, FileScanRepository, FileScanResultUpdate, GroupRepository, NewPendingFileScan},
     services::{
         audit::{AuditRecord, record_best_effort},
         notification::{NotificationRecord, create_best_effort as create_notification_best_effort},
@@ -132,22 +132,38 @@ async fn notify_group_owner_if_file_flagged(
         return Ok(());
     }
 
+    let sender_bot_name = BotRepository::find_by_id(pool, sender_bot_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|b| b.name)
+        .unwrap_or_else(|| sender_bot_id.to_string());
+
+    let filename = content
+        .get("filename")
+        .and_then(|v| v.as_str())
+        .unwrap_or("未知文件")
+        .to_string();
+
     create_notification_best_effort(
         pool,
         NotificationRecord {
             recipient_user_id: &group.creator_id,
             kind: "file_scan_alert",
-            title: "群文件安全告警",
+            title: &format!("群告警：{} 收到 可疑文件\"{}\"", group.name, filename),
             content: &format!(
-                "群 {} 检测到可疑文件（ID: {}），请尽快核查。",
-                group.name, file_id
+                "群告警：{} 收到 可疑文件\"{}\"\n文件ID：{}\n发送Bot：{}({})\n风险等级：{}",
+                group.name, filename, file_id, sender_bot_name, sender_bot_id, scan_record.risk_level
             ),
             requires_action: false,
             action_payload: Some(json!({
+                "alert_type": "group",
                 "file_id": file_id,
+                "filename": filename,
                 "group_id": group.group_id,
                 "group_name": group.name,
                 "sender_bot_id": sender_bot_id,
+                "sender_bot_name": sender_bot_name,
                 "scan_status": scan_record.status,
                 "risk_level": scan_record.risk_level,
                 "scan_result": scan_record.scan_result
@@ -258,21 +274,31 @@ async fn process_scan_job(pool: DbPool, job: ScanJob) {
     .await;
 
     if status == "suspicious" || status == "failed" {
+        let uploader_bot_name = BotRepository::find_by_id(&pool, &job.uploader_bot_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|b| b.name)
+            .unwrap_or_else(|| job.uploader_bot_id.clone());
+
         create_notification_best_effort(
             &pool,
             NotificationRecord {
                 recipient_user_id: &job.uploader_user_id,
                 kind: "file_scan_alert",
-                title: "Bot 文件安全告警",
+                title: &format!("BOT告警：{} 发送 可疑文件\"{}\"", uploader_bot_name, job.filename),
                 content: &format!(
-                    "Bot 上传文件 {} 检测结果为 {}，请尽快处理。",
-                    job.filename, status
+                    "BOT告警：{} 发送 可疑文件\"{}\"\n文件ID：{}\nBot ID：{}\n风险等级：{}",
+                    uploader_bot_name, job.filename, job.file_id, job.uploader_bot_id, risk_level
                 ),
                 requires_action: false,
                 action_payload: Some(json!({
+                    "alert_type": "bot",
                     "file_id": job.file_id,
                     "filename": job.filename,
                     "mime_type": job.mime_type,
+                    "uploader_bot_id": job.uploader_bot_id,
+                    "uploader_bot_name": uploader_bot_name,
                     "status": status,
                     "risk_level": risk_level,
                     "scan_result": scan_result

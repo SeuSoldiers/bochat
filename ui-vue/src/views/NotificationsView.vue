@@ -44,7 +44,17 @@
               >
                 <div class="item-main">
                   <p class="item-title">{{ item.title }}</p>
-                  <p class="item-content">{{ item.content }}</p>
+                  <template v-if="item.kind === 'file_scan_alert' && fileAlertDetail(item)">
+                    <div class="file-alert-detail">
+                      <span class="file-alert-field">时间：{{ fileAlertDetail(item)!.time }}</span>
+                      <span class="file-alert-field">文件ID：{{ fileAlertDetail(item)!.fileId }}</span>
+                      <span v-if="fileAlertDetail(item)!.filename" class="file-alert-field">文件名：{{ fileAlertDetail(item)!.filename }}</span>
+                      <span v-if="fileAlertDetail(item)!.groupName" class="file-alert-field">群组：{{ fileAlertDetail(item)!.groupName }}</span>
+                      <span v-if="fileAlertDetail(item)!.botName" class="file-alert-field">Bot：{{ fileAlertDetail(item)!.botName }}<span v-if="fileAlertDetail(item)!.botId"> ({{ fileAlertDetail(item)!.botId }})</span></span>
+                      <span v-if="fileAlertDetail(item)!.riskLevel" class="file-alert-field">风险等级：{{ fileAlertDetail(item)!.riskLevel }}</span>
+                    </div>
+                  </template>
+                  <p v-else class="item-content">{{ item.content }}</p>
                 </div>
                 <button
                   v-if="!item.is_read"
@@ -65,8 +75,39 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useNotificationStore } from '@/stores/notifications'
+import type { NotificationItem } from '@/types'
 
 const notificationStore = useNotificationStore()
+
+const formatTime = (iso: string) => {
+  const d = new Date(iso)
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+const fileAlertDetail = (item: NotificationItem) => {
+  if (item.kind !== 'file_scan_alert' || !item.action_payload) return null
+  const p = item.action_payload
+  const alertType = p.alert_type as string | undefined
+  const fileId = p.file_id as string | undefined
+  const filename = p.filename as string | undefined
+  const riskLevel = p.risk_level as string | undefined
+  const time = formatTime(item.created_at)
+
+  if (alertType === 'group') {
+    const groupName = p.group_name as string | undefined
+    const senderBotName = p.sender_bot_name as string | undefined
+    const senderBotId = p.sender_bot_id as string | undefined
+    return { alertType, time, fileId, filename, riskLevel, groupName, botName: senderBotName, botId: senderBotId }
+  }
+
+  if (alertType === 'bot') {
+    const uploaderBotName = p.uploader_bot_name as string | undefined
+    const uploaderBotId = p.uploader_bot_id as string | undefined
+    return { alertType, time, fileId, filename, riskLevel, botName: uploaderBotName, botId: uploaderBotId }
+  }
+
+  return { alertType, time, fileId, filename, riskLevel }
+}
 
 const approve = async (notificationId: string) => {
   await notificationStore.handleApprove(notificationId)
@@ -87,7 +128,7 @@ onMounted(async () => {
 
 <style scoped>
 .notifications-main {
-  max-width: 720px;
+  width: 100%;
 }
 
 .notifications-card {
@@ -168,6 +209,19 @@ onMounted(async () => {
   color: #626262;
   line-height: 1.4;
   white-space: pre-wrap;
+}
+
+.file-alert-detail {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.file-alert-field {
+  font-size: 12px;
+  color: #626262;
+  line-height: 1.4;
 }
 
 .item-actions {

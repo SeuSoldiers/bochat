@@ -244,6 +244,14 @@ export const useBotConsoleStore = defineStore('botConsole', () => {
 
       bots.value = botList
       groups.value = groupList
+
+      // 管理员用户默认选择自己的超级管理员Bot
+      if (!activeBotId.value && authStore.isSuperAdmin) {
+        const superAdminBot = botList.find(bot => bot.owner_id === authStore.userId)
+        if (superAdminBot) {
+          activeBotId.value = superAdminBot.bot_id
+        }
+      }
       activeBotId.value = activeBotId.value || botList[0]?.bot_id || ''
 
       if (!selectedGroupId.value || !groupList.some((group) => group.group_id === selectedGroupId.value)) {

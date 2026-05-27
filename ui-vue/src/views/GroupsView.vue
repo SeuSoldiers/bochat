@@ -27,7 +27,7 @@
         :key="group.group_id"
         :group="group"
         :can-edit="group.creator_id === authStore.userId"
-        :can-delete="group.creator_id === authStore.userId"
+        :can-delete="true"
         @edit="openEditGroup(group)"
         @delete="handleDeleteGroup(group.group_id)"
         @view-members="showGroupMembers(group.group_id)"
@@ -238,7 +238,7 @@ onMounted(() => {
 
 <style scoped>
 .groups-view {
-  max-width: 900px;
+  width: 100%;
 }
 
 .page-header {

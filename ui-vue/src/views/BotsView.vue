@@ -163,7 +163,7 @@ onMounted(() => {
 
 <style scoped>
 .bots-view {
-  max-width: 900px;
+  width: 100%;
 }
 
 .page-header {

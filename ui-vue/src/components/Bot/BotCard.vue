@@ -151,7 +151,7 @@ const copyTipText = ref('')
 const displayBotId = computed(() => (showBotId.value ? props.bot.bot_id : maskSecret(props.bot.bot_id)))
 const displayToken = computed(() => (showToken.value ? props.bot.token : maskToken(props.bot.token)))
 const displayBotName = computed(() =>
-  props.bot.name.length > 5 ? `${props.bot.name.slice(0, 5)}...` : props.bot.name
+  props.bot.name.length > 20 ? `${props.bot.name.slice(0, 20)}...` : props.bot.name
 )
 const disabledStatuses = new Set(['disabled', 'stopped', 'paused', 'inactive'])
 const isBotRunning = computed(() => !disabledStatuses.has((props.bot.status || '').toLowerCase()))
