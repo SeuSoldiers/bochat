@@ -55,12 +55,18 @@ impl RetryPolicy {
 #[cfg(test)]
 mod tests {
     use super::RetryPolicy;
+    use reqwest::{Method, StatusCode};
+    use std::time::Duration;
 
     #[test]
     fn test_idempotent_method_retryable() {
-        assert!(RetryPolicy::should_retry_method(&reqwest::Method::GET));
-        assert!(RetryPolicy::should_retry_method(&reqwest::Method::HEAD));
-        assert!(!RetryPolicy::should_retry_method(&reqwest::Method::POST));
+        assert!(RetryPolicy::should_retry_method(&Method::GET));
+        assert!(RetryPolicy::should_retry_method(&Method::HEAD));
+        assert!(RetryPolicy::should_retry_method(&Method::OPTIONS));
+        assert!(!RetryPolicy::should_retry_method(&Method::POST));
+        assert!(!RetryPolicy::should_retry_method(&Method::PUT));
+        assert!(!RetryPolicy::should_retry_method(&Method::PATCH));
+        assert!(!RetryPolicy::should_retry_method(&Method::DELETE));
     }
 
     #[test]
@@ -69,5 +75,28 @@ mod tests {
         let d0 = p.next_delay(0);
         let d1 = p.next_delay(1);
         assert!(d1 >= d0);
+    }
+
+    #[test]
+    fn test_next_delay_respects_max_delay_cap() {
+        let p = RetryPolicy {
+            max_attempts: 5,
+            base_delay: Duration::from_millis(300),
+            max_delay: Duration::from_millis(700),
+        };
+        assert_eq!(p.next_delay(0), Duration::from_millis(300));
+        assert_eq!(p.next_delay(1), Duration::from_millis(600));
+        assert_eq!(p.next_delay(2), Duration::from_millis(700));
+        assert_eq!(p.next_delay(20), Duration::from_millis(700));
+    }
+
+    #[test]
+    fn test_should_retry_status_boundaries() {
+        assert!(RetryPolicy::should_retry_status(StatusCode::TOO_MANY_REQUESTS));
+        assert!(RetryPolicy::should_retry_status(StatusCode::INTERNAL_SERVER_ERROR));
+        assert!(RetryPolicy::should_retry_status(StatusCode::BAD_GATEWAY));
+        assert!(!RetryPolicy::should_retry_status(StatusCode::BAD_REQUEST));
+        assert!(!RetryPolicy::should_retry_status(StatusCode::UNAUTHORIZED));
+        assert!(!RetryPolicy::should_retry_status(StatusCode::NOT_FOUND));
     }
 }

@@ -29,14 +29,14 @@ fn test_config(temp_dir: &TempDir) -> Config {
         },
         database: DatabaseConfig {
             url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
-                "postgres://chat_user:chat_pass@localhost:5432/chat_platform_test".to_string()
+                "postgres://chat_user:chat_password@127.0.0.1:50032/chat_db".to_string()
             }),
             max_connections: 2,
             min_connections: 1,
         },
         redis: RedisConfig {
             url: std::env::var("TEST_REDIS_URL")
-                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+                .unwrap_or_else(|_| "redis://:redis_password@127.0.0.1:50079/0".to_string()),
         },
         security: SecurityConfig {
             jwt_secret: "test-secret".to_string(),
@@ -95,6 +95,11 @@ async fn send_json(
 
 #[tokio::test]
 async fn chat_flow_from_python_script_is_covered_by_integration_test() {
+    let unique = chrono::Utc::now().timestamp_millis();
+    let alice_account = format!("alice_{}", unique);
+    let bob_account = format!("bob_{}", unique);
+    let tech_group_code = format!("TECH{}", unique);
+    let product_group_code = format!("PROD{}", unique);
     let temp_dir = TempDir::new().expect("create temp dir");
     let config = test_config(&temp_dir);
     let pool = db::init_pool(&config.database).await.expect("init db pool");
@@ -128,7 +133,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         None,
         Some(json!({
             "name": "Alice",
-            "account": "alice_1001",
+            "account": alice_account,
             "password": "Alice2026!"
         })),
     )
@@ -142,7 +147,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         None,
         Some(json!({
             "name": "Bob",
-            "account": "bob_1002",
+            "account": bob_account,
             "password": "Bob2026!"
         })),
     )
@@ -155,7 +160,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "/api/v1/auth/login",
         None,
         Some(json!({
-            "account": "alice_1001",
+            "account": alice_account,
             "password": "Alice2026!"
         })),
     )
@@ -169,7 +174,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "/api/v1/auth/login",
         None,
         Some(json!({
-            "account": "bob_1002",
+            "account": bob_account,
             "password": "Bob2026!"
         })),
     )
@@ -197,7 +202,8 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         Some(json!({
             "name": "技术讨论组",
             "description": "讨论技术问题的群聊",
-            "group_code": "TECH001"
+            "group_code": tech_group_code,
+            "is_public": true
         })),
     )
     .await;
@@ -212,7 +218,8 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         Some(json!({
             "name": "产品反馈组",
             "description": "收集产品反馈的群聊",
-            "group_code": "PROD001"
+            "group_code": product_group_code,
+            "is_public": true
         })),
     )
     .await;
@@ -224,7 +231,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "POST",
         "/api/v1/groups/join",
         Some(&bob_token),
-        Some(json!({ "group_code": "TECH001" })),
+        Some(json!({ "group_code": tech_group_code })),
     )
     .await;
     assert_eq!(bob_join_tech_status, StatusCode::OK);
@@ -234,7 +241,7 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "POST",
         "/api/v1/groups/join",
         Some(&alice_token),
-        Some(json!({ "group_code": "PROD001" })),
+        Some(json!({ "group_code": product_group_code })),
     )
     .await;
     assert_eq!(alice_join_product_status, StatusCode::OK);
@@ -260,9 +267,9 @@ async fn chat_flow_from_python_script_is_covered_by_integration_test() {
         "/api/v1/groups/join",
         Some(&alice_token),
         Some(json!({
-            "group_code": "TECH001",
-            "bot_id": alice_second_bot_id
-        })),
+                "group_code": tech_group_code,
+                "bot_id": alice_second_bot_id
+            })),
     )
     .await;
     assert_eq!(second_bot_join_status, StatusCode::OK);

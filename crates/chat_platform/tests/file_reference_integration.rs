@@ -29,14 +29,14 @@ fn test_config(temp_dir: &TempDir) -> Config {
         },
         database: DatabaseConfig {
             url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
-                "postgres://chat_user:chat_pass@localhost:5432/chat_platform_test".to_string()
+                "postgres://chat_user:chat_password@127.0.0.1:50032/chat_db".to_string()
             }),
             max_connections: 2,
             min_connections: 1,
         },
         redis: RedisConfig {
             url: std::env::var("TEST_REDIS_URL")
-                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+                .unwrap_or_else(|_| "redis://:redis_password@127.0.0.1:50079/0".to_string()),
         },
         security: SecurityConfig {
             jwt_secret: "test-secret".to_string(),
@@ -95,6 +95,10 @@ async fn send_json(
 
 #[tokio::test]
 async fn delete_group_cleans_message_file_references() {
+    let unique = chrono::Utc::now().timestamp_millis();
+    let account = format!("alice_ref_case_{}", unique);
+    let group_code = format!("REFCNT{}", unique);
+    let file_id = format!("f_test_msg_ref_{}", unique);
     let temp_dir = TempDir::new().expect("create temp dir");
     let config = test_config(&temp_dir);
     let pool = db::init_pool(&config.database).await.expect("init db pool");
@@ -125,7 +129,7 @@ async fn delete_group_cleans_message_file_references() {
         None,
         Some(json!({
             "name": "Alice",
-            "account": "alice_ref_case",
+            "account": account,
             "password": "Alice2026!"
         })),
     )
@@ -138,7 +142,7 @@ async fn delete_group_cleans_message_file_references() {
         "/api/v1/auth/login",
         None,
         Some(json!({
-            "account": "alice_ref_case",
+            "account": account,
             "password": "Alice2026!"
         })),
     )
@@ -159,17 +163,16 @@ async fn delete_group_cleans_message_file_references() {
         Some(&user_token),
         Some(json!({
             "name": "引用计数测试群",
-            "group_code": "REFCNT001"
+            "group_code": group_code
         })),
     )
     .await;
     assert_eq!(group_status, StatusCode::CREATED);
     let group_id = body_str(&group_body, "group_id").to_string();
 
-    let file_id = "f_test_msg_ref_001".to_string();
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(&file_id)
     .bind(&bot_id)
@@ -183,7 +186,7 @@ async fn delete_group_cleans_message_file_references() {
     .await
     .expect("insert file");
 
-    sqlx::query("INSERT INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)")
+    sqlx::query("INSERT INTO file_uploaders (file_id, uploader_id, created_at) VALUES ($1, $2, $3)")
         .bind(&file_id)
         .bind(&bot_id)
         .bind(&now)
@@ -214,7 +217,7 @@ async fn delete_group_cleans_message_file_references() {
     assert_eq!(send_status, StatusCode::CREATED);
 
     let reference_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(1) FROM file_references WHERE file_id = ? AND reference_type = 'message'",
+        "SELECT COUNT(1) FROM file_references WHERE file_id = $1 AND reference_type = 'message'",
     )
     .bind(&file_id)
     .fetch_one(&pool)
@@ -233,7 +236,7 @@ async fn delete_group_cleans_message_file_references() {
     assert_eq!(delete_group_status, StatusCode::OK);
 
     let remaining_reference_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(1) FROM file_references WHERE file_id = ? AND reference_type = 'message'",
+        "SELECT COUNT(1) FROM file_references WHERE file_id = $1 AND reference_type = 'message'",
     )
     .bind(&file_id)
     .fetch_one(&pool)
@@ -242,7 +245,7 @@ async fn delete_group_cleans_message_file_references() {
     assert_eq!(remaining_reference_count, 0);
 
     let file_exists_after_delete_group: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = ?)")
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = $1)")
             .bind(&file_id)
             .fetch_one(&pool)
             .await
@@ -252,6 +255,9 @@ async fn delete_group_cleans_message_file_references() {
 
 #[tokio::test]
 async fn bot_avatar_reset_reduces_file_reference() {
+    let unique = chrono::Utc::now().timestamp_millis();
+    let account = format!("bob_ref_case_{}", unique);
+    let file_id = format!("f_test_avatar_ref_{}", unique);
     let temp_dir = TempDir::new().expect("create temp dir");
     let config = test_config(&temp_dir);
     let pool = db::init_pool(&config.database).await.expect("init db pool");
@@ -282,7 +288,7 @@ async fn bot_avatar_reset_reduces_file_reference() {
         None,
         Some(json!({
             "name": "Bob",
-            "account": "bob_ref_case",
+            "account": account,
             "password": "Bob2026!"
         })),
     )
@@ -295,7 +301,7 @@ async fn bot_avatar_reset_reduces_file_reference() {
         "/api/v1/auth/login",
         None,
         Some(json!({
-            "account": "bob_ref_case",
+            "account": account,
             "password": "Bob2026!"
         })),
     )
@@ -309,10 +315,9 @@ async fn bot_avatar_reset_reduces_file_reference() {
     let bot_id = body_str(&bots_body["bots"][0], "bot_id").to_string();
     let bot_name = body_str(&bots_body["bots"][0], "name").to_string();
 
-    let file_id = "f_test_avatar_ref_001".to_string();
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO files (file_id, owner_id, content_hash, filename, size, mime_type, storage_path, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(&file_id)
     .bind(&bot_id)
@@ -326,7 +331,7 @@ async fn bot_avatar_reset_reduces_file_reference() {
     .await
     .expect("insert file");
 
-    sqlx::query("INSERT INTO file_uploaders (file_id, uploader_id, created_at) VALUES (?, ?, ?)")
+    sqlx::query("INSERT INTO file_uploaders (file_id, uploader_id, created_at) VALUES ($1, $2, $3)")
         .bind(&file_id)
         .bind(&bot_id)
         .bind(&now)
@@ -353,7 +358,7 @@ async fn bot_avatar_reset_reduces_file_reference() {
     assert_eq!(set_avatar_status, StatusCode::OK);
 
     let ref_count_after_set: i64 = sqlx::query_scalar(
-        "SELECT COUNT(1) FROM file_references WHERE file_id = ? AND reference_type = 'bot_avatar' AND reference_id = ?",
+        "SELECT COUNT(1) FROM file_references WHERE file_id = $1 AND reference_type = 'bot_avatar' AND reference_id = $2",
     )
     .bind(&file_id)
     .bind(&bot_id)
@@ -377,7 +382,7 @@ async fn bot_avatar_reset_reduces_file_reference() {
     assert_eq!(reset_avatar_status, StatusCode::OK);
 
     let ref_count_after_reset: i64 = sqlx::query_scalar(
-        "SELECT COUNT(1) FROM file_references WHERE file_id = ? AND reference_type = 'bot_avatar' AND reference_id = ?",
+        "SELECT COUNT(1) FROM file_references WHERE file_id = $1 AND reference_type = 'bot_avatar' AND reference_id = $2",
     )
     .bind(&file_id)
     .bind(&bot_id)
@@ -387,7 +392,7 @@ async fn bot_avatar_reset_reduces_file_reference() {
     assert_eq!(ref_count_after_reset, 0);
 
     let file_exists_after_reset: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = ?)")
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM files WHERE file_id = $1)")
             .bind(&file_id)
             .fetch_one(&pool)
             .await

@@ -12,7 +12,7 @@ REDIS_PASSWORD="redis_password"
 
 echo "Starting services..."
 
-docker compose -p "${PROJECT_NAME}" up -d
+docker compose -p "${PROJECT_NAME}" up -d postgres redis
 
 echo "Waiting for PostgreSQL..."
 until docker exec "${POSTGRES_CONTAINER}" pg_isready \
@@ -33,8 +33,8 @@ done
 echo
 echo "Services are ready."
 echo
-echo "PostgreSQL: 0.0.0.0:5432"
-echo "Redis:      0.0.0.0:6379"
+echo "PostgreSQL: 127.0.0.1:50032"
+echo "Redis:      127.0.0.1:50079"
 echo
-echo "DATABASE_URL=postgresql://chat_user:chat_password@0.0.0.0:5432/chat_db"
-echo "REDIS_URL=redis://:redis_password@0.0.0.0:6379/0"
+echo "DATABASE_URL=postgresql://chat_user:chat_password@127.0.0.1:50032/chat_db"
+echo "REDIS_URL=redis://:redis_password@127.0.0.1:50079/0"

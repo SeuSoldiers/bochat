@@ -18,6 +18,16 @@ class WsUtilsTests(unittest.TestCase):
             "wss://example.com/ws",
         )
 
+    def test_to_ws_url_trailing_path_is_normalized_to_ws_endpoint(self):
+        self.assertEqual(
+            _to_ws_url("https://example.com/api/v1/anything"),
+            "wss://example.com/ws",
+        )
+
+    def test_to_ws_url_invalid_scheme(self):
+        with self.assertRaises(Exception):
+            _to_ws_url("ftp://example.com")
+
     def test_parse_event(self):
         raw = '{"type":"connection","payload":{"bot_id":"b1","bot_name":"bot","group_ids":["g1"]},"timestamp":"t"}'
         event = _parse_event(raw)
@@ -28,6 +38,12 @@ class WsUtilsTests(unittest.TestCase):
         self.assertIsNotNone(payload)
         assert payload is not None
         self.assertEqual(payload.bot_id, "b1")
+
+    def test_parse_event_invalid_json_returns_none(self):
+        self.assertIsNone(_parse_event("{"))
+
+    def test_parse_event_non_string_payload_returns_none(self):
+        self.assertIsNone(_parse_event(123))
 
 
 class WsDispatcherTests(unittest.IsolatedAsyncioTestCase):
