@@ -48,6 +48,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@127.0.0.1:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-Admin123456}
+      TOKEN_EXPIRY_SECS: ${TOKEN_EXPIRY_SECS:-31536000}
       FILE_STORAGE_PATH: /app/data/files
       LOG_DIR: /app/logs
       RUST_LOG: ${RUST_LOG:-info,chat_platform=debug}
