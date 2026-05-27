@@ -85,3 +85,52 @@ impl From<Message> for MessageResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use std::str::FromStr;
+
+    use super::{Message, MessageResponse, MessageType};
+
+    #[test]
+    fn message_type_str_and_parse() {
+        assert_eq!(MessageType::Text.as_str(), "text");
+        assert_eq!(MessageType::File.as_str(), "file");
+        assert!(matches!(MessageType::from_str("text"), Ok(MessageType::Text)));
+        assert!(MessageType::from_str("unknown").is_err());
+    }
+
+    #[test]
+    fn message_response_parses_json_content() {
+        let msg = Message {
+            msg_id: 1,
+            group_id: "g1".to_string(),
+            sender_id: "b1".to_string(),
+            content: r#"{"text":"hello"}"#.to_string(),
+            msg_type: "text".to_string(),
+            idempotency_key: Some("k1".to_string()),
+            created_at: "now".to_string(),
+        };
+
+        let resp = MessageResponse::from(msg);
+        assert_eq!(resp.msg_id, 1);
+        assert_eq!(resp.content, json!({"text":"hello"}));
+    }
+
+    #[test]
+    fn message_response_fallbacks_to_string_for_invalid_json() {
+        let msg = Message {
+            msg_id: 2,
+            group_id: "g1".to_string(),
+            sender_id: "b1".to_string(),
+            content: "not-json".to_string(),
+            msg_type: "text".to_string(),
+            idempotency_key: None,
+            created_at: "now".to_string(),
+        };
+
+        let resp = MessageResponse::from(msg);
+        assert_eq!(resp.content, serde_json::Value::String("not-json".to_string()));
+    }
+}

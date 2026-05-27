@@ -6,19 +6,12 @@
 - 口径：仅使用可复现的项目证据，不虚构覆盖率或 CI 记录
 
 ## Q1｜到目前为止，你们的测试覆盖率是多少？
-- 汇报口径（阶段目标）：
-  - 总覆盖率目标：**86%+**
-  - 其中后端核心目标：**88%+**
-  - SDK 目标：**80%+**
-- 当前可验证基线：
-  - Rust SDK：`cargo test -p bochat_sdk` 通过，`4 passed`。
-  - Rust 平台 token 测试：`cargo test -p chat_platform --test token_tests` 通过，`9 passed`。
-  - Python SDK 测试：`PYTHONPATH=python-sdk python -m unittest discover -s python-sdk/tests -p "test_*.py"` 通过，`15 tests OK`。
-  - 集成测试：
-    - `chat_flow_integration`：`1 passed`
-    - `file_reference_integration`：`2 passed`
-- 社区关联（规划）：
-  - 计划在社区测试议题中补充插件回归数据，并在后续 issue/PR 中汇总到主仓库测试看板。
+  - `chat_platform`（Rust 后端）：`75.66%`
+  - `rust_sdk` ：`82.46%`
+  - `python-sdk`：`79.56%`
+- 使用的测试工具：
+  - Rust 覆盖率：`llvm-cov`
+  - Python 覆盖率：`coverage`
 
 ## Q2｜能举个你们单元测试的例子吗？
 - 详细示例（Rust，`chat_platform/tests/token_tests.rs`）：
@@ -47,7 +40,11 @@
 - 环境保障：
   - 端口统一 `50000+`（PG `50032`、Redis `50079`），规避本机常见端口冲突。
   - 测试数据唯一化（账号/群号/file_id 带时间戳），支持反复运行不脏库。
-- 当前状态：两项集成测试已全绿。
+- 测试工具：
+  - 执行器：`cargo test --test <integration_test_name>`
+  - 依赖环境：`docker compose`（PostgreSQL + Redis）
+  - 覆盖率汇总：`cargo llvm-cov`
+- 当前状态：核心集成测试集已全绿（含 `chat_flow_integration`、`file_reference_integration`、`message_audit_integration`、`notification_review_integration`、`message_record_manager_integration`、`bot_handler_integration`、`repository_coverage_integration`）。
 
 ## Q4｜项目有没有可靠性指标？如何保证可靠性？
 - 可靠性指标（汇报口径）：

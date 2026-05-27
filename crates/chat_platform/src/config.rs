@@ -154,3 +154,93 @@ impl Default for Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn clear_test_env() {
+        unsafe {
+            std::env::remove_var("SERVER_HOST");
+            std::env::remove_var("SERVER_PORT");
+            std::env::remove_var("SERVER_WORKERS");
+            std::env::remove_var("DATABASE_URL");
+            std::env::remove_var("DB_MAX_CONNECTIONS");
+            std::env::remove_var("DB_MIN_CONNECTIONS");
+            std::env::remove_var("JWT_SECRET");
+            std::env::remove_var("TOKEN_EXPIRY_SECS");
+            std::env::remove_var("MAX_FILE_SIZE_MB");
+            std::env::remove_var("RATE_LIMIT_PER_SECOND");
+            std::env::remove_var("REDIS_URL");
+            std::env::remove_var("FILE_STORAGE_PATH");
+            std::env::remove_var("LOG_DIR");
+            std::env::remove_var("LOG_FILE_PREFIX");
+        }
+    }
+
+    #[test]
+    fn default_config_has_expected_values() {
+        let _guard = env_lock().lock().expect("env lock");
+        let cfg = Config::default();
+        assert_eq!(cfg.server.host, "127.0.0.1");
+        assert_eq!(cfg.server.port, 8080);
+        assert_eq!(cfg.database.max_connections, 10);
+        assert_eq!(cfg.redis.url, "redis://localhost:6379");
+        assert_eq!(cfg.storage.file_storage_path, "./assets/files/");
+    }
+
+    #[test]
+    fn from_env_uses_defaults_on_missing_or_invalid_values() {
+        let _guard = env_lock().lock().expect("env lock");
+        clear_test_env();
+        let cfg = Config::from_env();
+        assert_eq!(cfg.server.port, 8080);
+        assert_eq!(cfg.server.workers, 4);
+        assert_eq!(cfg.database.min_connections, 2);
+        assert_eq!(cfg.security.token_expiry_secs, 86400);
+    }
+
+    #[test]
+    fn from_env_overrides_values() {
+        let _guard = env_lock().lock().expect("env lock");
+        clear_test_env();
+        unsafe {
+            std::env::set_var("SERVER_HOST", "0.0.0.0");
+            std::env::set_var("SERVER_PORT", "50080");
+            std::env::set_var("SERVER_WORKERS", "8");
+            std::env::set_var("DATABASE_URL", "postgres://x");
+            std::env::set_var("DB_MAX_CONNECTIONS", "22");
+            std::env::set_var("DB_MIN_CONNECTIONS", "5");
+            std::env::set_var("JWT_SECRET", "jwt");
+            std::env::set_var("TOKEN_EXPIRY_SECS", "7200");
+            std::env::set_var("MAX_FILE_SIZE_MB", "12");
+            std::env::set_var("RATE_LIMIT_PER_SECOND", "77");
+            std::env::set_var("REDIS_URL", "redis://r");
+            std::env::set_var("FILE_STORAGE_PATH", "/tmp/files");
+            std::env::set_var("LOG_DIR", "/tmp/logs");
+            std::env::set_var("LOG_FILE_PREFIX", "cp");
+        }
+        let cfg = Config::from_env();
+        assert_eq!(cfg.server.host, "0.0.0.0");
+        assert_eq!(cfg.server.port, 50080);
+        assert_eq!(cfg.server.workers, 8);
+        assert_eq!(cfg.database.url, "postgres://x");
+        assert_eq!(cfg.database.max_connections, 22);
+        assert_eq!(cfg.database.min_connections, 5);
+        assert_eq!(cfg.security.jwt_secret, "jwt");
+        assert_eq!(cfg.security.token_expiry_secs, 7200);
+        assert_eq!(cfg.security.max_file_size_mb, 12);
+        assert_eq!(cfg.security.rate_limit_per_second, 77);
+        assert_eq!(cfg.redis.url, "redis://r");
+        assert_eq!(cfg.storage.file_storage_path, "/tmp/files");
+        assert_eq!(cfg.logging.dir, "/tmp/logs");
+        assert_eq!(cfg.logging.file_prefix, "cp");
+        clear_test_env();
+    }
+}

@@ -376,6 +376,50 @@ fn ascii_fallback_filename(filename: &str) -> String {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{
+        ascii_fallback_filename, build_download_path, decode_filename_segment,
+        encode_filename_segment, normalize_content_type, sanitize_filename,
+    };
+
+    #[test]
+    fn sanitize_filename_replaces_unsafe_chars() {
+        assert_eq!(sanitize_filename("a/b:c?.txt"), "a_b_c_.txt");
+        assert_eq!(sanitize_filename("  good-name.txt  "), "good-name.txt");
+        assert_eq!(sanitize_filename("..."), "upload.bin");
+    }
+
+    #[test]
+    fn encode_decode_filename_roundtrip() {
+        let original = "报表 v1.0.txt";
+        let encoded = encode_filename_segment(original);
+        assert_ne!(encoded, original);
+        let decoded = decode_filename_segment(&encoded);
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn build_download_path_uses_encoded_filename() {
+        let path = build_download_path("f_1", "a b.txt");
+        assert_eq!(path, "/api/v1/file/download/f_1/a%20b%2Etxt");
+    }
+
+    #[test]
+    fn ascii_fallback_and_content_type_normalization() {
+        assert_eq!(ascii_fallback_filename("报告.pdf"), "__.pdf");
+        assert_eq!(
+            normalize_content_type("text/plain"),
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(
+            normalize_content_type("application/json"),
+            "application/json; charset=utf-8"
+        );
+        assert_eq!(normalize_content_type(""), "");
+    }
+}
+
 fn normalize_content_type(mime_type: &str) -> String {
     let lower = mime_type.to_ascii_lowercase();
     let has_charset = lower.contains("charset=");

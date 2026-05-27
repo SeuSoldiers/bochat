@@ -79,3 +79,48 @@ pub struct NotificationStatsResponse {
     pub unread_count: i64,
     pub pending_count: i64,
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{Notification, NotificationResponse};
+
+    fn sample_notification(action_payload: Option<String>) -> Notification {
+        Notification {
+            notification_id: "n1".to_string(),
+            recipient_user_id: "u1".to_string(),
+            kind: "system".to_string(),
+            title: "t".to_string(),
+            content: "c".to_string(),
+            requires_action: false,
+            is_resolved: false,
+            is_read: false,
+            action_payload,
+            related_request_id: None,
+            related_group_id: None,
+            related_bot_id: None,
+            created_at: "now".to_string(),
+            updated_at: "now".to_string(),
+            read_at: None,
+            resolved_at: None,
+        }
+    }
+
+    #[test]
+    fn notification_response_parses_json_payload() {
+        let n = sample_notification(Some(r#"{"k":"v"}"#.to_string()));
+        let resp = NotificationResponse::from(n);
+        assert_eq!(resp.action_payload, Some(json!({"k":"v"})));
+    }
+
+    #[test]
+    fn notification_response_fallbacks_to_string_payload() {
+        let n = sample_notification(Some("not-json".to_string()));
+        let resp = NotificationResponse::from(n);
+        assert_eq!(
+            resp.action_payload,
+            Some(serde_json::Value::String("not-json".to_string()))
+        );
+    }
+}

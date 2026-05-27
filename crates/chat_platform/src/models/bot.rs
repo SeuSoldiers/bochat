@@ -107,3 +107,22 @@ impl From<Bot> for BotSearchResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::BotStatus;
+
+    #[test]
+    fn bot_status_string_roundtrip() {
+        assert_eq!(BotStatus::Active.as_str(), "active");
+        assert_eq!(BotStatus::Inactive.as_str(), "inactive");
+        assert!(matches!(BotStatus::from_str("active"), Ok(BotStatus::Active)));
+        assert!(matches!(
+            BotStatus::from_str("inactive"),
+            Ok(BotStatus::Inactive)
+        ));
+        assert!(BotStatus::from_str("other").is_err());
+    }
+}

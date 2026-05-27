@@ -112,3 +112,26 @@ pub async fn ensure_super_admin_account(
         password_source_env,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{hash_password, placeholder_identifier};
+
+    #[test]
+    fn placeholder_identifier_has_expected_prefix() {
+        let v = placeholder_identifier("id_number", "u_123");
+        assert!(v.starts_with("_none_id_number_u_123"));
+    }
+
+    #[test]
+    fn hash_password_generates_salt_and_hash_format() {
+        let h1 = hash_password("Pass2026!", "pepper");
+        let h2 = hash_password("Pass2026!", "pepper");
+        assert_ne!(h1, h2);
+        assert!(h1.contains('$'));
+        let parts: Vec<&str> = h1.split('$').collect();
+        assert_eq!(parts.len(), 2);
+        assert!(!parts[0].is_empty());
+        assert_eq!(parts[1].len(), 64);
+    }
+}

@@ -43,6 +43,29 @@ fn request_id_from_payload(payload: Option<&Value>) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::request_id_from_payload;
+
+    #[test]
+    fn request_id_from_payload_extracts_id() {
+        let value = json!({ "request_id": "req_123" });
+        assert_eq!(
+            request_id_from_payload(Some(&value)),
+            Some("req_123".to_string())
+        );
+    }
+
+    #[test]
+    fn request_id_from_payload_handles_missing_cases() {
+        let value = json!({ "request_id": 123 });
+        assert_eq!(request_id_from_payload(Some(&value)), None);
+        assert_eq!(request_id_from_payload(None), None);
+    }
+}
+
 #[tracing::instrument(skip_all)]
 pub async fn list_notifications(
     State(state): State<AppState>,

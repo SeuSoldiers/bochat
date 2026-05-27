@@ -235,3 +235,95 @@ pub fn error_response(status: StatusCode, message: impl Into<String>) -> Respons
 
 // Result type alias for convenience
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::AppError;
+    use axum::{
+        body::to_bytes,
+        http::{HeaderValue, StatusCode},
+        response::IntoResponse,
+    };
+
+    #[tokio::test]
+    async fn app_error_into_response_maps_status_and_code() {
+        let cases = vec![
+            (AppError::UserNotFound, StatusCode::NOT_FOUND, "user_not_found"),
+            (
+                AppError::InvalidBotToken,
+                StatusCode::UNAUTHORIZED,
+                "invalid_bot_token",
+            ),
+            (
+                AppError::AccountConflict,
+                StatusCode::CONFLICT,
+                "account_conflict",
+            ),
+            (
+                AppError::RateLimitExceeded,
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limit_exceeded",
+            ),
+            (
+                AppError::BotPermissionDenied,
+                StatusCode::FORBIDDEN,
+                "bot_permission_denied",
+            ),
+            (
+                AppError::FileTooLarge,
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "file_too_large",
+            ),
+            (
+                AppError::InternalError("boom".to_string()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+            ),
+        ];
+
+        for (err, expected_status, expected_code) in cases {
+            let response = err.into_response();
+            assert_eq!(response.status(), expected_status);
+
+            let body = to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("read body");
+            let payload: serde_json::Value = serde_json::from_slice(&body).expect("json body");
+            assert_eq!(payload["code"], expected_code);
+            assert_eq!(
+                payload["status"],
+                serde_json::Value::Number(expected_status.as_u16().into())
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn app_error_user_message_is_exposed_for_bad_request_and_forbidden() {
+        let bad = AppError::BadRequest("bad request details".to_string()).into_response();
+        assert_eq!(bad.status(), StatusCode::BAD_REQUEST);
+        let bad_body = to_bytes(bad.into_body(), usize::MAX)
+            .await
+            .expect("read bad body");
+        let bad_payload: serde_json::Value = serde_json::from_slice(&bad_body).expect("json body");
+        assert_eq!(bad_payload["message"], "bad request details");
+
+        let forbidden = AppError::Forbidden("custom forbidden message".to_string()).into_response();
+        assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+        let forbidden_body = to_bytes(forbidden.into_body(), usize::MAX)
+            .await
+            .expect("read forbidden body");
+        let forbidden_payload: serde_json::Value =
+            serde_json::from_slice(&forbidden_body).expect("json body");
+        assert_eq!(forbidden_payload["message"], "custom forbidden message");
+
+        let bot_not_in_group = AppError::BotNotInGroup.into_response();
+        let default_header = HeaderValue::from_static("");
+        let content_type = bot_not_in_group
+            .headers()
+            .get("content-type")
+            .unwrap_or(&default_header)
+            .to_str()
+            .expect("content type");
+        assert!(content_type.starts_with("application/json"));
+    }
+}

@@ -71,3 +71,37 @@ impl Default for WsManager {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use tokio::sync::mpsc;
+
+    use super::{WsEvent, WsManager};
+
+    #[tokio::test]
+    async fn add_broadcast_remove_connection_work() {
+        let manager = WsManager::new();
+        let (tx, mut rx) = mpsc::unbounded_channel::<WsEvent>();
+        manager.add_connection("b1".to_string(), tx).await;
+        assert_eq!(manager.get_online_count("b1").await, 1);
+
+        manager
+            .broadcast_message(
+                "b1",
+                WsEvent {
+                    event_type: "message".to_string(),
+                    payload: json!({"k":"v"}),
+                    timestamp: "now".to_string(),
+                },
+            )
+            .await;
+        let got = rx.recv().await.expect("should receive event");
+        assert_eq!(got.event_type, "message");
+        assert_eq!(got.payload["k"], "v");
+
+        drop(rx);
+        manager.remove_connection("b1").await;
+        assert_eq!(manager.get_online_count("b1").await, 0);
+    }
+}

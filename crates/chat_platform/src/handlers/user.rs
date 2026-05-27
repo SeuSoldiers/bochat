@@ -43,6 +43,26 @@ fn hash_password(password: &str, pepper: &str) -> String {
     format!("{}${}", salt, hex::encode(digest))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::validate_password;
+
+    #[test]
+    fn validate_password_accepts_expected_format() {
+        assert!(validate_password("Abcd1234"));
+        assert!(validate_password("Passw0rd!"));
+    }
+
+    #[test]
+    fn validate_password_rejects_invalid_format() {
+        assert!(!validate_password("short1"));
+        assert!(!validate_password("onlyletters"));
+        assert!(!validate_password("12345678"));
+        assert!(!validate_password("has space 1A"));
+        assert!(!validate_password(""));
+    }
+}
+
 #[tracing::instrument(skip_all)]
 pub async fn get_current_user(
     State(state): State<AppState>,

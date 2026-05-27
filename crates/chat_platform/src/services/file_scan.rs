@@ -439,3 +439,113 @@ fn extract_file_id_from_download_url(url: &str) -> Option<String> {
     }
     Some(file_id.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ScanJob, contains_filename_risk_keyword, extract_file_id_from_download_url,
+        extract_file_id_from_message, has_double_extension, has_illegal_text_content,
+        has_suspicious_extension, is_executable_magic, run_simple_scan,
+    };
+    use serde_json::json;
+    use tempfile::NamedTempFile;
+    use tokio::io::AsyncWriteExt;
+
+    #[test]
+    fn extension_and_keyword_detectors_work() {
+        assert!(has_suspicious_extension("x.exe"));
+        assert!(!has_suspicious_extension("x.png"));
+        assert!(has_double_extension("report.pdf.exe"));
+        assert!(!has_double_extension("report.pdf"));
+        assert!(contains_filename_risk_keyword("my_keygen_tool.txt"));
+        assert!(!contains_filename_risk_keyword("meeting_notes.txt"));
+    }
+
+    #[test]
+    fn executable_magic_detector_works() {
+        assert!(is_executable_magic(b"MZabcd"));
+        assert!(is_executable_magic(&[0x7f, b'E', b'L', b'F', 0x02]));
+        assert!(!is_executable_magic(b"hello world"));
+    }
+
+    #[test]
+    fn illegal_text_content_detector_works() {
+        assert!(has_illegal_text_content(
+            "text/plain",
+            "这是木马样本".as_bytes()
+        ));
+        assert!(has_illegal_text_content(
+            "application/json",
+            br#"{"k":"malware payload"}"#
+        ));
+        assert!(!has_illegal_text_content("image/png", b"malware"));
+        assert!(!has_illegal_text_content("text/plain", "normal notes".as_bytes()));
+    }
+
+    #[test]
+    fn extract_file_id_helpers_work() {
+        let content = json!({"file_id":"f_1"});
+        assert_eq!(
+            extract_file_id_from_message("file", &content),
+            Some("f_1".to_string())
+        );
+
+        let content = json!({"url":"http://x/api/v1/file/download/f_2/a.txt"});
+        assert_eq!(
+            extract_file_id_from_message("file", &content),
+            Some("f_2".to_string())
+        );
+        assert_eq!(extract_file_id_from_message("text", &content), None);
+        assert_eq!(
+            extract_file_id_from_download_url("http://x/api/v1/file/download/f_3/a.txt"),
+            Some("f_3".to_string())
+        );
+        assert_eq!(extract_file_id_from_download_url("http://x/nope"), None);
+    }
+
+    #[tokio::test]
+    async fn run_simple_scan_detects_clean_file() {
+        let mut file = NamedTempFile::new().expect("create temp file");
+        std::io::Write::write_all(&mut file, b"hello world").expect("write file");
+        let path = file.path().to_string_lossy().to_string();
+
+        let job = ScanJob {
+            file_id: "f1".to_string(),
+            filename: "hello.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+            size: 11,
+            storage_path: path,
+            uploader_bot_id: "b1".to_string(),
+            uploader_user_id: "u1".to_string(),
+        };
+
+        let outcome = run_simple_scan(&job).await.expect("scan");
+        assert_eq!(outcome.status, "clean");
+        assert_eq!(outcome.risk_level, "low");
+        assert!(outcome.reasons.is_empty());
+    }
+
+    #[tokio::test]
+    async fn run_simple_scan_detects_suspicious_file() {
+        let file = NamedTempFile::new().expect("create temp file");
+        let path = file.path().to_string_lossy().to_string();
+        let mut tokio_file = tokio::fs::File::create(&path).await.expect("create");
+        tokio_file.write_all(b"MZfake-exe-content").await.expect("write");
+        tokio_file.flush().await.expect("flush");
+
+        let job = ScanJob {
+            file_id: "f2".to_string(),
+            filename: "invoice.pdf.exe".to_string(),
+            mime_type: "text/plain".to_string(),
+            size: 10, // intentional mismatch
+            storage_path: path,
+            uploader_bot_id: "b1".to_string(),
+            uploader_user_id: "u1".to_string(),
+        };
+
+        let outcome = run_simple_scan(&job).await.expect("scan");
+        assert_eq!(outcome.status, "suspicious");
+        assert_eq!(outcome.risk_level, "high");
+        assert!(!outcome.reasons.is_empty());
+    }
+}

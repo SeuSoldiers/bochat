@@ -48,3 +48,26 @@ impl From<File> for FileResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{File, FileResponse};
+
+    #[test]
+    fn file_response_encodes_filename_in_url() {
+        let file = File {
+            file_id: "f1".to_string(),
+            owner_id: "b1".to_string(),
+            content_hash: "h1".to_string(),
+            filename: "a b.txt".to_string(),
+            size: 3,
+            mime_type: "text/plain".to_string(),
+            storage_path: "/tmp/a b.txt".to_string(),
+            created_at: "now".to_string(),
+        };
+
+        let resp = FileResponse::from(file);
+        assert_eq!(resp.file_id, "f1");
+        assert_eq!(resp.url, "/api/v1/file/download/f1/a%20b%2Etxt");
+    }
+}

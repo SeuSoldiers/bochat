@@ -35,6 +35,9 @@ tokio-tungstenite = { version = "0.29", optional = true, features = [
     "rustls-tls-webpki-roots",
 ] }
 
+[dev-dependencies]
+httpmock = "0.7"
+
 
 [[example]]
 name = "basic_flow"
